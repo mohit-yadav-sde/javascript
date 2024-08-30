@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Renewable Energy Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .widget {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        form {
+            display: grid;
+            gap: 10px;
+        }
+        label {
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .summary {
+            margin-top: 20px;
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .chart-container {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="widget">
+        <h1>Renewable Energy Tracker</h1>
+        <form id="energy-form">
+            <label for="energy">Energy Produced (kWh):</label>
+            <input type="number" id="energy" required>
+            
+            <label for="date">Date:</label>
+            <input type="date" id="date" required>
+            
+            <label for="source">Energy Source:</label>
+            <select id="source" required>
+                <option value="solar">Solar</option>
+                <option value="wind">Wind</option>
+            </select>
+            
+            <label for="period">Logging Period:</label>
+            <select id="period" required>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+            </select>
+            
+            <label for="rate">Electricity Rate ($/kWh):</label>
+            <input type="number" id="rate" step="0.01" value="0.12" required>
+            
+            <button type="submit">Log Energy Production</button>
+        </form>
+        
+        <div class="summary" id="summary"></div>
+        
+        <div class="chart-container">
+            <canvas id="productionChart"></canvas>
+        </div>
+        
+        <button id="generate-report">Generate Environmental Impact Report (PDF)</button>
+    </div>
+
+    <script>
+        const form = document.getElementById('energy-form');
+        const summary = document.getElementById('summary');
+        const generateReportBtn = document.getElementById('generate-report');
+        let energyData = [];
+        let chart;
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const energy = parseFloat(document.getElementById('energy').value);
+            const date = document.getElementById('date').value;
+            const source = document.getElementById('source').value;
+            const period = document.getElementById('period').value;
+            const rate = parseFloat(document.getElementById('rate').value);
+
+            energyData.push({ energy, date, source, period, rate });
+            updateSummary();
+            updateChart();
+        });
+
+        function updateSummary() {
+            const totalEnergy = energyData.reduce((sum, data) => sum + data.energy, 0);
+            const totalSavings = energyData.reduce((sum, data) => sum + data.energy * data.rate, 0);
+            const co2Avoided = totalEnergy * 0.4; // Assuming 0.4 kg CO2 per kWh
+
+            summary.innerHTML = `
+                <h2>Summary</h2>
+                <p>Total Energy Produced: ${totalEnergy.toFixed(2)} kWh</p>
+                <p>Total Savings: $${totalSavings.toFixed(2)}</p>
+                <p>CO2 Emissions Avoided: ${co2Avoided.toFixed(2)} kg</p>
+            `;
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('productionChart').getContext('2d');
+            const labels = energyData.map(data => data.date);
+            const solarData = energyData.filter(data => data.source === 'solar').map(data => data.energy);
+            const windData = energyData.filter(data => data.source === 'wind').map(data => data.energy);
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Solar',
+                            data: solarData,
+                            backgroundColor: 'rgba(255, 206, 86, 0.7)',
+                        },
+                        {
+                            label: 'Wind',
+                            data: windData,
+                            backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Energy Produced (kWh)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        generateReportBtn.addEventListener('click', function() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            doc.setFontSize(18);
+            doc.text('Environmental Impact Report', 20, 20);
+
+            doc.setFontSize(12);
+            const totalEnergy = energyData.reduce((sum, data) => sum + data.energy, 0);
+            const totalSavings = energyData.reduce((sum, data) => sum + data.energy * data.rate, 0);
+            const co2Avoided = totalEnergy * 0.4;
+
+            doc.text(`Total Energy Produced: ${totalEnergy.toFixed(2)} kWh`, 20, 40);
+            doc.text(`Total Savings: $${totalSavings.toFixed(2)}`, 20, 50);
+            doc.text(`CO2 Emissions Avoided: ${co2Avoided.toFixed(2)} kg`, 20, 60);
+
+            doc.text('Energy Production Log:', 20, 80);
+            energyData.forEach((data, index) => {
+                doc.text(`${data.date}: ${data.energy} kWh (${data.source})`, 30, 90 + index * 10);
+            });
+
+            doc.save('environmental-impact-report.pdf');
+        });
+    </script>
+</body>
+</html>
