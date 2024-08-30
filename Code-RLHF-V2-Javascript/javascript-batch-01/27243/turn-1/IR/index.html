@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel Efficiency Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .widget {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        form {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input, select {
+            width: 100%;
+            padding: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #tripSummary, #fuelCostAnalysis, #efficiencyTrends, #tips, #tripLog {
+            margin-top: 20px;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="widget">
+        <h1>Fuel Efficiency Tracker</h1>
+        
+        <form id="tripForm">
+            <h2>Log a Trip</h2>
+            <input type="date" id="tripDate" required>
+            <div style="display: flex; gap: 10px;">
+                <input type="number" id="distance" placeholder="Distance" step="0.1" required style="flex: 1;">
+                <select id="distanceUnit" style="width: auto;">
+                    <option value="miles">Miles</option>
+                    <option value="km">Kilometers</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <input type="number" id="fuelUsed" placeholder="Fuel used" step="0.1" required style="flex: 1;">
+                <select id="fuelUnit" style="width: auto;">
+                    <option value="gallons">Gallons</option>
+                    <option value="liters">Liters</option>
+                </select>
+            </div>
+            <input type="number" id="fuelCost" placeholder="Fuel cost per unit" step="0.01" required>
+            <button type="submit">Log Trip</button>
+        </form>
+
+        <div id="tripSummary">
+            <h2>Trip Summary</h2>
+            <p id="lastTripSummary"></p>
+        </div>
+
+        <div id="fuelCostAnalysis">
+            <h2>Fuel Cost Analysis</h2>
+            <p id="costAnalysis"></p>
+        </div>
+
+        <div id="efficiencyTrends">
+            <h2>Efficiency Trends</h2>
+            <div class="chart-container">
+                <canvas id="efficiencyChart"></canvas>
+            </div>
+        </div>
+
+        <div id="tips">
+            <h2>Fuel Efficiency Tips</h2>
+            <p id="efficiencyTip"></p>
+        </div>
+
+        <div id="tripLog">
+            <h2>Trip Log</h2>
+            <table id="tripLogTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Distance</th>
+                        <th>Fuel Used</th>
+                        <th>Efficiency</th>
+                        <th>Cost</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let trips = [];
+        let chart;
+
+        document.getElementById('tripForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            addTrip();
+        });
+
+        function addTrip() {
+            const date = document.getElementById('tripDate').value;
+            const distance = parseFloat(document.getElementById('distance').value);
+            const distanceUnit = document.getElementById('distanceUnit').value;
+            const fuelUsed = parseFloat(document.getElementById('fuelUsed').value);
+            const fuelUnit = document.getElementById('fuelUnit').value;
+            const fuelCost = parseFloat(document.getElementById('fuelCost').value);
+
+            let efficiency, efficiencyUnit;
+            if (distanceUnit === 'miles' && fuelUnit === 'gallons') {
+                efficiency = distance / fuelUsed;
+                efficiencyUnit = 'mpg';
+            } else if (distanceUnit === 'km' && fuelUnit === 'liters') {
+                efficiency = (fuelUsed / distance) * 100;
+                efficiencyUnit = 'L/100km';
+            } else {
+                // Convert to mpg for consistency in storage
+                const milesDistance = distanceUnit === 'km' ? distance * 0.621371 : distance;
+                const gallonsFuel = fuelUnit === 'liters' ? fuelUsed * 0.264172 : fuelUsed;
+                efficiency = milesDistance / gallonsFuel;
+                efficiencyUnit = 'mpg';
+            }
+
+            const totalCost = fuelUsed * fuelCost;
+
+            const trip = {
+                date,
+                distance,
+                distanceUnit,
+                fuelUsed,
+                fuelUnit,
+                fuelCost,
+                efficiency,
+                efficiencyUnit,
+                totalCost
+            };
+
+            trips.push(trip);
+            updateTripSummary(trip);
+            updateCostAnalysis();
+            updateEfficiencyChart();
+            generateTip();
+            updateTripLog();
+        }
+
+        function updateTripSummary(trip) {
+            const summary = `
+                Date: ${trip.date}
+                Distance: ${trip.distance.toFixed(1)} ${trip.distanceUnit}
+                Fuel Used: ${trip.fuelUsed.toFixed(1)} ${trip.fuelUnit}
+                Efficiency: ${trip.efficiency.toFixed(2)} ${trip.efficiencyUnit}
+                Total Cost: $${trip.totalCost.toFixed(2)}
+            `;
+            document.getElementById('lastTripSummary').innerText = summary;
+        }
+
+        function updateCostAnalysis() {
+            const totalCost = trips.reduce((sum, trip) => sum + trip.totalCost, 0);
+            const totalDistanceMiles = trips.reduce((sum, trip) => {
+                return sum + (trip.distanceUnit === 'km' ? trip.distance * 0.621371 : trip.distance);
+            }, 0);
+            const costPerMile = totalCost / totalDistanceMiles;
+
+            const analysis = `
+                Total Fuel Expenses: $${totalCost.toFixed(2)}
+                Cost per Mile: $${costPerMile.toFixed(2)}
+            `;
+            document.getElementById('costAnalysis').innerText = analysis;
+        }
+
+        function updateEfficiencyChart() {
+            const ctx = document.getElementById('efficiencyChart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: trips.map(trip => trip.date),
+                    datasets: [{
+                        label: 'Efficiency',
+                        data: trips.map(trip => trip.efficiency),
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Efficiency'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function generateTip() {
+            const tips = [
+                "Maintain proper tire pressure for optimal fuel efficiency.",
+                "Avoid rapid acceleration and braking to conserve fuel.",
+                "Remove excess weight from your vehicle to improve efficiency.",
+                "Use cruise control on highways to maintain a steady speed.",
+                "Plan your routes to avoid traffic and minimize idling time.",
+                "Regular vehicle maintenance can improve fuel efficiency.",
+                "Use the recommended grade of motor oil to reduce engine friction.",
+                "Combine errands into one trip to reduce overall driving distance.",
+                "Avoid excessive idling; turn off the engine if stopped for more than a minute.",
+                "Use air conditioning sparingly, as it increases fuel consumption."
+            ];
+
+            const randomTip = tips[Math.floor(Math.random() * tips.length)];
+            document.getElementById('efficiencyTip').innerText = randomTip;
+        }
+
+        function updateTripLog() {
+            const tbody = document.querySelector('#tripLogTable tbody');
+            tbody.innerHTML = '';
+            trips.forEach(trip => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = trip.date;
+                row.insertCell().textContent = `${trip.distance.toFixed(1)} ${trip.distanceUnit}`;
+                row.insertCell().textContent = `${trip.fuelUsed.toFixed(1)} ${trip.fuelUnit}`;
+                row.insertCell().textContent = `${trip.efficiency.toFixed(2)} ${trip.efficiencyUnit}`;
+                row.insertCell().textContent = `$${trip.totalCost.toFixed(2)}`;
+            });
+        }
+
+        // Initialize with sample data
+        function addSampleData() {
+            const sampleTrips = [
+                { date: '2024-08-01', distance: 100, distanceUnit: 'miles', fuelUsed: 4, fuelUnit: 'gallons', fuelCost: 3 },
+                { date: '2024-08-05', distance: 150, distanceUnit: 'km', fuelUsed: 6, fuelUnit: 'liters', fuelCost: 3.1 },
+                { date: '2024-08-10', distance: 80, distanceUnit: 'miles', fuelUsed: 3, fuelUnit: 'gallons', fuelCost: 3.2 },
+                { date: '2024-08-15', distance: 200, distanceUnit: 'km', fuelUsed: 8, fuelUnit: 'liters', fuelCost: 3.15 },
+                { date: '2024-08-20', distance: 120, distanceUnit: 'miles', fuelUsed: 5, fuelUnit: 'gallons', fuelCost: 3.05 }
+            ];
+
+            sampleTrips.forEach(trip => {
+                document.getElementById('tripDate').value = trip.date;
+                document.getElementById('distance').value = trip.distance;
+                document.getElementById('distanceUnit').value = trip.distanceUnit;
+                document.getElementById('fuelUsed').value = trip.fuelUsed;
+                document.getElementById('fuelUnit').value = trip.fuelUnit;
+                document.getElementById('fuelCost').value = trip.fuelCost;
+                addTrip();
+            });
+        }
+
+        addSampleData();
+    </script>
+</body>
+</html>
