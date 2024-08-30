@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Maintenance Tracker</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+</head>
+<body class="bg-gray-100 p-4">
+
+<div class="max-w-3xl mx-auto bg-white p-6 rounded shadow-lg">
+    <!-- Maintenance Log Form -->
+    <form id="maintenanceForm" class="mb-6">
+        <h2 class="text-xl mb-4">Log Maintenance</h2>
+        <input type="text" id="serviceType" placeholder="Service Type" class="mb-2 p-2 border rounded w-full">
+        <input type="date" id="serviceDate" class="mb-2 p-2 border rounded w-full">
+        <input type="number" id="mileage" placeholder="Current Mileage" class="mb-2 p-2 border rounded w-full">
+        <input type="number" id="nextServiceMileage" placeholder="Mileage until next service" class="mb-2 p-2 border rounded w-full">
+        <textarea id="notes" placeholder="Notes" class="mb-2 p-2 border rounded w-full"></textarea>
+        <select id="category" class="mb-2 p-2 border rounded w-full">
+            <option value="engine">Engine</option>
+            <option value="tires">Tires</option>
+            <option value="brakes">Brakes</option>
+        </select>
+        <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Log Service</button>
+    </form>
+
+    <!-- Service History -->
+    <div id="serviceHistory" class="mb-6">
+        <h2 class="text-xl">Service History</h2>
+        <table class="table-auto w-full">
+            <thead>
+                <tr><th>Date</th><th>Type</th><th>Mileage</th><th>Next</th><th>Notes</th></tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Pie Chart for Service Categories -->
+    <div>
+        <h2 class="text-xl">Service Distribution</h2>
+        <canvas id="servicePieChart" width="400" height="400"></canvas>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const form = document.getElementById('maintenanceForm');
+    const historyBody = document.getElementById('historyBody');
+    let services = JSON.parse(localStorage.getItem('carServices')) || [];
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const service = {
+            type: document.getElementById('serviceType').value,
+            date: document.getElementById('serviceDate').value,
+            mileage: document.getElementById('mileage').value,
+            nextMileage: document.getElementById('nextServiceMileage').value,
+            notes: document.getElementById('notes').value,
+            category: document.getElementById('category').value
+        };
+        services.push(service);
+        localStorage.setItem('carServices', JSON.stringify(services));
+        updateDisplay();
+        form.reset();
+    });
+
+    function updateDisplay() {
+        historyBody.innerHTML = '';
+        services.forEach(service => {
+            let row = historyBody.insertRow();
+            row.insertCell(0).textContent = service.date;
+            row.insertCell(1).textContent = service.type;
+            row.insertCell(2).textContent = service.mileage;
+            row.insertCell(3).textContent = service.nextMileage;
+            row.insertCell(4).textContent = service.notes;
+        });
+
+        // Update Pie Chart
+        const categoryCounts = services.reduce((acc, service) => {
+            acc[service.category] = (acc[service.category] || 0) + 1;
+            return acc;
+        }, {});
+        new Chart(document.getElementById('servicePieChart'), {
+            type: 'pie',
+            data: {
+                labels: Object.keys(categoryCounts),
+                datasets: [{
+                    data: Object.values(categoryCounts),
+                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+                }]
+            }
+        });
+    }
+
+    updateDisplay();
+</script>
+
+</body>
+</html>

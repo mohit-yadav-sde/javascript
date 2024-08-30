@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Maintenance Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+<style>
+  .car-maintenance-widget {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .log-entry, .service-history, .visual-representation {
+    margin-bottom: 20px;
+  }
+  #history-list {
+    list-style: none;
+    padding: 0;
+  }
+  #history-list li {
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+  }
+  #history-list li:last-child {
+    border-bottom: none;
+  }
+</style>
+</head>
+<body>
+    <div class="car-maintenance-widget">
+        <div class="log-entry">
+          <h2>Log Maintenance Service</h2>
+          <input type="date" id="service-date" placeholder="Service Date">
+          <input type="number" id="service-mileage" placeholder="Current Mileage">
+          <select id="service-type">
+            <option value="">Select Service Type</option>
+            <!-- options will be populated dynamically -->
+          </select>
+          <textarea id="service-notes" placeholder="Service Notes"></textarea>
+          <button onclick="logService()">Log Service</button>
+        </div>
+        
+        <div class="service-history">
+          <h2>Service History</h2>
+          <div class="filters">
+            <input type="search" id="search-service" placeholder="Search service history">
+            <select id="filter-type">
+              <option value="">Filter by Type</option>
+              <!-- options will be populated dynamically -->
+            </select>
+          </div>
+          <ul id="history-list">
+            <!-- service history will be displayed here -->
+          </ul>
+          <button onclick="downloadHistory()">Download History</button>
+        </div>
+      
+        <div class="visual-representation">
+          <h2>Service Distribution</h2>
+          <canvas id="service-pie-chart"></canvas>
+        </div>
+    </div>
+    <script>
+  const serviceData = [];
+  const serviceTypes = ['Engine', 'Tires', 'Brakes', 'Other'];
+  
+  // Initialize service types dropdown
+  serviceTypes.forEach(type => {
+    document.getElementById('service-type').innerHTML += `<option value="${type}">${type}</option>`;
+    document.getElementById('filter-type').innerHTML += `<option value="${type}">${type}</option>`;
+  });
+
+  function logService() {
+    const date = document.getElementById('service-date').value;
+    const mileage = document.getElementById('service-mileage').value;
+    const type = document.getElementById('service-type').value;
+    const notes = document.getElementById('service-notes').value;
+    serviceData.push({ date, mileage, type, notes });
+    updateServiceHistory();
+    updatePieChart();
+  }
+
+  function updateServiceHistory() {
+    const list = document.getElementById('history-list');
+    list.innerHTML = '';
+    serviceData.forEach((entry, index) => {
+      list.innerHTML += `
+        <li>
+          <strong>${entry.date}</strong> - ${entry.type} at ${entry.mileage} miles. Notes: ${entry.notes}
+        </li>`;
+    });
+  }
+
+  function downloadHistory() {
+    const csvContent = "data:text/csv;charset=utf-8," 
+                    + serviceData.map(e => `${e.date},${e.mileage},${e.type},${e.notes}`).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "service_history.csv");
+    document.body.appendChild(link);
+    link.click();
+  }
+
+  function updatePieChart() {
+    const ctx = document.getElementById('service-pie-chart').getContext('2d');
+    const serviceCount = {};
+    serviceData.forEach(entry => {
+      serviceCount[entry.type] = (serviceCount[entry.type] || 0) + 1;
+    });
+    new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: Object.keys(serviceCount),
+        datasets: [{
+          data: Object.values(serviceCount),
+          backgroundColor: ['red', 'blue', 'green', 'yellow']
+        }]
+      }
+    });
+  }
+    </script>
+</body>
+</html>

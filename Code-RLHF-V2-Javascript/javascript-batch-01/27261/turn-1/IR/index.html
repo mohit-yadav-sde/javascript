@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Maintenance Widget</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .widget {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        h2 {
+            margin-top: 0;
+        }
+        form {
+            display: grid;
+            gap: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        #pieChart {
+            max-width: 400px;
+            margin: 20px auto;
+        }
+        .reminders, .recommendations {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="widget">
+        <h2>Car Maintenance Widget</h2>
+        <form id="maintenanceForm">
+            <input type="text" id="serviceType" placeholder="Service Type" required>
+            <select id="serviceCategory" required>
+                <option value="">Select Category</option>
+                <option value="Engine">Engine</option>
+                <option value="Tires">Tires</option>
+                <option value="Brakes">Brakes</option>
+                <option value="Other">Other</option>
+            </select>
+            <input type="date" id="serviceDate" required>
+            <input type="number" id="mileage" placeholder="Mileage" required>
+            <input type="number" id="interval" placeholder="Interval (miles)" required>
+            <textarea id="notes" placeholder="Notes"></textarea>
+            <button type="submit">Add Service</button>
+        </form>
+
+        <div class="reminders">
+            <h3>Upcoming Reminders</h3>
+            <ul id="remindersList"></ul>
+        </div>
+
+        <div class="recommendations">
+            <h3>Service Recommendations</h3>
+            <p>Based on your car's make and model, we recommend:</p>
+            <ul id="recommendationsList"></ul>
+        </div>
+
+        <h3>Service History</h3>
+        <input type="text" id="searchInput" placeholder="Search service history">
+        <table id="serviceHistory">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Service Type</th>
+                    <th>Category</th>
+                    <th>Mileage</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <button id="downloadHistory">Download History (CSV)</button>
+
+        <div id="pieChart">
+            <canvas id="serviceChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Initialize maintenance data array
+        let maintenanceData = JSON.parse(localStorage.getItem('maintenanceData')) || [];
+
+        // Function to add new maintenance entry
+        function addMaintenanceEntry(entry) {
+            maintenanceData.push(entry);
+            localStorage.setItem('maintenanceData', JSON.stringify(maintenanceData));
+            updateServiceHistory();
+            updateReminders();
+            updatePieChart();
+        }
+
+        // Function to update service history table
+        function updateServiceHistory() {
+            const tbody = document.querySelector('#serviceHistory tbody');
+            tbody.innerHTML = '';
+            maintenanceData.forEach(entry => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = entry.date;
+                row.insertCell().textContent = entry.serviceType;
+                row.insertCell().textContent = entry.category;
+                row.insertCell().textContent = entry.mileage;
+                row.insertCell().textContent = entry.notes;
+            });
+        }
+
+        // Function to update reminders
+        function updateReminders() {
+            const remindersList = document.getElementById('remindersList');
+            remindersList.innerHTML = '';
+            const currentDate = new Date();
+            const currentMileage = maintenanceData.length > 0 ? maintenanceData[maintenanceData.length - 1].mileage : 0;
+
+            maintenanceData.forEach(entry => {
+                const serviceDate = new Date(entry.date);
+                const nextServiceDate = new Date(serviceDate.setDate(serviceDate.getDate() + 180)); // Assuming 6 months interval
+                const nextServiceMileage = parseInt(entry.mileage) + parseInt(entry.interval);
+
+                if (nextServiceDate > currentDate || nextServiceMileage > currentMileage) {
+                    const li = document.createElement('li');
+                    li.textContent = `${entry.serviceType} due on ${nextServiceDate.toDateString()} or at ${nextServiceMileage} miles`;
+                    remindersList.appendChild(li);
+                }
+            });
+        }
+
+        let serviceChart; // Declare a variable to hold the chart instance
+
+        function updatePieChart() {
+            const categoryCount = {};
+            maintenanceData.forEach(entry => {
+                categoryCount[entry.category] = (categoryCount[entry.category] || 0) + 1;
+            });
+
+            const ctx = document.getElementById('serviceChart').getContext('2d');
+
+            // If a chart already exists, destroy it
+            if (serviceChart) {
+                serviceChart.destroy();
+            }
+
+            // Create a new chart
+            serviceChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(categoryCount),
+                    datasets: [{
+                        data: Object.values(categoryCount),
+                        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+                    }]
+            },
+            options: {
+                responsive: true,
+                title: {
+                    display: true,
+                    text: 'Service Categories'
+                }
+            }
+        });
+    }
+        // Event listener for form submission
+        document.getElementById('maintenanceForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const entry = {
+                serviceType: document.getElementById('serviceType').value,
+                category: document.getElementById('serviceCategory').value,
+                date: document.getElementById('serviceDate').value,
+                mileage: document.getElementById('mileage').value,
+                interval: document.getElementById('interval').value,
+                notes: document.getElementById('notes').value
+            };
+            addMaintenanceEntry(entry);
+            this.reset();
+        });
+
+        // Event listener for search input
+        document.getElementById('searchInput').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const rows = document.querySelectorAll('#serviceHistory tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        });
+
+        // Function to download service history as CSV
+        function downloadCSV() {
+            let csv = 'Date,Service Type,Category,Mileage,Notes\n';
+            maintenanceData.forEach(entry => {
+                csv += `${entry.date},${entry.serviceType},${entry.category},${entry.mileage},"${entry.notes}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'service_history.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        document.getElementById('downloadHistory').addEventListener('click', downloadCSV);
+
+        // Initialize widget
+        updateServiceHistory();
+        updateReminders();
+        updatePieChart();
+
+        // Sample recommendations (you can customize these based on car make and model)
+        const recommendations = [
+            'Change oil every 5,000 miles or 6 months',
+            'Rotate tires every 6,000-8,000 miles',
+            'Replace air filter every 15,000-30,000 miles',
+            'Check brake pads every 12,000 miles'
+        ];
+
+        const recommendationsList = document.getElementById('recommendationsList');
+        recommendations.forEach(rec => {
+            const li = document.createElement('li');
+            li.textContent = rec;
+            recommendationsList.appendChild(li);
+        });
+    </script>
+</body>
+</html>
