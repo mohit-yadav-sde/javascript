@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Scaler</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600">
+    <style>
+        body { font-family: 'Open Sans', sans-serif; }
+        .recipe-container { max-width: 600px; margin: auto; padding: 20px; }
+        .recipe-list, .recipe-details { padding: 20px; }
+        .serving-size { width: 100%; padding: 10px; margin: 10px 0; }
+        .ingredient-list { list-style: none; padding: 0; }
+        .ingredient-list li { padding: 10px 0; border-bottom: 1px solid #ccc; }
+        .nutritional-info { margin-top: 20px; }
+        .nutritional-info p { font-size: 0.9em; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="recipe-container">
+        <select class="recipe-list" onchange="selectRecipe(this.value)">
+            <option value="">Select a recipe</option>
+            <!-- Recipes will be added here -->
+        </select>
+        <div class="recipe-details">
+            <h2 id="recipe-name"></h2>
+            <input type="number" id="serving-size" value="1" min="1" class="serving-size" onchange="updateServingSize(this.value)">
+            <select id="serving-unit" onchange="updateServingUnit(this.value)">
+                <option value="servings">Servings</option>
+                <!-- Additional units can be added here -->
+            </select>
+            <ul id="ingredient-list" class="ingredient-list">
+                <!-- Ingredients will be listed here -->
+            </ul>
+            <div class="nutritional-info">
+                <p id="nutritional-summary"></p>
+                <!-- Nutritional info will be displayed here -->
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/axios@0.21.1/dist/axios.min.js"></script>
+    <script>
+        const recipes = []; // Array to store recipe data
+        const units = { servings: 1, cups: 236.59, tablespoons: 14.7868, teaspoons: 4.92892, grams: 1 }; // Example unit conversions
+        
+        function selectRecipe(id) {
+            const selectedRecipe = recipes.find(recipe => recipe.id === id);
+            if (selectedRecipe) {
+                document.getElementById('recipe-name').textContent = selectedRecipe.name;
+                updateIngredientsList(selectedRecipe.ingredients);
+                updateNutritionalInfo(selectedRecipe.nutritionalInfo);
+            }
+        }
+        
+        function updateIngredientsList(ingredients) {
+            const listElement = document.getElementById('ingredient-list');
+            listElement.innerHTML = '';
+            ingredients.forEach(ingredient => {
+                const listItem = document.createElement('li');
+                listItem.textContent = `${ingredient.quantity} ${ingredient.unit} of ${ingredient.name}`;
+                listElement.appendChild(listItem);
+            });
+        }
+        
+        function updateServingSize(size) {
+            // Update ingredients and nutritional info based on new serving size
+        }
+        
+        function updateServingUnit(unit) {
+            // Handle unit conversion and update ingredient display
+        }
+        
+        function updateNutritionalInfo(info) {
+            document.getElementById('nutritional-summary').textContent = `Calories: ${info.calories} per serving`;
+            // Add more nutritional details as needed
+        }
+        
+        // Fetch sample recipes from API or define locally for demo
+        axios.get('path/to/recipes.json')
+            .then(response => {
+                recipes.push(...response.data);
+                populateRecipeList();
+            })
+            .catch(error => console.error('Error loading recipes:', error));
+        
+        function populateRecipeList() {
+            const recipeListElement = document.querySelector('.recipe-list');
+            recipes.forEach(recipe => {
+                const option = document.createElement('option');
+                option.value = recipe.id;
+                option.textContent = recipe.name;
+                recipeListElement.appendChild(option);
+            });
+        }
+    </script>
+</body>
+</html>

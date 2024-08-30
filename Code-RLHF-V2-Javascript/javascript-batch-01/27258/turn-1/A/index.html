@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recipe Scaler and Nutrition Widget</title>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<style>
+    .widget-container {
+        max-width: 600px;
+        margin: 20px auto;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+    }
+    .ingredient-item {
+        margin: 5px 0;
+    }
+</style>
+</head>
+<body>
+
+<div class="container widget-container">
+    <h2>Recipe Scaler</h2>
+    <select id="recipeSelect" class="form-control mb-3"></select>
+    <div class="input-group mb-3">
+        <input type="number" id="servings" class="form-control" value="1" min="1">
+        <div class="input-group-append">
+            <select id="servingUnit" class="form-control">
+                <option>servings</option>
+                <option>people</option>
+            </select>
+        </div>
+    </div>
+    <h4>Ingredients</h4>
+    <ul id="ingredientList"></ul>
+    <div id="nutritionInfo"></div>
+</div>
+
+<script>
+    const recipes = {
+        'pancakes': {
+            name: 'Classic Pancakes',
+            servings: 4,
+            ingredients: [
+                {name: 'flour', amount: 1.5, unit: 'cups'},
+                {name: 'sugar', amount: 2, unit: 'tbsp'},
+                {name: 'baking powder', amount: 3.5, unit: 'tsp'},
+                {name: 'salt', amount: 0.25, unit: 'tsp'},
+                {name: 'milk', amount: 1.25, unit: 'cups'},
+                {name: 'egg', amount: 1, unit: 'count'},
+                {name: 'butter', amount: 3, unit: 'tbsp', melted: true}
+            ],
+            nutrition: {calories: 230, protein: 5, carbs: 30, fat: 10}
+        },
+        // Add more recipes here...
+    };
+
+    function populateRecipes() {
+        const select = document.getElementById('recipeSelect');
+        for (let id in recipes) {
+            let option = document.createElement('option');
+            option.value = id;
+            option.textContent = recipes[id].name;
+            select.appendChild(option);
+        }
+    }
+
+    function updateIngredients(recipe, servings) {
+        const list = document.getElementById('ingredientList');
+        list.innerHTML = '';
+        recipe.ingredients.forEach(ingredient => {
+            let scaledAmount = ingredient.amount * (servings / recipe.servings);
+            let li = document.createElement('li');
+            li.className = 'ingredient-item';
+            li.textContent = `${ingredient.name}: ${scaledAmount.toFixed(2)} ${ingredient.unit}`;
+            list.appendChild(li);
+        });
+    }
+
+    function updateNutrition(recipe, servings) {
+        const nutritionDiv = document.getElementById('nutritionInfo');
+        const scaleFactor = servings / recipe.servings;
+        let info = `<h4>Nutritional Info (per serving)</h4>`;
+        for (let nut in recipe.nutrition) {
+            let scaledValue = (recipe.nutrition[nut] * scaleFactor).toFixed(2);
+            info += `${nut.charAt(0).toUpperCase() + nut.slice(1)}: ${scaledValue} <br>`;
+        }
+        nutritionDiv.innerHTML = info;
+    }
+
+    function initWidget() {
+        populateRecipes();
+        document.getElementById('recipeSelect').onchange = function() {
+            const selectedRecipe = this.value;
+            updateIngredients(recipes[selectedRecipe], document.getElementById('servings').value);
+            updateNutrition(recipes[selectedRecipe], document.getElementById('servings').value);
+        };
+        document.getElementById('servings').oninput = document.getElementById('servingUnit').onchange = function() {
+            const selectedRecipe = document.getElementById('recipeSelect').value;
+            updateIngredients(recipes[selectedRecipe], this.value);
+            updateNutrition(recipes[selectedRecipe], this.value);
+        };
+    }
+
+    initWidget();
+</script>
+
+</body>
+</html>

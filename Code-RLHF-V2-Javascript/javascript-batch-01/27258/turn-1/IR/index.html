@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Widget</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #recipe-widget {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        select, input {
+            margin-bottom: 10px;
+        }
+        #ingredient-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #nutrition-chart {
+            max-width: 400px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="recipe-widget">
+        <h2>Recipe Widget</h2>
+        <select id="recipe-select">
+            <option value="">Select a recipe</option>
+        </select>
+        <div id="serving-size">
+            <label for="serving-input">Serving Size:</label>
+            <input type="number" id="serving-input" min="1" value="1">
+            <select id="serving-unit">
+                <option value="serving">serving(s)</option>
+                <option value="person">person(s)</option>
+            </select>
+        </div>
+        <h3>Ingredients:</h3>
+        <ul id="ingredient-list"></ul>
+        <h3>Instructions:</h3>
+        <ol id="instructions-list"></ol>
+        <h3>Nutritional Information(per serving):</h3>
+        <div id="nutrition-chart"></div>
+        <h3>Substitution Suggestions:</h3>
+        <ul id="substitutions-list"></ul>
+    </div>
+
+    <script>
+        const recipes = [
+            {
+                name: "Chocolate Chip Cookies",
+                originalServings: 24,
+                ingredients: [
+                    { name: "all-purpose flour", amount: 2.25, unit: "cups" },
+                    { name: "baking soda", amount: 1, unit: "tsp" },
+                    { name: "salt", amount: 1, unit: "tsp" },
+                    { name: "unsalted butter", amount: 1, unit: "cup" },
+                    { name: "granulated sugar", amount: 0.75, unit: "cup" },
+                    { name: "brown sugar", amount: 0.75, unit: "cup" },
+                    { name: "vanilla extract", amount: 1, unit: "tsp" },
+                    { name: "large eggs", amount: 2, unit: "" },
+                    { name: "semisweet chocolate chips", amount: 2, unit: "cups" }
+                ],
+                instructions: [
+                    "Preheat oven to 375°F (190°C).",
+                    "In a bowl, mix flour, baking soda, and salt.",
+                    "In another bowl, cream butter and sugars, then add vanilla and eggs.",
+                    "Gradually mix in the dry ingredients.",
+                    "Stir in chocolate chips.",
+                    "Drop spoonfuls of dough onto ungreased baking sheets.",
+                    "Bake for 9 to 11 minutes or until golden brown.",
+                    "Cool on baking sheets for 2 minutes, then transfer to wire racks."
+                ],
+                nutrition: {
+                    calories: 150,
+                    protein: 2,
+                    fat: 7,
+                    carbs: 21
+                },
+                substitutions: [
+                    "Replace all-purpose flour with whole wheat flour for a healthier option.",
+                    "Use coconut sugar instead of granulated sugar for a lower glycemic index.",
+                    "Substitute butter with coconut oil for a dairy-free version."
+                ]
+            },
+            {
+                name: "Vegetable Stir-Fry",
+                originalServings: 4,
+                ingredients: [
+                    { name: "vegetable oil", amount: 2, unit: "tbsp" },
+                    { name: "garlic", amount: 2, unit: "cloves" },
+                    { name: "broccoli florets", amount: 2, unit: "cups" },
+                    { name: "carrots", amount: 2, unit: "" },
+                    { name: "bell peppers", amount: 2, unit: "" },
+                    { name: "soy sauce", amount: 3, unit: "tbsp" },
+                    { name: "sesame oil", amount: 1, unit: "tsp" },
+                    { name: "cornstarch", amount: 1, unit: "tbsp" },
+                    { name: "water", amount: 0.25, unit: "cup" }
+                ],
+                instructions: [
+                    "Heat vegetable oil in a large wok or skillet over medium-high heat.",
+                    "Add minced garlic and stir-fry for 30 seconds.",
+                    "Add broccoli, sliced carrots, and sliced bell peppers. Stir-fry for 5-7 minutes.",
+                    "In a small bowl, mix soy sauce, sesame oil, cornstarch, and water.",
+                    "Pour the sauce over the vegetables and cook for 2-3 minutes until thickened.",
+                    "Serve hot over rice or noodles."
+                ],
+                nutrition: {
+                    calories: 120,
+                    protein: 3,
+                    fat: 7,
+                    carbs: 13
+                },
+                substitutions: [
+                    "Use tofu or tempeh for added protein.",
+                    "Substitute soy sauce with coconut aminos for a soy-free option.",
+                    "Add different vegetables like snap peas or mushrooms for variety."
+                ]
+            }
+        ];
+
+        const recipeSelect = document.getElementById('recipe-select');
+        const servingInput = document.getElementById('serving-input');
+        const servingUnit = document.getElementById('serving-unit');
+        const ingredientList = document.getElementById('ingredient-list');
+        const instructionsList = document.getElementById('instructions-list');
+        const substitutionsList = document.getElementById('substitutions-list');
+        let nutritionChart;
+
+    // Populate recipe select
+    recipes.forEach((recipe, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = recipe.name;
+        recipeSelect.appendChild(option);
+    });
+
+    function updateRecipe() {
+        const recipeIndex = recipeSelect.value;
+        if (recipeIndex === "") {
+            ingredientList.innerHTML = "";
+            instructionsList.innerHTML = "";
+            substitutionsList.innerHTML = "";
+            if (nutritionChart) {
+                nutritionChart.destroy();
+                nutritionChart = null;
+            }
+            return;
+        }
+
+        const recipe = recipes[recipeIndex];
+        const scaleFactor = servingInput.value / recipe.originalServings;
+
+        // Update ingredients
+        ingredientList.innerHTML = "";
+        recipe.ingredients.forEach(ingredient => {
+            const li = document.createElement('li');
+            const scaledAmount = (ingredient.amount * scaleFactor).toFixed(2);
+            li.textContent = `${scaledAmount} ${ingredient.unit} ${ingredient.name}`;
+            ingredientList.appendChild(li);
+        });
+
+        // Update instructions
+        instructionsList.innerHTML = "";
+        recipe.instructions.forEach(instruction => {
+            const li = document.createElement('li');
+            li.textContent = instruction;
+            instructionsList.appendChild(li);
+        });
+
+        // Update substitutions
+        substitutionsList.innerHTML = "";
+        recipe.substitutions.forEach(substitution => {
+            const li = document.createElement('li');
+            li.textContent = substitution;
+            substitutionsList.appendChild(li);
+        });
+
+        // Update nutrition chart
+        updateNutritionChart(recipe, scaleFactor);
+    }
+
+    function updateNutritionChart(recipe, scaleFactor) {
+        const ctx = document.getElementById('nutrition-chart');
+        
+        // Clear the previous chart
+        ctx.innerHTML = '';
+        
+        // Create a new canvas element
+        const canvas = document.createElement('canvas');
+        ctx.appendChild(canvas);
+
+        const scaledNutrition = {
+            calories: recipe.nutrition.calories * scaleFactor,
+            protein: recipe.nutrition.protein * scaleFactor,
+            fat: recipe.nutrition.fat * scaleFactor,
+            carbs: recipe.nutrition.carbs * scaleFactor
+        };
+
+        if (nutritionChart) {
+            nutritionChart.destroy();
+        }
+
+        nutritionChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: ['Calories', 'Protein', 'Fat', 'Carbs'],
+                datasets: [{
+                    label: 'Amount per serving',
+                    data: [scaledNutrition.calories, scaledNutrition.protein, scaledNutrition.fat, scaledNutrition.carbs],
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.2)',
+                        'rgba(54, 162, 235, 0.2)',
+                        'rgba(255, 206, 86, 0.2)',
+                        'rgba(75, 192, 192, 0.2)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    recipeSelect.addEventListener('change', updateRecipe);
+    servingInput.addEventListener('input', updateRecipe);
+    servingUnit.addEventListener('change', updateRecipe);
+    </script>
+</body>
+</html>
