@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Calendar Widget</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .widget-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .input-section, .calendar-section, .analytics-section, .engagement-section {
+            margin-bottom: 30px;
+        }
+        input, textarea, select, button {
+            display: block;
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+        }
+        .calendar-day {
+            border: 1px solid #ddd;
+            padding: 5px;
+            min-height: 100px;
+        }
+        .post-item {
+            margin-bottom: 5px;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 12px;
+            color: white;
+        }
+        #analyticsChart, #engagementChart {
+            width: 100%;
+            max-height: 300px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .metric-card {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 10px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="widget-container">
+        <h1>Content Calendar Widget</h1>
+        
+        <div class="input-section">
+            <h2>Schedule a Post</h2>
+            <input type="text" id="postTitle" placeholder="Post Title">
+            <textarea id="postDescription" placeholder="Post Description"></textarea>
+            <input type="date" id="postDate">
+            <select id="postCategory">
+                <option value="social">Social Media</option>
+                <option value="blog">Blog</option>
+                <option value="video">Video</option>
+                <option value="podcast">Podcast</option>
+            </select>
+            <button onclick="schedulePost()">Schedule Post</button>
+        </div>
+
+        <div class="calendar-section">
+            <h2>Calendar</h2>
+            <div id="calendar"></div>
+        </div>
+
+        <div class="analytics-section">
+            <h2>Analytics</h2>
+            <select id="analyticsCategory" onchange="updateAnalytics()">
+                <option value="all">All Categories</option>
+                <option value="social">Social Media</option>
+                <option value="blog">Blog</option>
+                <option value="video">Video</option>
+                <option value="podcast">Podcast</option>
+            </select>
+            <div id="postCount"></div>
+            <canvas id="analyticsChart"></canvas>
+        </div>
+
+        <div class="engagement-section">
+            <h2>Engagement Metrics</h2>
+            <select id="engagementCategory" onchange="updateEngagementMetrics()">
+                <option value="all">All Categories</option>
+                <option value="social">Social Media</option>
+                <option value="blog">Blog</option>
+                <option value="video">Video</option>
+                <option value="podcast">Podcast</option>
+            </select>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div>Likes</div>
+                    <div id="likesMetric" class="metric-value"></div>
+                </div>
+                <div class="metric-card">
+                    <div>Comments</div>
+                    <div id="commentsMetric" class="metric-value"></div>
+                </div>
+                <div class="metric-card">
+                    <div>Shares</div>
+                    <div id="sharesMetric" class="metric-value"></div>
+                </div>
+                <div class="metric-card">
+                    <div>Views</div>
+                    <div id="viewsMetric" class="metric-value"></div>
+                </div>
+            </div>
+            <canvas id="engagementChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let posts = [];
+        let chart, engagementChart;
+
+        function schedulePost() {
+            const title = document.getElementById('postTitle').value;
+            const description = document.getElementById('postDescription').value;
+            const date = document.getElementById('postDate').value;
+            const category = document.getElementById('postCategory').value;
+
+            if (!title || !date || !category) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            const engagement = generateRandomEngagement();
+            posts.push({ title, description, date, category, engagement });
+            updateCalendar();
+            updateAnalytics();
+            updateEngagementMetrics();
+            clearInputs();
+        }
+
+        function generateRandomEngagement() {
+            return {
+                likes: Math.floor(Math.random() * 1000),
+                comments: Math.floor(Math.random() * 100),
+                shares: Math.floor(Math.random() * 500),
+                views: Math.floor(Math.random() * 5000)
+            };
+        }
+
+        function updateCalendar() {
+            const calendar = document.getElementById('calendar');
+            calendar.innerHTML = '';
+
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth();
+            const currentYear = currentDate.getFullYear();
+
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dayElement = document.createElement('div');
+                dayElement.classList.add('calendar-day');
+                dayElement.innerHTML = `<strong>${i}</strong>`;
+
+                const dayPosts = posts.filter(post => {
+                    const postDate = new Date(post.date);
+                    return postDate.getDate() === i && postDate.getMonth() === currentMonth && postDate.getFullYear() === currentYear;
+                });
+
+                dayPosts.forEach(post => {
+                    const postElement = document.createElement('div');
+                    postElement.classList.add('post-item');
+                    postElement.style.backgroundColor = getCategoryColor(post.category);
+                    postElement.textContent = post.title;
+                    dayElement.appendChild(postElement);
+                });
+
+                calendar.appendChild(dayElement);
+            }
+        }
+
+        function updateAnalytics() {
+            const category = document.getElementById('analyticsCategory').value;
+            const filteredPosts = category === 'all' ? posts : posts.filter(post => post.category === category);
+
+            document.getElementById('postCount').textContent = `Posts: ${filteredPosts.length}`;
+
+            const categoryCounts = {
+                social: 0,
+                blog: 0,
+                video: 0,
+                podcast: 0
+            };
+
+            filteredPosts.forEach(post => {
+                categoryCounts[post.category]++;
+            });
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            const ctx = document.getElementById('analyticsChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(categoryCounts),
+                    datasets: [{
+                        label: 'Number of Posts',
+                        data: Object.values(categoryCounts),
+                        backgroundColor: Object.keys(categoryCounts).map(getCategoryColor)
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateEngagementMetrics() {
+            const category = document.getElementById('engagementCategory').value;
+            const filteredPosts = category === 'all' ? posts : posts.filter(post => post.category === category);
+
+            const totalEngagement = filteredPosts.reduce((acc, post) => {
+                acc.likes += post.engagement.likes;
+                acc.comments += post.engagement.comments;
+                acc.shares += post.engagement.shares;
+                acc.views += post.engagement.views;
+                return acc;
+            }, { likes: 0, comments: 0, shares: 0, views: 0 });
+
+            document.getElementById('likesMetric').textContent = totalEngagement.likes;
+            document.getElementById('commentsMetric').textContent = totalEngagement.comments;
+            document.getElementById('sharesMetric').textContent = totalEngagement.shares;
+            document.getElementById('viewsMetric').textContent = totalEngagement.views;
+
+            if (engagementChart) {
+                engagementChart.destroy();
+            }
+
+            const ctx = document.getElementById('engagementChart').getContext('2d');
+            engagementChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Likes', 'Comments', 'Shares', 'Views'],
+                    datasets: [{
+                        label: 'Engagement Metrics',
+                        data: [totalEngagement.likes, totalEngagement.comments, totalEngagement.shares, totalEngagement.views],
+                        borderColor: '#007bff',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function getCategoryColor(category) {
+            const colors = {
+                social: '#FF6384',
+                blog: '#36A2EB',
+                video: '#FFCE56',
+                podcast: '#4BC0C0'
+            };
+            return colors[category] || '#999';
+        }
+
+        function clearInputs() {
+            document.getElementById('postTitle').value = '';
+            document.getElementById('postDescription').value = '';
+            document.getElementById('postDate').value = '';
+            document.getElementById('postCategory').value = 'social';
+        }
+
+        // Initialize the widget
+        updateCalendar();
+        updateAnalytics();
+        updateEngagementMetrics();
+    </script>
+</body>
+</html>

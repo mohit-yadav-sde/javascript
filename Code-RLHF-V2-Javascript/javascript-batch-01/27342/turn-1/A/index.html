@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Calendar Widget</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .calendar-container { display: flex; }
+        .input-form, .calendar, .analytics { padding: 20px; }
+        .calendar { flex-grow: 1; border-left: 1px solid #eee; border-right: 1px solid #eee; }
+        .input-form input, .input-form select, .input-form button { margin: 5px 0; width: 100%; padding: 10px; }
+        .fc-event { cursor: pointer; }
+        .category-color { width: 20px; height: 20px; display: inline-block; margin-right: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="calendar-container">
+    <div class="input-form">
+        <h3>Schedule Post</h3>
+        <input type="text" id="postTitle" placeholder="Title">
+        <textarea id="postDescription" placeholder="Description"></textarea>
+        <input type="text" id="postDate" placeholder="Select Date & Time">
+        <select id="postCategory">
+            <option value="blog">Blog</option>
+            <option value="video">Video</option>
+            <option value="event">Event</option>
+        </select>
+        <button onclick="addPost()">Add Post</button>
+    </div>
+    
+    <div id="calendar"></div>
+
+    <div class="analytics">
+        <h3>Analytics</h3>
+        <select onchange="updateAnalytics(this.value)">
+            <option value="">Select Category</option>
+            <option value="blog">Blog</option>
+            <option value="video">Video</option>
+            <option value="event">Event</option>
+        </select>
+        <div id="postCount"></div>
+        <div id="engagementChart" style="width: 200px; height: 100px; background: #f0f0f0;"></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('calendar');
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            events: [],
+            eventColor: '#378006'
+        });
+        calendar.render();
+
+        flatpickr("#postDate", {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+        });
+
+        window.addPost = function() {
+            const title = document.getElementById('postTitle').value;
+            const description = document.getElementById('postDescription').value;
+            const date = document.getElementById('postDate').value;
+            const category = document.getElementById('postCategory').value;
+            if (title && date) {
+                calendar.addEvent({
+                    title: title,
+                    start: date,
+                    allDay: false,
+                    color: getCategoryColor(category)
+                });
+            }
+        };
+
+        function getCategoryColor(category) {
+            switch(category) {
+                case 'blog': return '#FF5733';
+                case 'video': return '#33FF57';
+                case 'event': return '#3357FF';
+                default: return '#378006';
+            }
+        }
+
+        window.updateAnalytics = function(category) {
+            document.getElementById('postCount').innerText = `Posts: ${Math.floor(Math.random() * 10) + 1}`; // Random post count
+            // Here you would typically fetch real data and update a chart
+            document.getElementById('engagementChart').style.background = `linear-gradient(to right, ${getCategoryColor(category)} ${Math.random()*100}%, #f0f0f0 ${Math.random()*100}%)`;
+        }
+    });
+</script>
+
+</body>
+</html>
