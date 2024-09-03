@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIY Project Planner Widget</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .project {
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .checklist-item {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="mb-4">DIY Project Planner Widget</h1>
+        <button class="btn btn-primary mb-3" onclick="addProject()">Add New Project</button>
+        <div id="projects"></div>
+        <div id="totalCost" class="mt-4 fs-4"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let projects = [];
+
+        function addProject() {
+            const project = {
+                category: '',
+                items: [],
+                steps: [],
+                costs: {},
+                charts: { items: null, steps: null }
+            };
+            projects.push(project);
+            renderProject(projects.length - 1);
+            updateTotalCost();
+        }
+
+        function renderProject(index) {
+            const projectsContainer = document.getElementById('projects');
+            const projectDiv = document.createElement('div');
+            projectDiv.className = 'project';
+            projectDiv.id = `project-${index}`;
+            projectDiv.innerHTML = `
+                <h2 class="mb-3">Project ${index + 1}</h2>
+                <div class="mb-3">
+                    <label class="form-label">Category:</label>
+                    <select class="form-select" onchange="updateCategory(${index}, this.value)">
+                        <option value="">Select Category</option>
+                        <option value="Home Improvement">Home Improvement</option>
+                        <option value="Gardening">Gardening</option>
+                        <option value="Crafting">Crafting</option>
+                    </select>
+                </div>
+                <h3>Tools and Materials</h3>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="item-${index}" placeholder="Add item">
+                    <button class="btn btn-outline-secondary" onclick="addItem(${index})">Add</button>
+                </div>
+                <div id="checklist-${index}"></div>
+                <canvas id="items-chart-${index}" width="400" height="200"></canvas>
+                <h3>Steps</h3>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="step-${index}" placeholder="Add step">
+                    <button class="btn btn-outline-secondary" onclick="addStep(${index})">Add Step</button>
+                </div>
+                <div id="steps-${index}"></div>
+                <canvas id="steps-chart-${index}" width="400" height="200"></canvas>
+                <h3>Costs</h3>
+                <div class="input-group mb-3">
+                    <select class="form-select" id="cost-item-${index}">
+                        <option value="">Select Item</option>
+                    </select>
+                    <input type="number" class="form-control" id="cost-value-${index}" placeholder="Cost">
+                    <button class="btn btn-outline-secondary" onclick="addCost(${index})">Add Cost</button>
+                </div>
+                <div id="costs-${index}"></div>
+                <div class="total-cost fs-5 mt-3" id="total-cost-${index}"></div>
+            `;
+            projectsContainer.appendChild(projectDiv);
+            renderChecklist(index);
+            renderSteps(index);
+            renderCosts(index);
+            updateProgress(index);
+        }
+
+        function updateCategory(index, category) {
+            projects[index].category = category;
+        }
+
+        function addItem(index) {
+            const input = document.getElementById(`item-${index}`);
+            const item = input.value.trim();
+            if (item) {
+                projects[index].items.push({ name: item, status: 'Pending' });
+                input.value = '';
+                renderChecklist(index);
+                updateCostDropdown(index);
+                updateProgress(index);
+            }
+        }
+
+        function renderChecklist(index) {
+            const checklistDiv = document.getElementById(`checklist-${index}`);
+            checklistDiv.innerHTML = '';
+            projects[index].items.forEach((item, itemIndex) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'checklist-item';
+                itemDiv.innerHTML = `
+                    <div class="input-group">
+                        <select class="form-select" onchange="updateItemStatus(${index}, ${itemIndex}, this.value)">
+                            <option value="Pending" ${item.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                            <option value="Completed" ${item.status === 'Completed' ? 'selected' : ''}>Completed</option>
+                        </select>
+                        <span class="input-group-text">${item.name}</span>
+                        <button class="btn btn-outline-danger" onclick="removeItem(${index}, ${itemIndex})">Remove</button>
+                    </div>
+                `;
+                checklistDiv.appendChild(itemDiv);
+            });
+        }
+
+        function updateItemStatus(projectIndex, itemIndex, status) {
+            projects[projectIndex].items[itemIndex].status = status;
+            updateProgress(projectIndex);
+        }
+
+        function removeItem(projectIndex, itemIndex) {
+            projects[projectIndex].items.splice(itemIndex, 1);
+            renderChecklist(projectIndex);
+            updateProgress(projectIndex);
+            updateCostDropdown(projectIndex);
+        }
+
+        function addStep(index) {
+            const input = document.getElementById(`step-${index}`);
+            const step = input.value.trim();
+            if (step) {
+                projects[index].steps.push({ name: step, status: 'Pending' });
+                input.value = '';
+                renderSteps(index);
+                updateProgress(index);
+            }
+        }
+
+        function renderSteps(index) {
+            const stepsDiv = document.getElementById(`steps-${index}`);
+            stepsDiv.innerHTML = '';
+            projects[index].steps.forEach((step, stepIndex) => {
+                const stepDiv = document.createElement('div');
+                stepDiv.className = 'checklist-item';
+                stepDiv.innerHTML = `
+                    <div class="input-group">
+                        <select class="form-select" onchange="updateStepStatus(${index}, ${stepIndex}, this.value)">
+                            <option value="Pending" ${step.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                            <option value="In Progress" ${step.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                            <option value="Completed" ${step.status === 'Completed' ? 'selected' : ''}>Completed</option>
+                        </select>
+                        <span class="input-group-text">${step.name}</span>
+                        <button class="btn btn-outline-danger" onclick="removeStep(${index}, ${stepIndex})">Remove</button>
+                    </div>
+                `;
+                stepsDiv.appendChild(stepDiv);
+            });
+        }
+
+        function updateStepStatus(projectIndex, stepIndex, status) {
+            projects[projectIndex].steps[stepIndex].status = status;
+            updateProgress(projectIndex);
+        }
+
+        function removeStep(projectIndex, stepIndex) {
+            projects[projectIndex].steps.splice(stepIndex, 1);
+            renderSteps(projectIndex);
+            updateProgress(projectIndex);
+        }
+
+        function updateProgress(index) {
+            const itemsData = {
+                labels: ['Completed', 'Pending'],
+                datasets: [{
+                    data: [
+                        projects[index].items.filter(item => item.status === 'Completed').length,
+                        projects[index].items.filter(item => item.status === 'Pending').length
+                    ],
+                    backgroundColor: ['#28a745', '#ffc107']
+                }]
+            };
+
+            const stepsData = {
+                labels: ['Completed', 'In Progress', 'Pending'],
+                datasets: [{
+                    data: [
+                        projects[index].steps.filter(step => step.status === 'Completed').length,
+                        projects[index].steps.filter(step => step.status === 'In Progress').length,
+                        projects[index].steps.filter(step => step.status === 'Pending').length
+                    ],
+                    backgroundColor: ['#28a745', '#17a2b8', '#ffc107']
+                }]
+            };
+
+            updateChart(index, 'items', itemsData);
+            updateChart(index, 'steps', stepsData);
+        }
+
+        function updateChart(index, chartType, data) {
+            const chartCanvas = document.getElementById(`${chartType}-chart-${index}`);
+            if (!chartCanvas) return;
+
+            if (projects[index].charts[chartType]) {
+                projects[index].charts[chartType].data = data;
+                projects[index].charts[chartType].update();
+            } else {
+                projects[index].charts[chartType] = new Chart(chartCanvas, {
+                    type: 'doughnut',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${chartType.charAt(0).toUpperCase() + chartType.slice(1)} Progress`
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateCostDropdown(index) {
+            const costDropdown = document.getElementById(`cost-item-${index}`);
+            costDropdown.innerHTML = '<option value="">Select Item</option>';
+            projects[index].items.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.name;
+                option.textContent = item.name;
+                costDropdown.appendChild(option);
+            });
+        }
+
+        function addCost(index) {
+            const itemSelect = document.getElementById(`cost-item-${index}`);
+            const valueInput = document.getElementById(`cost-value-${index}`);
+            const item = itemSelect.value;
+            const value = parseFloat(valueInput.value);
+            if (item && !isNaN(value)) {
+                projects[index].costs[item] = value;
+                valueInput.value = '';
+                renderCosts(index);
+                updateTotalCost();
+            }
+        }
+
+        function renderCosts(index) {
+            const costsDiv = document.getElementById(`costs-${index}`);
+            costsDiv.innerHTML = '';
+            for (const [item, value] of Object.entries(projects[index].costs)) {
+                const costDiv = document.createElement('div');
+                costDiv.className = 'mb-2';
+                costDiv.innerHTML = `${item}: $${value.toFixed(2)}`;
+                costsDiv.appendChild(costDiv);
+            }
+            const totalCost = Object.values(projects[index].costs).reduce((sum, cost) => sum + cost, 0);
+            document.getElementById(`total-cost-${index}`).textContent = `Total Cost: $${totalCost.toFixed(2)}`;
+        }
+
+        function updateTotalCost() {
+            const totalCost = projects.reduce((sum, project) => {
+                return sum + Object.values(project.costs).reduce((projectSum, cost) => projectSum + cost, 0);
+            }, 0);
+            document.getElementById('totalCost').textContent = `Total Cost of All Projects: $${totalCost.toFixed(2)}`;
+        }
+
+        // Initialize the first project
+        addProject();
+    </script>
+</body>
+</html>

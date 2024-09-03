@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIY Project Planner</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .project-container { margin: 20px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .progress { height: 30px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>DIY Project Planner</h1>
+    <div class="project-container">
+        <h2>New Project</h2>
+        <!-- Project Categorization -->
+        <select id="category" class="form-select">
+            <option selected>Choose Category...</option>
+            <option value="Home Improvement">Home Improvement</option>
+            <option value="Gardening">Gardening</option>
+            <option value="Crafting">Crafting</option>
+        </select>
+        <!-- Tools and Materials List -->
+        <h3>Tools and Materials</h3>
+        <ul id="tools-materials-list">
+            <li><input type="text" placeholder="Add item..."></li>
+        </ul>
+        <button onclick="addItem()">Add Item</button>
+
+        <!-- Progress Tracking -->
+        <h3>Progress</h3>
+        <canvas id="progressChart"></canvas>
+        <ul id="step-list">
+            <li>Step 1: <span>Not Started</span><button onclick="updateProgress(this)">Update</button></li>
+        </ul>
+
+        <!-- Cost Estimation -->
+        <h3>Cost Estimation</h3>
+        <table id="cost-table">
+            <tr><th>Item</th><th>Cost</th><th>Status</th></tr>
+            <tr><td colspan="3"><input type="text" placeholder="Add cost item..." onblur="addCostItem(this.value)"></td></tr>
+        </table>
+        <p>Total Estimated Cost: <span id="total-cost">0</span></p>
+    </div>
+</div>
+
+<script>
+    const ctx = document.getElementById('progressChart').getContext('2d');
+    let myChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ["Completed", "In Progress"],
+            datasets: [{
+                data: [0, 0],
+                backgroundColor: ['green', 'yellow']
+            }]
+        }
+    });
+
+    function addItem() {
+        const ul = document.getElementById('tools-materials-list');
+        const newItem = document.createElement('li');
+        newItem.innerHTML = '<input type="checkbox"> <input type="text" placeholder="Enter item name">';
+        ul.appendChild(newItem);
+    }
+
+    function updateProgress(element) {
+        const statusText = element.previousElementSibling;
+        statusText.textContent = statusText.textContent === 'Not Started' ? 'In Progress' : 'Completed';
+        updateChart();
+    }
+
+    function updateChart() {
+        const steps = Array.from(document.querySelectorAll('#step-list li span'));
+        const completed = steps.filter(span => span.textContent === 'Completed').length;
+        const inProgress = steps.filter(span => span.textContent === 'In Progress').length;
+        myChart.data.datasets[0].data = [completed, inProgress];
+        myChart.update();
+    }
+
+    function addCostItem(itemName) {
+        const table = document.getElementById('cost-table');
+        const newRow = table.insertRow(-1);
+        newRow.innerHTML = `<td>${itemName}</td><td><input type="number" placeholder="0" onblur="updateTotalCost(this)"></td><td><select><option>Pending</option><option>Purchased</option></select></td>`;
+    }
+
+    function updateTotalCost(inputField) {
+        const totalCostElement = document.getElementById('total-cost');
+        const currentTotal = parseFloat(totalCostElement.textContent) || 0;
+        const newCost = parseFloat(inputField.value) || 0;
+        totalCostElement.textContent = currentTotal + newCost;
+    }
+</script>
+
+</body>
+</html>
