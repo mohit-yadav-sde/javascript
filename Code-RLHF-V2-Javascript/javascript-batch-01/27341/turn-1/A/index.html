@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flappy Clone</title>
+<style>
+    body { margin: 0; background: #70c5ce; font-family: Arial, sans-serif; }
+    #gameContainer { width: 400px; height: 500px; position: relative; margin: 20px auto; overflow: hidden; }
+    #startScreen, #gameOverScreen { position: absolute; width: 100%; text-align: center; top: 50%; transform: translateY(-50%); }
+    #gameCanvas { background: #70c5ce; display: block; margin: 0 auto; }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+    <div id="startScreen">
+        <h1>Flappy Clone</h1>
+        <p>Press Space to flap wings. Avoid the pipes!</p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <canvas id="gameCanvas" width="400" height="500"></canvas>
+    <div id="gameOverScreen" style="display:none;">
+        <h2>Game Over</h2>
+        <p>Your Score: <span id="scoreDisplay"></span></p>
+        <button onclick="startGame()">Retry</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let gameLoop, bird, pipes = [], score = 0, isGameOver = false;
+
+    // Bird object
+    const bird = {
+        x: 50, y: 250, dy: 0, gravity: 0.6, lift: -15, velocity: 0
+    };
+
+    function startGame() {
+        $('#startScreen').hide();
+        $('#gameOverScreen').hide();
+        resetGame();
+        gameLoop = setInterval(updateGameArea, 1000/60);
+    }
+
+    function resetGame() {
+        bird.y = 250;
+        pipes = [];
+        score = 0;
+        isGameOver = false;
+        pipes.push(new Pipe());
+    }
+
+    function Pipe() {
+        this.x = canvas.width;
+        this.w = 50;
+        this.h = Math.random() * 200 + 50; // Random height
+        this.gap = 150;
+    }
+
+    function updateGameArea() {
+        if (isGameOver) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        updateBird();
+        updatePipes();
+        drawBird();
+        drawPipes();
+        checkCollision();
+        ctx.fillText(`Score: ${score}`, 10, 20);
+    }
+
+    function updateBird() {
+        bird.velocity += bird.gravity;
+        bird.y += bird.velocity;
+        if (bird.y >= canvas.height - 20) { // ground level
+            bird.y = canvas.height - 20;
+            gameOver();
+        }
+    }
+
+    function drawBird() {
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(bird.x, bird.y, 30, 20);
+    }
+
+    function updatePipes() {
+        if (frame % 120 === 0) pipes.push(new Pipe());
+        for (let i = 0; i < pipes.length; i++) {
+            pipes[i].x -= 2;
+            if (pipes[i].x === 100) score++; // Score when passing a pipe
+            if (pipes[i].x + pipes[i].w < 0) pipes.splice(i, 1);
+        }
+    }
+
+    function drawPipes() {
+        pipes.forEach(pipe => {
+            ctx.fillStyle = "green";
+            ctx.fillRect(pipe.x, 0, pipe.w, pipe.h); // Top pipe
+            ctx.fillRect(pipe.x, pipe.h + pipe.gap, pipe.w, canvas.height - pipe.h - pipe.gap); // Bottom pipe
+        });
+    }
+
+    function checkCollision() {
+        pipes.forEach(pipe => {
+            if ((bird.x < pipe.x + pipe.w && bird.x + 30 > pipe.x) && 
+                (bird.y < pipe.h || bird.y + 20 > pipe.h + pipe.gap)) {
+                gameOver();
+            }
+        });
+    }
+
+    function gameOver() {
+        isGameOver = true;
+        clearInterval(gameLoop);
+        $('#gameOverScreen').show();
+        $('#scoreDisplay').text(score);
+    }
+
+    $(document).on('keydown', function(e) {
+        if (e.which === 32) { // Spacebar
+            bird.velocity = bird.lift;
+        }
+    });
+</script>
+</body>
+</html>
