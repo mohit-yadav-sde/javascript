@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Shooting Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #87CEEB; /* Light sky blue background */
+        }
+        canvas {
+            display: block;
+            margin: 20px auto;
+            background: #006400; /* Dark green field background */
+            border: 3px solid #FFD700; /* Golden border for a stylish look */
+            border-radius: 15px; /* Rounded corners */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Shadow for depth */
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            font-family: 'Arial', sans-serif;
+            color: #fff;
+            text-align: center;
+            display: none; /* Hide score initially */
+        }
+        #gameOverScreen, #startScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-family: 'Arial', sans-serif;
+            color: #fff;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.8); /* Semi-transparent background */
+            padding: 20px;
+            border-radius: 10px;
+            display: none; /* Hide both screens initially */
+        }
+        #retryButton, #startButton {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            background: #FFD700; /* Golden button */
+            border: none;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="score">Score: 0</div>
+    <div id="startScreen">
+        <h2>Welcome to the Football Shooting Game!</h2>
+        <p>Use the left and right arrow keys to aim.</p>
+        <p>Press the spacebar to shoot.</p>
+        <button id="startButton">Start Game</button>
+    </div>
+    <div id="gameOverScreen">
+        <h2>Game Over</h2>
+        <p>Your Score: <span id="finalScore">0</span></p>
+        <button id="retryButton">Retry</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScore = document.getElementById('finalScore');
+        const retryButton = document.getElementById('retryButton');
+        const startButton = document.getElementById('startButton');
+        const scoreDisplay = document.getElementById('score');
+        
+        canvas.width = 800;
+        canvas.height = 600;
+
+        // Game variables
+        const football = {
+            x: canvas.width / 2,
+            y: canvas.height - 50,
+            radius: 15,
+            speedX: 0,
+            speedY: 0,
+            isMoving: false
+        };
+        const goal = {
+            x: canvas.width / 2 - 50,
+            y: 50,
+            width: 200,
+            height: 20,
+            speedX: 4
+        };
+        const obstacle = {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 20,
+            isVisible: false
+        };
+        let score = 0;
+        let angle = 0;
+        let isGameOver = false;
+        let isGameStarted = false;
+
+        // Draw the football
+        function drawFootball() {
+            ctx.beginPath();
+            ctx.arc(football.x, football.y, football.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.stroke(); 
+            ctx.closePath();
+        }
+
+        // Draw the goal post
+        function drawGoal() {
+            ctx.fillStyle = '#FFD700'; 
+            ctx.fillRect(goal.x, goal.y, goal.width, goal.height);
+
+            // Draw net lines on the goal
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < goal.width; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(goal.x + i, goal.y);
+                ctx.lineTo(goal.x + i, goal.y + goal.height);
+                ctx.stroke();
+            }
+        }
+
+        // Draw the obstacle
+        function drawObstacle() {
+            if (obstacle.isVisible) {
+                ctx.fillStyle = 'red';
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+            }
+        }
+
+        // Draw the aiming line
+        function drawAimingLine() {
+            if (!football.isMoving) {
+                const lineLength = 50;
+                const lineX = football.x + Math.cos(angle) * lineLength;
+                const lineY = football.y + Math.sin(angle) * lineLength;
+
+                ctx.beginPath();
+                ctx.moveTo(football.x, football.y);
+                ctx.lineTo(lineX, lineY);
+                ctx.strokeStyle = 'yellow';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                ctx.closePath();
+            }
+        }
+
+        // Update football position
+        function updateFootball() {
+            if (football.isMoving) {
+                football.x += football.speedX;
+                football.y += football.speedY;
+
+                // Check if the ball hits the goal
+                if (football.x > goal.x && football.x < goal.x + goal.width &&
+                    football.y - football.radius < goal.y + goal.height) {
+                    score++;
+                    resetFootball();
+                }
+
+                // Check if the ball hits the obstacle
+                if (obstacle.isVisible &&
+                    football.x > obstacle.x && football.x < obstacle.x + obstacle.width &&
+                    football.y - football.radius < obstacle.y + obstacle.height &&
+                    football.y + football.radius > obstacle.y) {
+                    showGameOver();
+                }
+
+                // Check if the ball misses the goal
+                if (football.y + football.radius < 0) {
+                    showGameOver();
+                }
+            }
+        }
+
+        // Update goal post position
+        function updateGoal() {
+            goal.x += goal.speedX;
+
+            // Reverse direction if the goal post hits the canvas edges
+            if (goal.x + goal.width > canvas.width || goal.x < 0) {
+                goal.speedX *= -1;
+            }
+        }
+
+        // Randomly show the obstacle
+        function updateObstacle() {
+            if (Math.random() < 0.01 && !obstacle.isVisible) { // 1% chance per frame
+                obstacle.x = Math.random() * (canvas.width - obstacle.width);
+                obstacle.y = Math.random() * (canvas.height / 2) + canvas.height / 4;
+                obstacle.isVisible = true;
+
+                // Make the obstacle disappear after a short time
+                setTimeout(() => {
+                    obstacle.isVisible = false;
+                }, 2000); // Visible for 2 seconds
+            }
+        }
+
+        // Reset the football to its original position
+        function resetFootball() {
+            football.x = canvas.width / 2;
+            football.y = canvas.height - 50;
+            football.speedX = 0;
+            football.speedY = 0;
+            football.isMoving = false;
+        }
+
+        // Show the game-over screen
+        function showGameOver() {
+            isGameOver = true;
+            football.isMoving = false;
+            finalScore.innerText = score;
+            scoreDisplay.style.display = 'none'; // Hide score
+            gameOverScreen.style.display = 'block'; // Show game over screen
+        }
+
+        // Update the score display
+        function updateScore() {
+            if (!isGameOver && isGameStarted) {
+                scoreDisplay.innerText = 'Score: ' + score;
+                scoreDisplay.style.display = 'block'; // Show score
+            }
+        }
+
+        // Start the game
+        function startGame() {
+            isGameStarted = true;
+            score = 0;
+            isGameOver = false;
+            scoreDisplay.style.display = 'block'; // Show score
+            gameOverScreen.style.display = 'none'; // Hide game over screen
+            startScreen.style.display = 'none'; // Hide start screen
+            resetFootball();
+            gameLoop();
+        }
+
+        // Main game loop
+        function gameLoop() {
+            if (!isGameOver && isGameStarted) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                drawFootball();
+                drawGoal();
+                drawObstacle();
+                drawAimingLine();
+                updateFootball();
+                updateGoal();
+                updateObstacle();
+                updateScore();
+
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // Shoot the football
+        function shootFootball() {
+            if (!football.isMoving && !isGameOver && isGameStarted) {
+                football.speedY = -10; // Initial speed upwards
+                football.speedX = Math.cos(angle) * 10; // Speed in the direction of the angle
+                football.isMoving = true;
+            }
+        }
+
+        // Event listener for keydown
+        document.addEventListener('keydown', (e) => {
+            if (!isGameOver && isGameStarted) {
+                if (e.code === 'ArrowLeft') {
+                    angle -= 0.1; // Decrease angle
+                } else if (e.code === 'ArrowRight') {
+                    angle += 0.1; // Increase angle
+                } else if (e.code === 'Space') {
+                    shootFootball();
+                }
+            }
+        });
+
+        // Event listeners for start and retry buttons
+        startButton.addEventListener('click', startGame);
+        retryButton.addEventListener('click', startGame);
+
+        // Show the start screen initially
+        startScreen.style.display = 'block';
+    </script>
+</body>
+</html>
