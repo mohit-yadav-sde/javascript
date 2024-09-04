@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Path Racer Game</title>
+    <style>
+        canvas { border: 1px solid \#000; display: block; margin: auto; }
+        \#gameOver, \#startScreen { 
+            position: absolute; 
+            width: 100\%; 
+            height: 100\%; 
+            background: rgba(255, 255, 255, 0.8); 
+            display: none; 
+            justify-content: center; 
+            align-items: center; 
+            flex-direction: column; 
+        }
+        button { padding: 10px; font-size: 16px; }
+    </style>
+</head>
+<body>
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+<div id="startScreen">
+    <h1>Path Racer</h1>
+    <p>Draw a path for the car to reach the flag. Avoid hurdles!</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+<div id="gameOver">
+    <h2>Game Over</h2>
+    <p id="gameResult"></p>
+    <button onclick="location.reload()">Play Again</button>
+</div>
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+    let path = [];
+    let car = {x: 10, y: 200, width: 20, height: 10};
+    let hurdles = [{x: 200, y: 100}, {x: 400, y: 300}, {x: 600, y: 250}];
+    let flag = {x: 750, y: 190};
+    let gameActive = false;
+
+    function startGame() {
+        document.getElementById('startScreen').style.display = 'none';
+        gameActive = true;
+        path = [];
+        drawEverything();
+    }
+
+    function drawEverything() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Draw hurdles
+        ctx.fillStyle = 'red';
+        hurdles.forEach(hurdle => ctx.fillRect(hurdle.x, hurdle.y, 20, 20));
+        // Draw flag
+        ctx.fillStyle = 'green';
+        ctx.fillRect(flag.x, flag.y, 30, 30);
+        // Draw path
+        ctx.strokeStyle = 'blue';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        path.forEach((point, i) => {
+            if (i === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
+        });
+        ctx.stroke();
+        // Draw car
+        ctx.fillStyle = 'black';
+        ctx.fillRect(car.x, car.y, car.width, car.height);
+    }
+
+    canvas.onmousedown = function(e) {
+        if (gameActive) {
+            isDrawing = true;
+            path.push({x: e.clientX - canvas.offsetLeft, y: e.clientY - canvas.offsetTop});
+        }
+    };
+
+    canvas.onmousemove = function(e) {
+        if (isDrawing && gameActive) {
+            path.push({x: e.clientX - canvas.offsetLeft, y: e.clientY - canvas.offsetTop});
+            drawEverything();
+        }
+    };
+
+    canvas.onmouseup = function() {
+        isDrawing = false;
+        if (gameActive) moveCar();
+    };
+
+    function moveCar() {
+        let i = 0;
+        function frame() {
+            if (i < path.length) {
+                car.x = path[i].x;
+                car.y = path[i].y;
+                if (checkCollision()) {
+                    gameOver(false);
+                    return;
+                }
+                drawEverything();
+                i++;
+                requestAnimationFrame(frame);
+            } else {
+                gameOver(true);
+            }
+        }
+        requestAnimationFrame(frame);
+    }
+
+    function checkCollision() {
+        return hurdles.some(hurdle => 
+            car.x < hurdle.x + 20 && car.x + car.width > hurdle.x && 
+            car.y < hurdle.y + 20 && car.y + car.height > hurdle.y
+        ) || car.x < 0 || car.y < 0 || car.x > canvas.width || car.y > canvas.height;
+    }
+
+    function gameOver(won) {
+        gameActive = false;
+        document.getElementById('gameOver').style.display = 'flex';
+        document.getElementById('gameResult').innerText = won ? "You Win!" : "You Lose!";
+    }
+</script>
+</body>
+</html>
