@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reaction Time Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #game-container {
+            text-align: center;
+        }
+        #light-poles {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+        .pole {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .light {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #400;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+        .light.on {
+            background-color: #f00;
+            box-shadow: 0 0 10px #f00;
+        }
+        #start-screen, #game-screen, #result-screen {
+            display: none;
+        }
+        #leaderboard {
+            margin-top: 20px;
+            background-color: #333;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:disabled {
+            background-color: #888;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="start-screen">
+            <h1>Reaction Time Game</h1>
+            <p>Instructions: Wait for all lights to turn on row by row, then click as fast as you can!</p>
+            <button id="start-button">Start Game</button>
+        </div>
+        <div id="game-screen">
+            <div id="light-poles">
+                <div class="pole">
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                </div>
+                <div class="pole">
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                </div>
+                <div class="pole">
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                </div>
+                <div class="pole">
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                </div>
+                <div class="pole">
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                </div>
+                <div class="pole">
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                    <div class="light"></div>
+                </div>
+            </div>
+            <button id="click-button">Click!</button>
+        </div>
+        <div id="result-screen">
+            <h2>Your Time: <span id="result-time"></span> seconds</h2>
+            <button id="retry-button">Try Again</button>
+        </div>
+        <div id="leaderboard">
+            <h3>Leaderboard</h3>
+            <ol id="leaderboard-list"></ol>
+        </div>
+    </div>
+
+    <script>
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const resultScreen = document.getElementById('result-screen');
+        const startButton = document.getElementById('start-button');
+        const clickButton = document.getElementById('click-button');
+        const retryButton = document.getElementById('retry-button');
+        const resultTime = document.getElementById('result-time');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const lights = document.querySelectorAll('.light');
+
+        let gameStartTime;
+        let currentRow = 0;
+        let leaderboard = [];
+        let gameActive = false;
+
+        startButton.addEventListener('click', startGame);
+        clickButton.addEventListener('click', handleClick);
+        retryButton.addEventListener('click', startGame);
+
+        function startGame() {
+            startScreen.style.display = 'none';
+            gameScreen.style.display = 'block';
+            resultScreen.style.display = 'none';
+            clickButton.disabled = true;
+            currentRow = 0;
+            gameActive = false;
+            lights.forEach(light => light.classList.remove('on'));
+            turnOnNextRow();
+        }
+
+        function turnOnNextRow() {
+            if (currentRow < 4) {
+                const rowLights = document.querySelectorAll(`.pole .light:nth-child(${currentRow + 1})`);
+                rowLights.forEach(light => light.classList.add('on'));
+                currentRow++;
+                setTimeout(turnOnNextRow, Math.random() * 500 + 500);
+            } else {
+                gameStartTime = Date.now();
+                clickButton.disabled = false;
+                gameActive = true;
+            }
+        }
+
+        function handleClick() {
+            if (!gameActive) return;
+            gameActive = false;
+            clickButton.disabled = true;
+            const reactionTime = (Date.now() - gameStartTime) / 1000;
+            resultTime.textContent = reactionTime.toFixed(3);
+            gameScreen.style.display = 'none';
+            resultScreen.style.display = 'block';
+            updateLeaderboard(reactionTime);
+        }
+
+        function updateLeaderboard(time) {
+            leaderboard.push(time);
+            leaderboard.sort((a, b) => a - b);
+            leaderboard = leaderboard.slice(0, 3);
+            leaderboardList.innerHTML = '';
+            leaderboard.forEach((time, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${time.toFixed(3)} seconds`;
+                leaderboardList.appendChild(li);
+            });
+        }
+
+        startScreen.style.display = 'block';
+    </script>
+</body>
+</html>
