@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Shooting Game</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            text-align: center;
+        }
+        #score {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        #instructions {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+</head>
+<body>
+    <div id="game-container">
+        <div id="score">Score: 0</div>
+        <div id="canvas-container"></div>
+        <div id="instructions">Press SPACEBAR to shoot. Use LEFT and RIGHT arrow keys to aim.</div>
+    </div>
+    <script>
+        let ball, net;
+        let score = 0;
+        let canShoot = true;
+        let scoredRecently = false;
+        let scoreAnimation = 0;
+
+        function setup() {
+            const canvas = createCanvas(400, 400);
+            canvas.parent('canvas-container');
+            ball = new Ball();
+            net = new Net();
+        }
+
+        function draw() {
+            background(135, 206, 235);
+            drawCourt();
+            net.move();
+            net.display();
+            ball.move();
+            ball.display();
+            checkScoring();
+            displayScoreAnimation();
+        }
+
+        function keyPressed() {
+            if (keyCode === 32 && canShoot) { // Spacebar
+                ball.shoot();
+                canShoot = false;
+                scoredRecently = false;
+            }
+        }
+
+        function drawCourt() {
+            // Draw court
+            fill(255, 222, 173);
+            rect(0, height - 50, width, 50);
+            
+            // Draw court lines
+            stroke(255);
+            strokeWeight(2);
+            line(0, height - 50, width, height - 50);
+            
+            // Draw backboard
+            fill(200);
+            rect(net.x - 40, net.y - 60, 80, 60);
+        }
+
+        class Ball {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = width / 2;
+                this.y = height - 30;
+                this.size = 20;
+                this.speedY = 0;
+                this.speedX = 0;
+            }
+
+            display() {
+                fill(255, 165, 0);
+                circle(this.x, this.y, this.size);
+            }
+
+            move() {
+                if (this.speedY !== 0 || this.y < height - 30) {
+                    this.x += this.speedX;
+                    this.y -= this.speedY;
+                    this.speedY -= 0.2;
+
+                    // Contain ball within horizontal boundaries
+                    if (this.x < this.size / 2 || this.x > width - this.size / 2) {
+                        this.speedX *= -0.8;
+                        this.x = constrain(this.x, this.size / 2, width - this.size / 2);
+                    }
+
+                    // Contain ball within vertical boundaries
+                    if (this.y < this.size / 2) {
+                        this.y = this.size / 2;
+                        this.speedY *= -0.8;
+                    } else if (this.y > height - 30) {
+                        this.y = height - 30;
+                        this.speedY *= -0.5;
+                        this.speedX *= 0.8;
+
+                        if (abs(this.speedY) < 0.5 && abs(this.speedX) < 0.5) {
+                            this.reset();
+                            canShoot = true;
+                        }
+                    }
+                } else if (canShoot) {
+                    if (keyIsDown(LEFT_ARROW)) {
+                        this.x = max(this.x - 2, this.size / 2);
+                    }
+                    if (keyIsDown(RIGHT_ARROW)) {
+                        this.x = min(this.x + 2, width - this.size / 2);
+                    }
+                }
+            }
+
+            shoot() {
+                this.speedY = 12;
+                this.speedX = (this.x - width / 2) / 20;
+            }
+        }
+
+        class Net {
+            constructor() {
+                this.x = width / 2;
+                this.y = 150;
+                this.width = 60;
+                this.height = 40;
+                this.speed = 1;
+            }
+
+            display() {
+                // Draw rim
+                stroke(255, 0, 0);
+                strokeWeight(3);
+                line(this.x - this.width / 2, this.y, this.x + this.width / 2, this.y);
+                
+                // Draw net
+                stroke(255);
+                strokeWeight(1);
+                for (let i = 0; i < 10; i++) {
+                    line(this.x - this.width / 2 + i * 6, this.y, 
+                         this.x - this.width / 2 + i * 6 + 3, this.y + this.height);
+                }
+            }
+
+            move() {
+                this.x += this.speed;
+                if (this.x > width - this.width / 2 || this.x < this.width / 2) {
+                    this.speed *= -1;
+                }
+            }
+        }
+
+        function checkScoring() {
+            if (
+                !scoredRecently &&
+                ball.y > net.y &&
+                ball.y < net.y + net.height &&
+                ball.x > net.x - net.width / 2 &&
+                ball.x < net.x + net.width / 2 &&
+                ball.speedY < 0  // Ball is moving downwards
+            ) {
+                score++;
+                document.getElementById('score').innerText = `Score: ${score}`;
+                scoredRecently = true;
+                scoreAnimation = 30; // Start score animation
+            }
+
+            // Check if ball hits the backboard
+            if (
+                ball.y < net.y &&
+                ball.y > net.y - 65 &&
+                ball.x > net.x - 40 &&
+                ball.x < net.x + 40
+            ) {
+                ball.speedX *= -1;  // Reverse horizontal direction
+                ball.x += ball.speedX;  // Move the ball away from the backboard
+            }
+        }
+
+        function displayScoreAnimation() {
+            if (scoreAnimation > 0) {
+                textAlign(CENTER, CENTER);
+                textSize(40);
+                fill(255, 215, 0, scoreAnimation * 8);
+                text("+1", width / 2, height / 2);
+                scoreAnimation--;
+            }
+        }
+    </script>
+</body>
+</html>

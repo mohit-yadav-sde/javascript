@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Basketball Shooter</title>
+<style>
+    #gameArea {
+        width: 600px;
+        height: 400px;
+        border: 2px solid black;
+        position: relative;
+        overflow: hidden;
+        background: lightblue;
+    }
+    #ball {
+        width: 30px;
+        height: 30px;
+        background: orange;
+        border-radius: 50%;
+        position: absolute;
+        bottom: 10px;
+        left: 285px;
+    }
+    #hoop {
+        width: 60px;
+        height: 60px;
+        background: url('hoop.png') no-repeat; /* Assume hoop image exists */
+        background-size: contain;
+        position: absolute;
+        top: 10px;
+        left: 270px;
+    }
+    #score {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-size: 20px;
+    }
+</style>
+</head>
+<body>
+<div id="gameArea">
+    <div id="ball"></div>
+    <div id="hoop"></div>
+    <div id="score">Score: 0</div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        let ball = $('#ball');
+        let hoop = $('#hoop');
+        let score = 0;
+        let gameArea = $('#gameArea');
+        let hoopSpeed = 2;
+        let hoopDirection = 1;
+
+        // Move hoop
+        function moveHoop() {
+            let currentLeft = parseInt(hoop.css('left'));
+            if(currentLeft >= gameArea.width() - hoop.width() || currentLeft <= 0) {
+                hoopDirection *= -1;
+            }
+            hoop.css('left', currentLeft + (hoopSpeed * hoopDirection) + 'px');
+        }
+
+        // Ball movement with keys
+        $(document).keydown(function(e) {
+            let position = parseInt(ball.css('left'));
+            switch(e.which) {
+                case 37: // left
+                    ball.css('left', Math.max(position - 10, 0));
+                    break;
+                case 39: // right
+                    ball.css('left', Math.min(position + 10, gameArea.width() - ball.width()));
+                    break;
+                case 32: // space to shoot
+                    shootBall();
+                    break;
+            }
+        });
+
+        function shootBall() {
+            let ballPosition = ball.position();
+            ball.animate({
+                top: '10px'
+            }, {
+                duration: 1000,
+                step: function(now) {
+                    if (checkCollision()) {
+                        score++;
+                        $('#score').text('Score: ' + score);
+                        resetBall();
+                    }
+                },
+                complete: resetBall
+            });
+        }
+
+        function checkCollision() {
+            let ballPos = ball.position();
+            let hoopPos = hoop.position();
+            return (ballPos.left < hoopPos.left + hoop.width() && 
+                    ballPos.left + ball.width() > hoopPos.left &&
+                    ballPos.top <= hoopPos.top + hoop.height());
+        }
+
+        function resetBall() {
+            ball.css({
+                top: 'auto',
+                bottom: '10px'
+            });
+        }
+
+        // Game loop
+        setInterval(moveHoop, 10);
+    });
+</script>
+</body>
+</html>

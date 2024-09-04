@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Basketball Shooting Game</title>
+<style>
+  body {
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f0f0f0;
+  }
+  #game-container {
+    position: relative;
+    width: 400px;
+    height: 600px;
+    border: 2px solid black;
+    overflow: hidden;
+  }
+  #hoop {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 50px;
+    background-color: grey;
+  }
+  #basketball {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 20px;
+    height: 20px;
+    background-color: orange;
+    border-radius: 50%;
+  }
+  #score-display {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 24px;
+  }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="hoop"></div>
+  <div id="basketball"></div>
+  <div id="score-display">Score: 0</div>
+</div>
+<script>
+  const gameContainer = document.getElementById('game-container');
+  const hoop = document.getElementById('hoop');
+  const basketball = document.getElementById('basketball');
+  const scoreDisplay = document.getElementById('score-display');
+  let score = 0;
+  let hoopDirection = 'right';
+  let ballPositionX = gameContainer.offsetWidth / 2;
+  let ballPositionY = gameContainer.offsetHeight - 30;
+  
+  document.addEventListener('keydown', function(event) {
+    switch (event.key) {
+      case 'ArrowLeft':
+        ballPositionX -= 10;
+        basketball.style.left = `${ballPositionX}px`;
+        break;
+      case 'ArrowRight':
+        ballPositionX += 10;
+        basketball.style.left = `${ballPositionX}px`;
+        break;
+      case ' ':
+        shootBall();
+        break;
+    }
+  });
+
+  function moveHoop() {
+    const hoopLeft = hoop.offsetLeft;
+    if (hoopLeft <= 0 || hoopLeft + hoop.offsetWidth >= gameContainer.offsetWidth) {
+      hoopDirection = hoopDirection === 'right' ? 'left' : 'right';
+    }
+    hoop.style.left = `${hoopDirection === 'right' ? hoopLeft + 2 : hoopLeft - 2}px`;
+  }
+
+  function shootBall() {
+    const ballInterval = setInterval(() => {
+      ballPositionY -= 5;
+      basketball.style.bottom = `${ballPositionY}px`;
+      if (ballPositionY <= 50 && Math.abs(ballPositionX - hoop.offsetLeft) < 25) {
+        score++;
+        scoreDisplay.textContent = `Score: ${score}`;
+        resetBall();
+        clearInterval(ballInterval);
+      } else if (ballPositionY <= 0) {
+        resetBall();
+        clearInterval(ballInterval);
+      }
+    }, 20);
+  }
+
+  function resetBall() {
+    ballPositionY = gameContainer.offsetHeight - 30;
+    basketball.style.bottom = `${ballPositionY}px`;
+    ballPositionX = gameContainer.offsetWidth / 2;
+    basketball.style.left = `${ballPositionX}px`;
+  }
+
+  setInterval(moveHoop, 20);
+</script>
+</body>
+</html>
