@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chrome Dinosaur Game</title>
+    <style>
+        body { 
+            margin: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            background: #f0f0f0; 
+        }
+        #gameCanvas {
+            border: 1px solid black;
+        }
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            padding: 20px;
+            border: 2px solid #555;
+            border-radius: 10px;
+        }
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        <h2>Chrome Dinosaur Game</h2>
+        <p>Press Space to jump over obstacles.</p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <canvas id="gameCanvas" width="800" height="200"></canvas>
+    <div id="gameOverScreen" style="display: none;">
+        <h2>Game Over</h2>
+        <p>Your Score: <span id="finalScore"></span></p>
+        <button onclick="restartGame()">Try Again</button>
+    </div>
+
+    <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScore = document.getElementById('finalScore');
+    
+    let gameLoop;
+    let dino = {x: 50, y: 150, vy: 0, width: 40, height: 50, jumping: false};
+    let obstacles = [];
+    let score = 0;
+    let obstacleSpeed = 1;
+    let timeSinceLastObstacle = 0;
+    
+    function startGame() {
+        startScreen.style.display = 'none';
+        score = 0;
+        obstacleSpeed = 1;
+        obstacles = [];
+        gameLoop = setInterval(game, 1000/60);
+    }
+
+    function game() {
+        update();
+        render();
+    }
+
+    function update() {
+        // Dinosaur gravity and jump
+        if (keys[' '] && !dino.jumping) {
+            dino.vy = -10;
+            dino.jumping = true;
+        }
+        dino.vy += 0.5; // gravity
+        dino.y += dino.vy;
+        if (dino.y > 150) { // ground level
+            dino.y = 150;
+            dino.jumping = false;
+        }
+
+        // Obstacles
+        timeSinceLastObstacle += 1/60;
+        if (timeSinceLastObstacle > 1) { // Spawn obstacle every second
+            obstacles.push({x: 800, y: 150, width: 20, height: 50});
+            timeSinceLastObstacle = 0;
+        }
+
+        // Move obstacles
+        obstacles.forEach((ob, index) => {
+            ob.x -= obstacleSpeed;
+            if (ob.x + ob.width < 0) obstacles.splice(index, 1); // Remove off-screen obstacles
+
+            // Collision detection
+            if (dino.x < ob.x + ob.width && 
+                dino.x + dino.width > ob.x && 
+                dino.y < ob.y + ob.height && 
+                dino.y + dino.height > ob.y) {
+                clearInterval(gameLoop);
+                gameOver();
+            }
+        });
+
+        // Score
+        score += 0.1;
+
+        // Increase speed over time
+        if (Math.floor(score) % 30 === 0) obstacleSpeed += 0.3;
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Draw dino
+        ctx.fillStyle = 'green';
+        ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
+        // Draw obstacles
+        ctx.fillStyle = 'red';
+        obstacles.forEach(ob => ctx.fillRect(ob.x, ob.y, ob.width, ob.height));
+        // Draw score
+        ctx.fillStyle = 'black';
+        ctx.font = '20px Arial';
+        ctx.fillText('Score: ' + Math.floor(score), 10, 25);
+    }
+
+    function gameOver() {
+        finalScore.textContent = Math.floor(score);
+        gameOverScreen.style.display = 'flex';
+    }
+
+    function restartGame() {
+        gameOverScreen.style.display = 'none';
+        startGame();
+    }
+
+    const keys = {};
+    window.addEventListener('keydown', function(e) {
+        keys[e.key] = true;
+    });
+    window.addEventListener('keyup', function(e) {
+        keys[e.key] = false;
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chrome Dinosaur Game</title>
+<style>
+    canvas { 
+        border: 1px solid #000; 
+        display: block; 
+        margin: 0 auto; 
+    }
+    body { 
+        font-family: Arial, sans-serif; 
+        text-align: center;
+    }
+    #startScreen, #gameOverScreen {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 20px;
+        border: 2px solid black;
+    }
+</style>
+</head>
+<body>
+<div id="startScreen">
+    <h1>Chrome Dino Game</h1>
+    <p>Press SPACE to jump. Avoid the obstacles!</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+<canvas id="gameCanvas" width="800" height="200"></canvas>
+<div id="gameOverScreen" style="display:none;">
+    <h1>Game Over</h1>
+    <p>Your Score: <span id="finalScore"></span></p>
+    <button onclick="restartGame()">Try Again</button>
+</div>
+<script>
+    // Canvas setup
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Game objects
+const dino = {x: 50, y: 150, width: 50, height: 50, dy: 0, gravity: 0.5, jumpStrength: -10, grounded: true};
+const obstacles = [];
+let score = 0;
+let gameSpeed = 2;
+let gameRunning = false;
+let speedIncreaseInterval = null;
+
+// Game functions
+function startGame() {
+    document.getElementById('startScreen').style.display = 'none';
+    gameRunning = true;
+    speedIncreaseInterval = setInterval(increaseSpeed, 3000);
+    requestAnimationFrame(gameLoop);
+}
+
+function increaseSpeed() {
+    gameSpeed += 0.3;
+}
+
+function restartGame() {
+    document.getElementById('gameOverScreen').style.display = 'none';
+    score = 0;
+    gameSpeed = 2;
+    obstacles.length = 0;
+    dino.y = 150;
+    dino.dy = 0;
+    startGame();
+}
+
+function gameLoop() {
+    if (!gameRunning) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Update dinosaur
+    if (dino.grounded && keys.space) {
+        dino.dy = dino.jumpStrength;
+        dino.grounded = false;
+    }
+    dino.y += dino.dy;
+    dino.dy += dino.gravity;
+    if (dino.y > 150) {
+        dino.y = 150;
+        dino.dy = 0;
+        dino.grounded = true;
+    }
+
+    // Spawn obstacles
+    if (Math.random() < 0.02) {
+        obstacles.push({x: 800, y: 150, width: 30, height: 50});
+    }
+
+    // Update and draw obstacles
+    for (let obstacle of obstacles) {
+        obstacle.x -= gameSpeed;
+        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+
+        // Collision detection
+        if (dino.x < obstacle.x + obstacle.width &&
+            dino.x + dino.width > obstacle.x &&
+            dino.y < obstacle.y + obstacle.height &&
+            dino.y + dino.height > obstacle.y) {
+            gameOver();
+        }
+    }
+
+    // Remove off-screen obstacles
+    obstacles.filter(o => o.x + o.width > 0);
+
+    // Score
+    score++;
+    ctx.fillStyle = "black";
+    ctx.font = "20px Arial";
+    ctx.fillText(`Score: \${Math.floor(score/10)}`, 10, 30);
+
+    requestAnimationFrame(gameLoop);
+}
+
+function gameOver() {
+    gameRunning = false;
+    clearInterval(speedIncreaseInterval);
+    document.getElementById('finalScore').textContent = Math.floor(score/10);
+    document.getElementById('gameOverScreen').style.display = 'block';
+}
+
+// Key events
+const keys = {};
+document.addEventListener('keydown', (e) => keys[e.code] = true);
+document.addEventListener('keyup', (e) => keys[e.code] = false);
+</script>
+</body>
+</html>
