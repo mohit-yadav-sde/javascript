@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fruit Ninja Clone</title>
+<style>
+body, html { 
+    margin: 0; 
+    padding: 0; 
+    overflow: hidden; 
+}
+canvas { 
+    display: block; 
+    background: #e0e0e0; 
+}
+#ui {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    font-family: Arial, sans-serif;
+}
+button {
+    padding: 10px 20px;
+    font-size: 1em;
+    cursor: pointer;
+}
+#score {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: white;
+    font-size: 24px;
+}
+</style>
+</head>
+<body>
+<div id="ui">
+    <h1>Fruit Ninja Clone</h1>
+    <p>Drag your mouse to slice fruits!</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+<canvas id="gameCanvas"></canvas>
+<div id="score">Score: 0</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const ui = document.getElementById('ui');
+const scoreDisplay = document.getElementById('score');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const fruits = [
+    {img: new Image(), src: 'https://opengameart.org/sites/default/files/apple_1.png', name: 'apple'},
+    {img: new Image(), src: 'https://opengameart.org/sites/default/files/orange.png', name: 'orange'},
+    {img: new Image(), src: 'https://opengameart.org/sites/default/files/banana.png', name: 'banana'},
+    {img: new Image(), src: 'https://opengameart.org/sites/default/files/strawberry.png', name: 'strawberry'},
+    {img: new Image(), src: 'https://opengameart.org/sites/default/files/cherries.png', name: 'cherries'},
+];
+
+let score = 0;
+let gameActive = false;
+let fruitsInGame = [];
+let slashPath = [];
+let lastTime;
+
+fruits.forEach(fruit => fruit.img.src = fruit.src);
+
+function startGame() {
+    ui.style.display = 'none';
+    gameActive = true;
+    score = 0;
+    fruitsInGame = [];
+    slashPath = [];
+    requestAnimationFrame(gameLoop);
+}
+
+function gameLoop(time) {
+    if (!lastTime) lastTime = time;
+    const dt = (time - lastTime) / 1000;
+    update(dt);
+    draw();
+    lastTime = time;
+
+    if (gameActive) {
+        requestAnimationFrame(gameLoop);
+    }
+}
+
+function update(dt) {
+    if (Math.random() < 0.01) { // Spawn fruit
+        const fruit = fruits[Math.floor(Math.random() * fruits.length)];
+        fruitsInGame.push({
+            x: Math.random() * canvas.width,
+            y: canvas.height,
+            speedY: -500,
+            speedX: (Math.random() - 0.5) * 200,
+            rotation: Math.random() * Math.PI * 2,
+            img: fruit.img,
+            radius: 30
+        });
+    }
+
+    for (let fruit of fruitsInGame) {
+        fruit.y += fruit.speedY * dt;
+        fruit.x += fruit.speedX * dt;
+        fruit.speedY += 981 * dt; // Gravity
+        fruit.rotation += 0.1;
+
+        // Check if fruit is off-screen
+        if (fruit.y - fruit.radius > canvas.height) {
+            gameOver();
+        }
+
+        // Slash collision
+        if (slashPath.length > 1) {
+            for (let i = 1; i < slashPath.length; i++) {
+                if (checkCollision(fruit, slashPath[i-1], slashPath[i])) {
+                    score++;
+                    fruit.sliced = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Clean up sliced or off-screen fruits
+    fruitsInGame = fruitsInGame.filter(f => !f.sliced && f.y - f.radius < canvas.height);
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    fruitsInGame.forEach(fruit => {
+        ctx.save();
+        ctx.translate(fruit.x, fruit.y);
+        ctx.rotate(fruit.rotation);
+        ctx.drawImage(fruit.img, -fruit.radius, -fruit.radius, fruit.radius * 2, fruit.radius * 2);
+        ctx.restore();
+    });
+
+    // Draw slash
+    if (slashPath.length > 1) {
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        for(let point of slashPath) {
+            ctx.lineTo(point.x, point.y);
+        }
+        ctx.stroke();
+    }
+
+    scoreDisplay.textContent = `Score: \${score}`;
+}
+
+function checkCollision(fruit, start, end) {
+    const d = distanceToSegment(fruit, start, end);
+    return d < fruit.radius;
+}
+
+function distanceToSegment(fruit, p1, p2) {
+    const A = fruit.x - p1.x;
+    const B = fruit.y - p1.y;
+    const C = p2.x - p1.x;
+    const D = p2.y - p1.y;
+
+    const dot = A * C + B * D;
+    const len_sq = C * C + D * D;
+    const param = (len_sq !== 0) ? dot / len_sq : -1;
+
+    let xx, yy;
+
+    if (param < 0) {
+        xx = p1.x;
+        yy = p1.y;
+    } else if (param > 1) {
+        xx = p2.x;
+        yy = p2.y;
+    } else {
+        xx = p1.x + param * C;
+        yy = p1.y + param * D;
+    }
+
+    const dx = fruit.x - xx;
+    const dy = fruit.y - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+function gameOver() {
+    gameActive = false;
+    ui.style.display = 'flex';
+    ui.innerHTML = `<h1>Game Over</h1><p>Your Score: \${score}</p><button onclick="startGame()">Try Again</button>`;
+}
+
+canvas.addEventListener('mousedown', (e) => {
+    if (gameActive) {
+        slashPath = [{x: e.clientX, y: e.clientY}];
+    }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (gameActive && slashPath.length) {
+        slashPath.push({x: e.clientX, y: e.clientY});
+        if (slashPath.length > 20) slashPath.shift();
+    }
+});
+
+canvas.addEventListener('mouseup', () => {
+    if (gameActive) {
+        setTimeout(() => slashPath = [], 400);
+    }
+});
+
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+});
+</script>
+</body>
+</html>
