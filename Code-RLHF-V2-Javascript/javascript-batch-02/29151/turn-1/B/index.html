@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Media Widget</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .widget-container { max-width: 1200px; margin: auto; }
+        select, .tags, .posts, .trending { margin-bottom: 20px; }
+        .tags label { display: block; margin: 5px 0; }
+        canvas { max-width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="widget-container">
+        <select id="metric">
+            <option value="likes">Likes</option>
+            <option value="dislikes">Dislikes</option>
+            <option value="views">Views</option>
+        </select>
+        <div id="topPosts"></div>
+        <div class="tags" id="tagSelection"></div>
+        <canvas id="postChart" width="400" height="200"></canvas>
+        <div class="trending" id="trendingTags"></div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        let posts = [];
+        const response = await fetch('https://dummyjson.com/posts');
+        const data = await response.json();
+        posts = data.posts;
+
+        const metricSelect = document.getElementById('metric');
+        const topPostsDiv = document.getElementById('topPosts');
+        const tagSelectionDiv = document.getElementById('tagSelection');
+        const trendingTagsDiv = document.getElementById('trendingTags');
+        const ctx = document.getElementById('postChart').getContext('2d');
+
+        let chart;
+
+        function updateTopPosts(metric) {
+            const sortedPosts = [...posts].sort((a, b) => b.reactions[metric] - a.reactions[metric]).slice(0, 10);
+            topPostsDiv.innerHTML = sortedPosts.map(post => 
+                `<div>\${post.title} - \${post.reactions[metric]} <INLINE_MATH>{metric}</div>`).join('');
+        }
+
+        function populateTags() {
+            const allTags = [...new Set(posts.flatMap(post => post.tags))];
+            tagSelectionDiv.innerHTML = allTags.map(tag => 
+                `<label><input type="checkbox" value="</INLINE_MATH>{tag}" onchange="updateChart()"> <INLINE_MATH>{tag}</label>`).join('');
+        }
+
+        function calculateTrendingTags() {
+            const tagLikes = {};
+            posts.forEach(post => {
+                post.tags.forEach(tag => {
+                    tagLikes[tag] = (tagLikes[tag] || 0) + post.reactions.likes;
+                });
+            });
+            return Object.entries(tagLikes).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        }
+
+        function updateTrendingTags() {
+            const trending = calculateTrendingTags();
+            trendingTagsDiv.innerHTML = trending.map(([tag, likes]) => 
+                `<div></INLINE_MATH>{tag}: \${likes} likes</div>`).join('');
+        }
+
+        function updateChart() {
+            const selectedTags = Array.from(tagSelectionDiv.querySelectorAll('input:checked')).map(input => input.value);
+            if (chart) chart.destroy();
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: selectedTags,
+                    datasets: [{
+                        label: 'Number of Posts',
+                        data: selectedTags.map(tag => posts.filter(p => p.tags.includes(tag)).length),
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        metricSelect.onchange = () => updateTopPosts(metricSelect.value);
+        updateTopPosts('likes');
+        populateTags();
+        updateTrendingTags();
+        updateChart();
+    });
+    </script>
+</body>
+</html>

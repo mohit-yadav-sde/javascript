@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Media Widget</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #f39c12;
+            --background-color: #f4f4f4;
+            --text-color: #333;
+            --card-background: #ffffff;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+
+        #widget-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .widget-section {
+            background-color: var(--card-background);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        .widget-section:hover {
+            transform: translateY(-5px);
+        }
+
+        #top-posts, #tag-selection, #trending-tags {
+            grid-column: span 2;
+        }
+
+        #chart-container {
+            grid-column: span 2;
+            height: 400px;
+            padding-bottom: 100px;
+        }
+
+        h2, h3 {
+            color: var(--primary-color);
+            margin-top: 0;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            font-size: 16px;
+            background-color: var(--card-background);
+            color: var(--text-color);
+        }
+
+        .post {
+            border-left: 4px solid var(--secondary-color);
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 0 var(--border-radius) var(--border-radius) 0;
+            transition: background-color 0.3s ease;
+        }
+
+        .post:hover {
+            background-color: rgba(255, 255, 255, 0.9);
+        }
+
+        .post h4 {
+            margin: 0 0 10px 0;
+            color: var(--primary-color);
+        }
+
+        .checkbox-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .checkbox-container label {
+            display: flex;
+            align-items: center;
+            background-color: #e0e0e0;
+            padding: 5px 10px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .checkbox-container label:hover {
+            background-color: #d0d0d0;
+        }
+
+        .checkbox-container input[type="checkbox"] {
+            display: none;
+        }
+
+        .checkbox-container input[type="checkbox"]:checked + label {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        #trending-tags-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #trending-tags-list li {
+            background-color: var(--secondary-color);
+            color: white;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: var(--border-radius);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        @media (max-width: 768px) {
+            #widget-container {
+                grid-template-columns: 1fr;
+            }
+
+            #top-posts, #tag-selection, #trending-tags, #chart-container {
+                grid-column: span 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="widget-container">
+        <div class="widget-section">
+            <h2>Metric Selection</h2>
+            <select id="metric-select">
+                <option value="likes">Likes</option>
+                <option value="dislikes">Dislikes</option>
+                <option value="views">Views</option>
+            </select>
+        </div>
+        <div id="top-posts" class="widget-section">
+            <h2>Top 10 Posts</h2>
+            <div id="posts-container"></div>
+        </div>
+        <div id="tag-selection" class="widget-section">
+            <h2>Select Tags (max 5)</h2>
+            <div class="checkbox-container"></div>
+        </div>
+        <div id="chart-container" class="widget-section">
+            <h2>Posts per Tag</h2>
+            <canvas id="tag-chart"></canvas>
+        </div>
+        <div id="trending-tags" class="widget-section">
+            <h2>Top 10 Trending Tags</h2>
+            <ul id="trending-tags-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        let posts = [];
+        let allTags = new Set();
+        let selectedTags = new Set();
+        let chart;
+
+        async function fetchPosts() {
+            try {
+                const response = await fetch('https://dummyjson.com/posts');
+                const data = await response.json();
+                posts = data.posts;
+                processPosts();
+                updateUI();
+            } catch (error) {
+                console.error('Error fetching posts:', error);
+            }
+        }
+
+        function processPosts() {
+            posts.forEach(post => {
+                post.tags.forEach(tag => allTags.add(tag));
+            });
+            updateTagSelection();
+        }
+
+        function updateUI() {
+            updateTopPosts();
+            updateTrendingTags();
+            updateChart();
+        }
+
+        function updateTopPosts() {
+            const metric = document.getElementById('metric-select').value;
+            const sortedPosts = [...posts].sort((a, b) => {
+                if (metric === 'likes') return b.reactions.likes - a.reactions.likes;
+                if (metric === 'dislikes') return b.reactions.dislikes - a.reactions.dislikes;
+                return b.views - a.views;
+            });
+
+            const postsContainer = document.getElementById('posts-container');
+            postsContainer.innerHTML = '';
+
+            sortedPosts.slice(0, 10).forEach(post => {
+                const postElement = document.createElement('div');
+                postElement.className = 'post';
+                postElement.innerHTML = `
+                    <h4>${post.title}</h4>
+                    <p>Likes: ${post.reactions.likes} | Dislikes: ${post.reactions.dislikes} | Views: ${post.views}</p>
+                `;
+                postsContainer.appendChild(postElement);
+            });
+        }
+
+        function updateTagSelection() {
+            const tagContainer = document.querySelector('.checkbox-container');
+            tagContainer.innerHTML = '';
+
+            allTags.forEach(tag => {
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `tag-${tag}`;
+                checkbox.value = tag;
+                checkbox.addEventListener('change', handleTagSelection);
+
+                const label = document.createElement('label');
+                label.htmlFor = `tag-${tag}`;
+                label.textContent = tag;
+
+                tagContainer.appendChild(checkbox);
+                tagContainer.appendChild(label);
+            });
+        }
+
+        function handleTagSelection(event) {
+            const tag = event.target.value;
+            if (event.target.checked) {
+                if (selectedTags.size < 5) {
+                    selectedTags.add(tag);
+                } else {
+                    event.target.checked = false;
+                    alert('You can select up to 5 tags.');
+                    return 
+                }
+            } else {
+                selectedTags.delete(tag);
+            }
+            updateChart();
+        }
+
+        function updateTrendingTags() {
+            const tagCounts = {};
+            posts.forEach(post => {
+                post.tags.forEach(tag => {
+                    tagCounts[tag] = (tagCounts[tag] || 0) + post.reactions.likes;
+                });
+            });
+
+            const sortedTags = Object.entries(tagCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+
+            const trendingTagsList = document.getElementById('trending-tags-list');
+            trendingTagsList.innerHTML = '';
+
+            sortedTags.forEach(([tag, likes]) => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${tag}</span> <span>${likes} likes</span>`;
+                trendingTagsList.appendChild(li);
+            });
+        }
+
+        function updateChart() {
+            const tagCounts = {};
+            selectedTags.forEach(tag => {
+                tagCounts[tag] = posts.filter(post => post.tags.includes(tag)).length;
+            });
+
+            const data = {
+                labels: Array.from(selectedTags),
+                datasets: [{
+                    label: 'Number of Posts',
+                    data: Object.values(tagCounts),
+                    backgroundColor: 'rgba(74, 144, 226, 0.2)',
+                    borderColor: 'rgba(74, 144, 226, 1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    pointBackgroundColor: 'rgba(74, 144, 226, 1)',
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }]
+            };
+
+            const config = {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Posts',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Tags',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            bodyFont: {
+                                size: 14
+                            },
+                            titleFont: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    }
+                }
+            };
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            const ctx = document.getElementById('tag-chart').getContext('2d');
+            chart = new Chart(ctx, config);
+        }
+
+        document.getElementById('metric-select').addEventListener('change', updateTopPosts);
+
+        fetchPosts();
+    </script>
+</body>
+</html>

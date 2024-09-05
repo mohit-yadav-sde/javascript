@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Media Widget</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; }
+        .widget-container { max-width: 1200px; margin: auto; }
+        .chart-container { width: 100%; height: 300px; }
+    </style>
+</head>
+<body>
+
+<div class="widget-container container">
+    <h2>Social Media Insights</h2>
+    <select id="metricSelect" class="form-control mb-3">
+        <option value="likes">Likes</option>
+        <option value="dislikes">Dislikes</option>
+        <option value="views">Views</option>
+    </select>
+    
+    <div id="topPosts" class="mb-4"></div>
+    
+    <div>
+        <h4>Select Tags:</h4>
+        <div id="tagSelection"></div>
+    </div>
+    
+    <div class="chart-container">
+        <canvas id="tagChart"></canvas>
+    </div>
+    
+    <div>
+        <h4>Trending Tags</h4>
+        <ul id="trendingTags"></ul>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const apiUrl = 'https://dummyjson.com/posts';
+    let posts = [];
+    let tags = new Set();
+
+    // Fetch posts from API
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            posts = data.posts;
+            updateAll();
+        });
+
+    function updateAll() {
+        updatePosts('likes');
+        populateTags();
+        updateChart();
+        updateTrendingTags();
+    }
+
+    // Update posts based on selected metric
+    function updatePosts(metric) {
+        const sortedPosts = [...posts].sort((a, b) => b.reactions[metric] - a.reactions[metric]).slice(0, 10);
+        document.getElementById('topPosts').innerHTML = sortedPosts.map(post => `
+            <div><strong>\${post.title}</strong> - \${post.reactions[metric]} <INLINE_MATH>{metric}</div>
+        `).join('');
+    }
+
+    // Populate tag selection
+    function populateTags() {
+        tags = new Set(posts.flatMap(post => post.tags));
+        const tagHTML = Array.from(tags).map(tag => `<label><input type="checkbox" value="</INLINE_MATH>{tag}" onchange="updateChart()"> <INLINE_MATH>{tag}</label><br>`).join('');
+        document.getElementById('tagSelection').innerHTML = tagHTML;
+    }
+
+    // Update chart with selected tags
+    function updateChart() {
+        const ctx = document.getElementById('tagChart').getContext('2d');
+        const selectedTags = Array.from(document.querySelectorAll('#tagSelection input:checked')).map(e => e.value);
+        const data = {
+            labels: selectedTags,
+            datasets: [{
+                label: 'Number of Posts',
+                data: selectedTags.map(tag => posts.filter(p => p.tags.includes(tag)).length),
+                borderColor: 'rgb(75, 192, 192)',
+                fill: false
+            }]
+        };
+        new Chart(ctx, {
+            type: 'line',
+            data: data
+        });
+    }
+
+    // Update trending tags
+    function updateTrendingTags() {
+        let tagLikes = {};
+        posts.forEach(post => {
+            post.tags.forEach(tag => {
+                tagLikes[tag] = (tagLikes[tag] || 0) + post.reactions.likes;
+            });
+        });
+        const sortedTags = Object.entries(tagLikes).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        document.getElementById('trendingTags').innerHTML = sortedTags.map(([tag, likes]) => `<li></INLINE_MATH>{tag}: \${likes} likes</li>`).join('');
+    }
+
+    document.getElementById('metricSelect').addEventListener('change', function() {
+        updatePosts(this.value);
+    });
+</script>
+
+</body>
+</html>
