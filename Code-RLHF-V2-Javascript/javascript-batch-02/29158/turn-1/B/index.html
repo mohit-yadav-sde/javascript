@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Javelin Throw Game</title>
+<style>
+    body {
+        font-family: 'Arial', sans-serif;
+        background-color: #f0f0f0;
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        overflow: hidden;
+    }
+    .game-container {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        width: 80vw;
+        max-width: 600px;
+        text-align: center;
+        padding: 20px;
+    }
+    canvas {
+        border: 2px solid #000;
+        display: block;
+        margin: 20px auto;
+    }
+    button {
+        padding: 10px 20px;
+        font-size: 1em;
+        cursor: pointer;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        margin: 10px;
+    }
+    button:hover {
+        background-color: #45a049;
+    }
+    .hidden {
+        display: none;
+    }
+</style>
+</head>
+<body>
+<div class="game-container">
+    <div id="startScreen">
+        <h1>Welcome to Javelin Throw!</h1>
+        <p>Press the spacebar to throw the javelin when you think the angle is right. The arm rotates automatically. Try to throw as far as possible!</p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <div id="gameScreen" class="hidden">
+        <canvas id="gameCanvas" width="600" height="300"></canvas>
+        <div id="scoreDisplay"></div>
+    </div>
+    <div id="gameOverScreen" class="hidden">
+        <h2>Game Over</h2>
+        <p>Your Distance: <span id="finalDistance"></span>m</p>
+        <p>Best Distance: <span id="bestDistance"></span>m</p>
+        <button onclick="resetGame()">Try Again</button>
+    </div>
+</div>
+<script>
+// Game setup
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const startScreen = document.getElementById('startScreen');
+const gameScreen = document.getElementById('gameScreen');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const scoreDisplay = document.getElementById('scoreDisplay');
+const finalDistance = document.getElementById('finalDistance');
+const bestDistance = document.getElementById('bestDistance');
+
+let angle = 0;
+let throwPower = 0;
+let gameActive = false;
+let distance = 0;
+let bestDist = 0;
+const gravity = 0.05;
+const player = {x: 50, y: 250, radius: 10};
+const javelin = {x: player.x, y: player.y - 20, length: 40, thrown: false, vy: 0, vx: 0};
+
+function startGame() {
+    startScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+    resetGameState();
+    gameLoop();
+}
+
+function resetGame() {
+    gameOverScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+    resetGameState();
+}
+
+function resetGameState() {
+    angle = 0;
+    throwPower = 0;
+    distance = 0;
+    javelin.thrown = false;
+    javelin.vy = 0;
+    javelin.vx = 0;
+    gameActive = true;
+}
+
+function gameLoop() {
+    if (!gameActive) return;
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+function update() {
+    if (!javelin.thrown) {
+        angle += 0.05; // Rotation speed
+    } else {
+        javelin.vy += gravity;
+        javelin.x += javelin.vx;
+        javelin.y += javelin.vy;
+        
+        // Check if javelin has landed
+        if (javelin.y >= canvas.height - 10) {
+            gameActive = false;
+            distance = (javelin.x - player.x) / 10; // Convert to meters
+            if (distance > 0) {
+                bestDist = Math.max(bestDist, distance);
+                finalDistance.textContent = distance.toFixed(2);
+                bestDistance.textContent = bestDist.toFixed(2);
+                gameScreen.classList.add('hidden');
+                gameOverScreen.classList.remove('hidden');
+            } else {
+                resetGame(); // If thrown backwards, immediately reset
+            }
+        }
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Ground
+    ctx.fillStyle = 'green';
+    ctx.fillRect(0, canvas.height - 10, canvas.width, 10);
+    
+    // Player
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+    ctx.fillStyle = 'blue';
+    ctx.fill();
+    
+    // Javelin
+    ctx.save();
+    ctx.translate(javelin.x, javelin.y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(javelin.length, 0);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
+    scoreDisplay.textContent = `Current Distance: ${(javelin.x - player.x) / 10 || 0}m`;
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !javelin.thrown) {
+        javelin.thrown = true;
+        throwPower = 1; // Simplified throw power
+        javelin.vx = throwPower * Math.cos(angle) * 10;
+        javelin.vy = throwPower * Math.sin(angle) * -10;
+    }
+});
+</script>
+</body>
+</html>

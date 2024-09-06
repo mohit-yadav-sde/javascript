@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Javelin Thrower Game</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #2c3e50, #4ca1af);
+            overflow: hidden; /* Prevents scrollbars */
+        }
+        canvas {
+            background-color: #27ae60;
+            border: 2px solid #fff;
+            border-radius: 10px;
+        }
+        #scoreboard, #instructions {
+            position: absolute;
+            color: #fff;
+            font-size: 24px;
+            text-shadow: 1px 1px 2px #000;
+        }
+        #scoreboard {
+            top: 10px;
+            left: 10px;
+            display: none; /* Initially hidden */
+        }
+        #instructions {
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            display: none; /* Initially hidden */
+        }
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            text-align: center;
+            display: none; /* Initially hidden */
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+        }
+        #startScreen h1, #gameOverScreen h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+        #startScreen p, #gameOverScreen p {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        #startScreen ul {
+            list-style: none;
+            padding: 0;
+        }
+        #startScreen li {
+            margin: 5px 0;
+        }
+        #startScreen button, #gameOverScreen button {
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            transition: background 0.3s, transform 0.2s;
+        }
+        #startScreen button:hover, #gameOverScreen button:hover {
+            background: #2980b9;
+            transform: scale(1.05);
+        }
+        #startScreen button:focus, #gameOverScreen button:focus {
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div id="scoreboard">Best: 0m</div>
+    <div id="instructions">Press Spacebar to throw the javelin!</div>
+    
+    <div id="startScreen">
+        <h1>Welcome to the Javelin Thrower Game</h1>
+        <p>Instructions:</p>
+        <ul>
+            <li>Press Spacebar to throw the javelin.</li>
+            <li>Try to throw as far as possible!</li>
+        </ul>
+        <button id="startButton">Start Game</button>
+    </div>
+    
+    <div id="gameOverScreen">
+        <h1>Game Over</h1>
+        <p>Your Score: <span id="finalScore">0</span>m</p>
+        <button id="tryAgainButton">Try Again</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreboard = document.getElementById('scoreboard');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScore = document.getElementById('finalScore');
+        const instructions = document.getElementById('instructions');
+        const startButton = document.getElementById('startButton');
+        const tryAgainButton = document.getElementById('tryAgainButton');
+
+        let bestScore = 0;
+        let distance = 0;
+        let offsetX = 0;
+        let targetOffsetX = 0;
+        const groundHeight = 50;
+        let gameActive = false;
+        let gameOverTimeoutId = null; // New variable to store the timeout ID
+
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height - groundHeight - 50,
+            armLength: 40,
+            rotationSpeed: 0.05,
+            javelinSpeed: 12,
+            armAngle: 0,
+        };
+
+        const javelin = {
+            x: player.x + player.armLength,
+            y: player.y,
+            velocityX: 0,
+            velocityY: 0,
+            isThrown: false
+        };
+
+        function drawGround() {
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(-10000 + offsetX, canvas.height - groundHeight, 20000, groundHeight);
+        }
+
+        function drawPlayer() {
+            ctx.save();
+            ctx.translate(player.x + offsetX, player.y);
+            ctx.rotate(player.armAngle);
+
+            // Draw player body
+            ctx.fillStyle = 'blue';
+            ctx.beginPath();
+            ctx.arc(0, 0, 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw player's arm
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(player.armLength, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawJavelin() {
+            if (!javelin.isThrown) {
+                javelin.x = player.x + player.armLength * Math.cos(player.armAngle);
+                javelin.y = player.y + player.armLength * Math.sin(player.armAngle);
+            }
+
+            ctx.strokeStyle = 'brown';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(javelin.x + offsetX, javelin.y);
+            ctx.lineTo(javelin.x - 20 + offsetX, javelin.y);
+            ctx.stroke();
+        }
+
+        function updatePlayerRotation() {
+            if (!javelin.isThrown) {
+                player.armAngle += player.rotationSpeed;
+
+                if (player.armAngle >= 2 * Math.PI) {
+                    player.armAngle = 0;
+                }
+            }
+        }
+
+        function throwJavelin() {
+            javelin.isThrown = true;
+            javelin.velocityX = player.javelinSpeed * Math.cos(player.armAngle);
+            javelin.velocityY = player.javelinSpeed * Math.sin(player.armAngle);
+        }
+
+        function updateJavelinPosition() {
+            if (javelin.isThrown) {
+                javelin.x += javelin.velocityX;
+                javelin.y += javelin.velocityY;
+                javelin.velocityY += 0.1;
+
+                targetOffsetX = canvas.width / 2 - javelin.x;
+                offsetX += (targetOffsetX - offsetX) * 0.1;
+
+                if (javelin.y >= canvas.height - groundHeight) {
+                    javelin.y = canvas.height - groundHeight;
+                    javelin.velocityX = 0;
+                    javelin.velocityY = 0;
+
+                    const traveledDistance = ((javelin.x - player.x) / 10).toFixed(2);
+
+                    if (traveledDistance > 0) {
+                        distance = traveledDistance;
+                        if (distance > bestScore) bestScore = distance;
+                        scoreboard.textContent = `Best: ${bestScore}m`;
+                    } else {
+                        distance = 0;
+                        scoreboard.textContent = `Best: ${bestScore}m`;
+                    }
+                    
+                    if (gameActive) { // Only set timeout if the game is still active
+                        gameOverTimeoutId = setTimeout(showGameOverScreen, 100);
+                    }
+                }
+            }
+        }
+
+        function showGameOverScreen() {
+            gameOverScreen.style.display = 'block';
+            finalScore.textContent = distance;
+            gameActive = false;
+        }
+
+        function resetUI() {
+            if (gameOverTimeoutId) {
+                clearTimeout(gameOverTimeoutId); // Clear any pending game over timeout
+                gameOverTimeoutId = null;
+            }
+            gameOverScreen.style.display = 'none';
+            startScreen.style.display = 'none';
+            //scoreboard.style.display = 'block';
+            // instructions.style.display = 'block';
+        }
+
+        function startGame() {
+            resetUI(); // Call resetUI at the start of the game
+            player.x = canvas.width / 2;
+            player.y = canvas.height - groundHeight - 50;
+            javelin.x = player.x + player.armLength;
+            javelin.y = player.y;
+            offsetX = 0;
+            targetOffsetX = 0;
+            javelin.isThrown = false;
+            player.armAngle = 0;
+            distance = 0;
+
+            startScreen.style.display = 'none';
+            scoreboard.style.display = 'block';
+            instructions.style.display = 'block';
+            gameActive = true;
+            gameLoop();
+        }
+
+        function tryAgain() {
+            startGame();
+        }
+
+        function gameLoop() {
+            if (gameActive) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                drawGround();
+                drawPlayer();
+                drawJavelin();
+
+                updatePlayerRotation();
+                updateJavelinPosition();
+
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        window.addEventListener('keydown', function (event) {
+            if (event.code === 'Space' && gameActive && !javelin.isThrown) {
+                throwJavelin();
+            }
+        });
+
+        startButton.addEventListener('click', startGame);
+        tryAgainButton.addEventListener('click', tryAgain);
+
+        startScreen.style.display = 'block';
+    </script>
+</body>
+</html>
