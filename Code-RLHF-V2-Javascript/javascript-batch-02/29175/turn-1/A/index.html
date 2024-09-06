@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Air Hockey</title>
+    <style>
+        body { 
+            font-family: 'Arial', sans-serif; 
+            background: #f0f0f0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+            overflow: hidden; 
+        }
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 400px;
+            background: #000;
+        }
+        canvas {
+            display: block;
+        }
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #gameOver, #startScreen {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div id="gameContainer">
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div id="startScreen" class="overlay">
+        <h1>Air Hockey</h1>
+        <p>Move your mouse to control the paddle. First to 5 points wins!</p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <div id="gameOver" class="overlay">
+        <h2>Game Over</h2>
+        <p id="finalScore"></p>
+        <button onclick="restartGame()">Try Again</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOver');
+    const finalScoreDisplay = document.getElementById('finalScore');
+
+    let gameActive = false;
+    let playerScore = 0, computerScore = 0;
+
+    const paddleWidth = 10, paddleHeight = 80, puckRadius = 7.5;
+    let playerPaddle, computerPaddle, puck;
+
+    // Initialize game objects
+    function initGame() {
+        playerPaddle = {x: 50, y: canvas.height / 2 - paddleHeight / 2, dy: 0};
+        computerPaddle = {x: canvas.width - 50 - paddleWidth, y: canvas.height / 2 - paddleHeight / 2, dy: 2};
+        puck = {x: canvas.width / 2, y: canvas.height / 2, dx: 3, dy: -3, speed: 3};
+    }
+
+    function startGame() {
+        startScreen.style.display = 'none';
+        gameActive = true;
+        initGame();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function restartGame() {
+        playerScore = computerScore = 0;
+        gameOverScreen.style.display = 'none';
+        startGame();
+    }
+
+    // Game loop
+    function gameLoop() {
+        if (!gameActive) return;
+
+        update();
+        render();
+        checkCollision();
+        if (playerScore < 5 && computerScore < 5) {
+            requestAnimationFrame(gameLoop);
+        } else {
+            endGame();
+        }
+    }
+
+    function update() {
+        // Player paddle movement
+        playerPaddle.y = Math.max(Math.min(canvas.height - paddleHeight, mouseY - canvas.offsetTop), 0);
+
+        // Computer paddle AI - simple follow the puck
+        if (computerPaddle.y + paddleHeight/2 < puck.y) computerPaddle.y += computerPaddle.dy;
+        else if (computerPaddle.y + paddleHeight/2 > puck.y) computerPaddle.y -= computerPaddle.dy;
+
+        // Puck movement
+        puck.x += puck.dx;
+        puck.y += puck.dy;
+
+        // Boundary checks for puck
+        if (puck.y - puckRadius < 0 || puck.y + puckRadius > canvas.height) puck.dy *= -1;
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'white';
+        // Draw paddles and puck
+        ctx.fillRect(playerPaddle.x, playerPaddle.y, paddleWidth, paddleHeight);
+        ctx.fillRect(computerPaddle.x, computerPaddle.y, paddleWidth, paddleHeight);
+        ctx.beginPath();
+        ctx.arc(puck.x, puck.y, puckRadius, 0, Math.PI*2);
+        ctx.fill();
+        // Draw scores
+        ctx.fillText(playerScore, 100, 50);
+        ctx.fillText(computerScore, canvas.width - 100, 50);
+    }
+
+    function checkCollision() {
+        // Puck collision with paddles
+        if ((puck.x - puckRadius < playerPaddle.x + paddleWidth && 
+             puck.y > playerPaddle.y && puck.y < playerPaddle.y + paddleHeight) ||
+            (puck.x + puckRadius > computerPaddle.x && 
+             puck.y > computerPaddle.y && puck.y < computerPaddle.y + paddleHeight)) {
+            puck.dx *= -1.1; // Increase speed on hit
+        }
+
+        // Score
+        if (puck.x < 0) { score('computer'); resetPuck(); }
+        if (puck.x > canvas.width) { score('player'); resetPuck(); }
+    }
+
+    function score(who) {
+        if (who === 'player') playerScore++;
+        else if (who === 'computer') computerScore++;
+    }
+
+    function resetPuck() {
+        puck.x = canvas.width / 2;
+        puck.y = canvas.height / 2;
+        puck.dx = -puck.dx; // Reverse direction
+    }
+
+    function endGame() {
+        gameActive = false;
+        finalScoreDisplay.textContent = `Player: ${playerScore} | Computer: ${computerScore}`;
+        gameOverScreen.style.display = 'flex';
+    }
+
+    let mouseY = 0;
+    canvas.addEventListener('mousemove', function(evt) {
+        mouseY = evt.clientY;
+    });
+
+    // Initial state
+    startScreen.style.display = 'flex';
+</script>
+</body>
+</html>
