@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Image Color Picker</title>
+<style>
+    body { font-family: Arial, sans-serif; text-align: center; }
+    #imageUrlInput { width: 300px; padding: 5px; }
+    #loadImageBtn { padding: 5px 10px; }
+    #canvasContainer { margin: 20px auto; width: 80%; max-width: 600px; }
+    canvas { border: 1px solid #ccc; max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+
+<h1 id="colorTitle">Click on an image to pick color</h1>
+<div>
+    <input type="text" id="imageUrlInput" placeholder="Enter image URL">
+    <button id="loadImageBtn">Load Image</button>
+</div>
+<div id="canvasContainer">
+    <canvas id="imageCanvas"></canvas>
+</div>
+
+<script>
+    const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+    const canvas = document.getElementById('imageCanvas');
+    const ctx = canvas.getContext('2d');
+    const input = document.getElementById('imageUrlInput');
+    const loadBtn = document.getElementById('loadImageBtn');
+    const colorTitle = document.getElementById('colorTitle');
+
+    function resizeCanvas() {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetWidth; // Square canvas for simplicity, adjust as needed
+    }
+
+    function loadImage(url) {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = function() {
+            resizeCanvas();
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        };
+        img.src = corsProxy + url;
+    }
+
+    function getColorAtPixel(x, y) {
+        const imageData = ctx.getImageData(x, y, 1, 1).data;
+        return `#${((1 << 24) + (imageData[0] << 16) + (imageData[1] << 8) + imageData[2]).toString(16).slice(1)}`;
+    }
+
+    loadBtn.onclick = function() {
+        const url = input.value.trim();
+        if (url) {
+            loadImage(url);
+        }
+    };
+
+    canvas.onclick = function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const hexColor = getColorAtPixel(x, y);
+        colorTitle.textContent = `Color: ${hexColor}`;
+    };
+
+    // Initial resize
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+</script>
+
+</body>
+</html>

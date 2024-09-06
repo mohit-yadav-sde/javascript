@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Color Picker from Image</title>
+<style>
+    body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f4; }
+    .container { margin-top: 20px; }
+    #imageUrl { width: 300px; padding: 5px; }
+    #loadImage { padding: 5px 10px; }
+    #imageCanvas { border: 1px solid #000; margin-top: 20px; max-width: 90%; max-height: 80vh; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1 id="colorTitle">Click on the Image to Get Color</h1>
+    <input type="text" id="imageUrl" placeholder="Enter image URL">
+    <button id="loadImage">Load Image</button>
+    <canvas id="imageCanvas"></canvas>
+</div>
+
+<script>
+document.getElementById('loadImage').addEventListener('click', function() {
+    const url = document.getElementById('imageUrl').value;
+    if (url) {
+        loadImageWithCorsProxy(url);
+    } else {
+        alert('Please enter an image URL.');
+    }
+});
+
+function loadImageWithCorsProxy(url) {
+    const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = function() {
+        const canvas = document.getElementById('imageCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = this.width;
+        canvas.height = this.height;
+        
+        // Scale to fit if the image is too large
+        const scale = Math.min(canvas.width / this.width, canvas.height / this.height);
+        const x = (canvas.width / 2) - (this.width * scale) / 2;
+        const y = (canvas.height / 2) - (this.height * scale) / 2;
+        ctx.drawImage(img, x, y, this.width * scale, this.height * scale);
+
+        canvas.onclick = function(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const pixel = ctx.getImageData(x, y, 1, 1).data;
+            const hex = "#" + ("000000" + rgbToHex(pixel[0], pixel[1], pixel[2])).slice(-6);
+            document.getElementById('colorTitle').innerText = 'Color: ' + hex;
+        };
+    };
+    img.src = proxyUrl + url;
+}
+
+function rgbToHex(r, g, b) {
+    return ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+</script>
+
+</body>
+</html>

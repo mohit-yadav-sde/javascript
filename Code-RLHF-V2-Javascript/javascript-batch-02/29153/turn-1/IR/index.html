@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select a color from the image</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 20px; }
+        input[type="text"] { padding: 5px; width: 300px; }
+        button { padding: 5px 10px; margin-left: 10px; }
+        canvas { margin-top: 20px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1 id="title">Enter an image URL and click "Load Image"</h1>
+
+    <input type="text" id="imageUrl" placeholder="Enter image URL">
+    <button id="loadImage">Load Image</button>
+    
+    <canvas id="imageCanvas" width="500" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById('imageCanvas');
+        const ctx = canvas.getContext('2d');
+        const loadImageButton = document.getElementById('loadImage');
+        const imageUrlInput = document.getElementById('imageUrl');
+        const title = document.getElementById('title');
+
+        let img = new Image();
+
+        loadImageButton.addEventListener('click', () => {
+            const imageUrl = imageUrlInput.value;
+            if (imageUrl) {
+                // Use a CORS proxy to bypass CORS issues
+                const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+                img.src = proxyUrl + imageUrl;
+                img.crossOrigin = "Anonymous";
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    title.textContent = 'Click on the color you want the hex code for';
+                };
+                img.onerror = () => {
+                    alert('Image failed to load. Please check the URL.');
+                };
+            }
+        });
+
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const pixelData = ctx.getImageData(x, y, 1, 1).data;
+
+            const hexColor = rgbToHex(pixelData[0], pixelData[1], pixelData[2]);
+            title.textContent = `Hex code of selected color: ${hexColor}`;
+        });
+
+        function rgbToHex(r, g, b) {
+            return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+        }
+
+        function componentToHex(c) {
+            const hex = c.toString(16);
+            return hex.length == 1 ? "0" + hex : hex;
+        }
+    </script>
+</body>
+</html>
