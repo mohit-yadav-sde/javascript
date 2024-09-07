@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Select a color from the image</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 20px; }
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 20px; display: flex; flex-direction: column; }
+        .input-container { display: flex; flex-direction: row; }
         input[type="text"] { padding: 5px; width: 300px; }
         button { padding: 5px 10px; margin-left: 10px; }
         canvas { margin-top: 20px; border: 1px solid #ccc; }
@@ -14,8 +15,10 @@
 <body>
     <h1 id="title">Enter an image URL and click "Load Image"</h1>
 
+    <div class="input-container">
     <input type="text" id="imageUrl" placeholder="Enter image URL">
     <button id="loadImage">Load Image</button>
+    </div>
     
     <canvas id="imageCanvas" width="500" height="400"></canvas>
 
