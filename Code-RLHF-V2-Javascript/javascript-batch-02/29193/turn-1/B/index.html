@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Card Game</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .game-container {
+            max-width: 500px;
+            margin: auto;
+            text-align: center;
+        }
+        .card {
+            width: 100px;
+            height: 100px;
+            margin: 5px;
+            perspective: 1000px;
+            cursor: pointer;
+        }
+        .card-inner {
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            position: relative;
+        }
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+        }
+        .card-back {
+            background: navy;
+        }
+        .card-front {
+            transform: rotateY(180deg);
+            background: lightblue;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <div id="startScreen">
+        <h1>Memory Game</h1>
+        <button id="startButton" class="btn btn-primary">Start Game</button>
+    </div>
+    <div id="gameBoard" class="hidden">
+        <div id="cardGrid"></div>
+    </div>
+    <div id="gameOverScreen" class="hidden">
+        <h2>Congratulations!</h2>
+        <p>Moves: <span id="movesCount"></span></p>
+        <button id="playAgain" class="btn btn-secondary">Play Again</button>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    let flippedCards = [];
+    let matchedPairs = 0;
+    let moves = 0;
+    const gameBoard = document.getElementById('gameBoard');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const movesCount = document.getElementById('movesCount');
+
+    // Shuffle function
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    // Flip card function
+    function flipCard() {
+        if (flippedCards.length < 2 && !this.classList.contains('flipped')) {
+            this.classList.add('flipped');
+            flippedCards.push(this);
+            if (flippedCards.length === 2) {
+                moves++;
+                checkMatch();
+            }
+        }
+    }
+
+    // Check if cards match
+    function checkMatch() {
+        const [firstCard, secondCard] = flippedCards;
+        if (firstCard.dataset.value === secondCard.dataset.value) {
+            matchedPairs++;
+            if (matchedPairs === cards.length / 2) {
+                setTimeout(() => {
+                    gameOver();
+                }, 500);
+            }
+            flippedCards = [];
+        } else {
+            setTimeout(() => {
+                firstCard.classList.remove('flipped');
+                secondCard.classList.remove('flipped');
+                flippedCards = [];
+            }, 1000);
+        }
+    }
+
+    // Game over
+    function gameOver() {
+        movesCount.textContent = moves;
+        gameBoard.classList.add('hidden');
+        gameOverScreen.classList.remove('hidden');
+    }
+
+    // Start game
+    function startGame() {
+        startScreen.classList.add('hidden');
+        gameBoard.classList.remove('hidden');
+        shuffledCards = shuffle(cards.slice());
+        const cardGrid = document.getElementById('cardGrid');
+        cardGrid.innerHTML = '';
+        shuffledCards.forEach(value => {
+            const cardElement = document.createElement('div');
+            cardElement.className = 'card';
+            cardElement.dataset.value = value;
+            cardElement.innerHTML = `<div class="card-inner">
+                <div class="card-back"></div>
+                <div class="card-front">${value}</div>
+            </div>`;
+            cardElement.addEventListener('click', flipCard);
+            cardGrid.appendChild(cardElement);
+        });
+    }
+
+    // Event listeners
+    document.getElementById('startButton').addEventListener('click', startGame);
+    document.getElementById('playAgain').addEventListener('click', () => {
+        gameOverScreen.classList.add('hidden');
+        flippedCards = [];
+        matchedPairs = 0;
+        moves = 0;
+        startGame();
+    });
+});
+</script>
+
+</body>
+</html>
