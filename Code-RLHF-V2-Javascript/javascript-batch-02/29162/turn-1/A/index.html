@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baseball Frenzy</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        nav { background: #333; color: white; padding: 10px 0; text-align: center; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        section { margin-bottom: 40px; }
+        #topPlayers, #searchPlayer { display: flex; flex-wrap: wrap; justify-content: space-around; }
+        .player-card { background: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin: 10px; text-align: center; }
+        #charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        footer { background: #333; color: white; text-align: center; padding: 10px 0; position: fixed; width: 100%; bottom: 0; }
+    </style>
+</head>
+<body>
+    <nav>Baseball Frenzy</nav>
+    <div class="container">
+        <section id="topPlayers"></section>
+        <section id="charts">
+            <canvas id="lineChart"></canvas>
+            <canvas id="pieChart"></canvas>
+        </section>
+        <section id="searchPlayer">
+            <input type="text" id="playerSearch" placeholder="Search player...">
+            <button onclick="searchPlayer()">Search</button>
+            <div id="playerDetails"></div>
+        </section>
+    </div>
+    <footer>Made with Love for Baseball</footer>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+    $(document).ready(function() {
+        let playersData;
+
+        // Fetch data from API
+        $.getJSON('https://api.sampleapis.com/baseball/eraCareer', function(data) {
+            playersData = data;
+            displayTopPlayers();
+            createLineChart();
+            createPieChart();
+            setupAutocomplete();
+        });
+
+        function displayTopPlayers() {
+            let top5 = playersData.slice(0, 5);
+            top5.forEach(player => {
+                $('#topPlayers').append(`<div class="player-card">
+                    <h3>${player.Player}</h3>
+                    <p>Rank: ${player.Rank}</p>
+                    <p>ERA: ${player.EarnedRunAverage}</p>
+                    <p>Throws: ${player.Throws}</p>
+                </div>`);
+            });
+        }
+
+        function createLineChart() {
+            let top10ERA = playersData.sort((a, b) => b.EarnedRunAverage - a.EarnedRunAverage).slice(0, 10);
+            let ctx = document.getElementById('lineChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: top10ERA.map(p => p.Player),
+                    datasets: [{
+                        label: 'Earned Run Average',
+                        data: top10ERA.map(p => p.EarnedRunAverage),
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        fill: false
+                    }]
+                }
+            });
+        }
+
+        function createPieChart() {
+            let throwsCount = playersData.reduce((acc, player) => {
+                acc[player.Throws] = (acc[player.Throws] || 0) + 1;
+                return acc;
+            }, {});
+            let ctx = document.getElementById('pieChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(throwsCount),
+                    datasets: [{
+                        data: Object.values(throwsCount),
+                        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+                    }]
+                }
+            });
+        }
+
+        function setupAutocomplete() {
+            let playerNames = playersData.map(player => player.Player);
+            $("#playerSearch").autocomplete({
+                source: playerNames
+            });
+        }
+
+        function searchPlayer() {
+            let searchTerm = $("#playerSearch").val();
+            let player = playersData.find(p => p.Player === searchTerm);
+            if(player) {
+                $('#playerDetails').html(`
+                    <h3>${player.Player}</h3>
+                    <p>Rank: ${player.Rank}</p>
+                    <p>ERA: ${player.EarnedRunAverage}</p>
+                    <p>Throws: ${player.Throws}</p>
+                `);
+            } else {
+                $('#playerDetails').html('<p>Player not found!</p>');
+            }
+        }
+    });
+    </script>
+</body>
+</html>
