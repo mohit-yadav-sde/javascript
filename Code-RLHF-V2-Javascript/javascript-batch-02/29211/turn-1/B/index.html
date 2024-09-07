@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Character Explorer</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
+    <style>
+        .card-img-top { 
+            width: 100%; 
+            height: 20vw; 
+            object-fit: cover; 
+        }
+        .modal-img {
+            width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-light bg-light">
+    <a class="navbar-brand" href="#">Character Explorer</a>
+    <p class="text-muted">Explore the Multiverse!</p>
+</nav>
+
+<div class="container mt-4">
+    <input type="text" id="searchBar" class="form-control mb-3" placeholder="Search characters...">
+    <div id="filterButtons">
+        <select id="statusFilter" class="form-control mb-2">
+            <option value="">Filter by Status</option>
+            <!-- Options will be dynamically added -->
+        </select>
+        <select id="speciesFilter" class="form-control mb-2">
+            <option value="">Filter by Species</option>
+            <!-- Options will be dynamically added -->
+        </select>
+    </div>
+
+    <div id="characterGallery" class="row"></div>
+    <ul id="pagination" class="pagination justify-content-center mt-3"></ul>
+</div>
+
+<div class="container mt-4">
+    <canvas id="statusChart" width="400" height="200"></canvas>
+    <canvas id="speciesChart" width="400" height="200"></canvas>
+</div>
+
+<footer class="footer mt-5 py-3 bg-light text-center">
+    <div class="container">
+        <span>Made for fans of Rick and Morty.</span>
+    </div>
+</footer>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script>
+    let characters = [];
+    const itemsPerPage = 9;
+
+    // Fetch characters
+    fetch('https://api.sampleapis.com/rickandmorty/characters')
+        .then(response => response.json())
+        .then(data => {
+            characters = data;
+            setupFilters();
+            renderCharacters();
+            setupCharts();
+        });
+
+    function setupFilters() {
+        let statuses = [...new Set(characters.map(char => char.status))];
+        let species = [...new Set(characters.map(char => char.species))];
+        statuses.forEach(status => {
+            $('#statusFilter').append(new Option(status, status));
+        });
+        species.forEach(spec => {
+            $('#speciesFilter').append(new Option(spec, spec));
+        });
+    }
+
+    function renderCharacters(page = 1) {
+        let filteredChars = characters.filter(char => 
+            char.name.toLowerCase().includes($('#searchBar').val().toLowerCase()) &&
+            (char.status.includes($('#statusFilter').val()) || !$('#statusFilter').val()) &&
+            (char.species.includes($('#speciesFilter').val()) || !$('#speciesFilter').val())
+        );
+        let start = (page - 1) * itemsPerPage;
+        $('#characterGallery').html(filteredChars.slice(start, start + itemsPerPage).map(characterCard).join(''));
+        setupPagination(filteredChars.length, page);
+    }
+
+    function characterCard(character) {
+        return `
+        <div class="col-md-4 mb-4">
+            <div class="card" data-toggle="modal" data-target="#charModal${character.id}">
+                <img src="${character.image}" class="card-img-top" alt="${character.name}">
+                <div class="card-body">
+                    <h5 class="card-title">${character.name}</h5>
+                    <p class="card-text">Status: ${character.status}</p>
+                    <p class="card-text">Species: ${character.species}</p>
+                </div>
+            </div>
+            ${characterModal(character)}
+        </div>`;
+    }
+
+    function characterModal(character) {
+        return `
+        <div class="modal fade" id="charModal${character.id}" tabindex="-1" role="dialog">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">${character.name}</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <img src="${character.image}" class="modal-img">
+                        <p><strong>Status:</strong> ${character.status}</p>
+                        <p><strong>Species:</strong> ${character.species}</p>
+                        <p><strong>Type:</strong> ${character.type}</p>
+                        <p><strong>Gender:</strong> ${character.gender}</p>
+                        <p><strong>Origin:</strong> ${character.origin}</p>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function setupPagination(totalItems, currentPage) {
+        let totalPages = Math.ceil(totalItems / itemsPerPage);
+        $('#pagination').html(Array.from({length: totalPages}, (_, i) => 
+            `<li class="page-item ${i+1 === currentPage ? 'active' : ''}"><a class="page-link" href="#" onclick="renderCharacters(${i+1})">${i+1}</a></li>`
+        ).join(''));
+    }
+
+    function setupCharts() {
+        let statusCtx = document.getElementById('statusChart').getContext('2d');
+        let speciesCtx = document.getElementById('speciesChart').getContext('2d');
+        let statusData = characters.reduce((acc, char) => {
+            acc[char.status] = (acc[char.status] || 0) + 1;
+            return acc;
+        }, {});
+        let speciesData = characters.reduce((acc, char) => {
+            acc[char.species] = (acc[char.species] || 0) + 1;
+            return acc;
+        }, {});
+
+        new Chart(statusCtx, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(statusData),
+                datasets: [{
+                    data: Object.values(statusData),
+                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+                }]
+            }
+        });
+
+        new Chart(speciesCtx, {
+            type: 'line',
+            data: {
+                labels: Object.keys(speciesData),
+                datasets: [{
+                    label: 'Number of Characters',
+                    data: Object.values(speciesData),
+                    borderColor: '#36A2EB',
+                    fill: false
+                }]
+            }
+        });
+    }
+
+    $('#searchBar, #statusFilter, #speciesFilter').on('change keyup', function() { renderCharacters(); });
+</script>
+
+</body>
+</html>

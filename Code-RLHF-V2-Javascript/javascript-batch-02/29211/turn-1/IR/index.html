@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Character Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <nav class="bg-green-600 text-white p-4">
+        <div class="container mx-auto">
+            <h1 class="text-3xl font-bold">Character Explorer</h1>
+            <p class="text-lg italic">Explore the Multiverse!</p>
+        </div>
+    </nav>
+
+    <main class="container mx-auto mt-8 px-4">
+        <section id="characterGallery" class="mb-12">
+            <h2 class="text-2xl font-bold mb-4">Character Gallery</h2>
+            <div class="relative">
+                <button id="scrollLeft" class="absolute left-0 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white px-2 py-4 rounded-l">&lt;</button>
+                <div id="featuredCharacters" class="flex py-4 overflow-x-hidden scroll-smooth"></div>
+                <button id="scrollRight" class="absolute right-0 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white px-2 py-4 rounded-r">&gt;</button>
+            </div>
+        </section>
+
+        <section id="filterAndSearch" class="mb-12">
+            <h2 class="text-2xl font-bold mb-4">Filter and Search</h2>
+            <div class="mb-4 flex space-x-2">
+                <input type="text" id="searchInput" placeholder="Search characters..." class="flex-grow p-2 border border-gray-300 rounded">
+                <button id="resetButton" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors">Reset</button>
+            </div>
+            <div class="flex space-x-2 mb-4">
+                <button class="filter-btn bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors" data-filter="status">Filter by Status</button>
+                <button class="filter-btn bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors" data-filter="species">Filter by Species</button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" id="characterGrid"></div>
+            <div class="flex justify-center mt-4" id="pagination"></div>
+        </section>
+
+        <section id="visualization" class="mb-12">
+            <h2 class="text-2xl font-bold mb-4">Character Statistics</h2>
+            <div class="flex flex-col md:flex-row justify-between">
+                <div class="w-full md:w-1/2 mb-4 md:mb-0">
+                    <canvas id="statusChart"></canvas>
+                </div>
+                <div class="w-full md:w-1/2">
+                    <canvas id="speciesChart"></canvas>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="characterModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+        <div class="bg-white p-8 rounded-lg max-w-2xl w-full">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Character Details</h2>
+                <button id="closeModal" class="text-2xl">&times;</button>
+            </div>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <footer class="bg-green-600 text-white p-4 mt-8">
+        <div class="container mx-auto text-center">
+            <p>Made for fans of Rick and Morty.</p>
+        </div>
+    </footer>
+
+    <script>
+        const API_URL = 'https://api.sampleapis.com/rickandmorty/characters';
+        let characters = [];
+        let filteredCharacters = [];
+        let currentPage = 1;
+        const charactersPerPage = 9;
+        let statusChart, speciesChart;
+
+        async function fetchCharacters() {
+            try {
+                const response = await fetch(API_URL);
+                characters = await response.json();
+                filteredCharacters = [...characters];
+                renderFeaturedCharacters();
+                renderCharacters();
+                renderPagination();
+                renderCharts();
+                setupScrollButtons();
+            } catch (error) {
+                console.error('Error fetching characters:', error);
+            }
+        }
+
+        function renderFeaturedCharacters() {
+            const featuredGrid = document.getElementById('featuredCharacters');
+            featuredGrid.innerHTML = '';
+
+            characters.forEach(character => {
+                const card = createCharacterCard(character);
+                card.classList.add('flex-shrink-0', 'w-64', 'mx-2');
+                featuredGrid.appendChild(card);
+            });
+        }
+
+        function setupScrollButtons() {
+            const featuredCharacters = document.getElementById('featuredCharacters');
+            const scrollLeft = document.getElementById('scrollLeft');
+            const scrollRight = document.getElementById('scrollRight');
+
+            scrollLeft.addEventListener('click', () => {
+                featuredCharacters.scrollBy({ left: -200, behavior: 'smooth' });
+            });
+
+            scrollRight.addEventListener('click', () => {
+                featuredCharacters.scrollBy({ left: 200, behavior: 'smooth' });
+            });
+        }
+
+        function renderCharacters() {
+            const grid = document.getElementById('characterGrid');
+            grid.innerHTML = '';
+
+            const startIndex = (currentPage - 1) * charactersPerPage;
+            const endIndex = startIndex + charactersPerPage;
+            const displayedCharacters = filteredCharacters.slice(startIndex, endIndex);
+
+            displayedCharacters.forEach(character => {
+                const card = createCharacterCard(character);
+                grid.appendChild(card);
+            });
+        }
+
+        function createCharacterCard(character) {
+            const card = document.createElement('div');
+            card.className = 'bg-white rounded-lg shadow-md overflow-hidden transition-transform duration-300 hover:scale-105';
+            card.innerHTML = `
+                <img src="${character.image}" alt="${character.name}" class="w-full object-cover">
+                <div class="p-4">
+                    <h3 class="font-bold text-lg mb-2">${character.name}</h3>
+                    <p class="text-sm text-gray-600">Status: ${character.status}</p>
+                    <p class="text-sm text-gray-600">Species: ${character.species}</p>
+                </div>
+            `;
+            card.addEventListener('click', () => showModal(character));
+            return card;
+        }
+
+        function renderPagination() {
+            const paginationContainer = document.getElementById('pagination');
+            paginationContainer.innerHTML = '';
+
+            const totalPages = Math.ceil(filteredCharacters.length / charactersPerPage);
+
+            for (let i = 1; i <= totalPages; i++) {
+                const button = document.createElement('button');
+                button.textContent = i;
+                button.className = `mx-1 px-3 py-1 rounded ${currentPage === i ? 'bg-blue-500 text-white' : 'bg-gray-200'}`;
+                button.addEventListener('click', () => {
+                    currentPage = i;
+                    renderCharacters();
+                    renderPagination();
+                });
+                paginationContainer.appendChild(button);
+            }
+        }
+
+        function showModal(character) {
+            const modal = document.getElementById('characterModal');
+            const modalContent = document.getElementById('modalContent');
+            modalContent.innerHTML = `
+                <div class="flex flex-col md:flex-row">
+                    <img src="${character.image}" alt="${character.name}" class="w-full md:w-1/2 h-auto object-cover rounded-lg">
+                    <div class="md:ml-4 mt-4 md:mt-0">
+                        <h2 class="text-2xl font-bold mb-2">${character.name}</h2>
+                        <p class="mb-1"><span class="font-semibold">Status:</span> ${character.status}</p>
+                        <p class="mb-1"><span class="font-semibold">Species:</span> ${character.species}</p>
+                        <p class="mb-1"><span class="font-semibold">Type:</span> ${character.type || 'N/A'}</p>
+                        <p class="mb-1"><span class="font-semibold">Gender:</span> ${character.gender}</p>
+                        <p class="mb-1"><span class="font-semibold">Origin:</span> ${character.origin}</p>
+                    </div>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            document.getElementById('closeModal').onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            };
+        }
+
+        function renderCharts() {
+            renderStatusChart();
+            renderSpeciesChart();
+        }
+
+        function renderStatusChart() {
+            const statusCounts = filteredCharacters.reduce((acc, character) => {
+                acc[character.status] = (acc[character.status] || 0) + 1;
+                return acc;
+            }, {});
+
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            
+            if (statusChart) {
+                statusChart.destroy();
+            }
+
+            statusChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(statusCounts),
+                    datasets: [{
+                        data: Object.values(statusCounts),
+                        backgroundColor: ['#10B981', '#EF4444', '#F59E0B']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Character Status Distribution',
+                            font: { size: 16, weight: 'bold' }
+                        },
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderSpeciesChart() {
+            const speciesCounts = filteredCharacters.reduce((acc, character) => {
+                acc[character.species] = (acc[character.species] || 0) + 1;
+                return acc;
+            }, {});
+
+            const ctx = document.getElementById('speciesChart').getContext('2d');
+            
+            if (speciesChart) {
+                speciesChart.destroy();
+            }
+
+            speciesChart = new Chart(ctx, {
+                type: 'line',
+        data: {
+            labels: Object.keys(speciesCounts),
+            datasets: [{
+                label: 'Species Count',
+                data: Object.values(speciesCounts),
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Character Species Distribution',
+                            font: { size: 16, weight: 'bold' }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Characters'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function applyFilters() {
+            currentPage = 1;
+            renderCharacters();
+            renderPagination();
+            renderCharts();
+        }
+
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            filteredCharacters = characters.filter(character => 
+                character.name.toLowerCase().includes(searchTerm)
+            );
+            applyFilters();
+        });
+
+        document.getElementById('resetButton').addEventListener('click', () => {
+            document.getElementById('searchInput').value = '';
+            filteredCharacters = [...characters];
+            applyFilters();
+        });
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const filterType = e.target.dataset.filter;
+                const filterOptions = [...new Set(characters.map(char => char[filterType]))];
+                
+                const filterModal = document.createElement('div');
+                filterModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center';
+                filterModal.innerHTML = `
+                    <div class="bg-white p-8 rounded-lg max-w-md w-full">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-2xl font-bold">Filter by ${filterType}</h2>
+                            <button class="text-2xl closeFilterModal">&times;</button>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            ${filterOptions.map(option => `
+                                <button class="filter-option bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold py-2 px-4 rounded">
+                                    ${option}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(filterModal);
+
+                filterModal.querySelector('.closeFilterModal').onclick = () => {
+                    document.body.removeChild(filterModal);
+                };
+
+                filterModal.querySelectorAll('.filter-option').forEach(optionBtn => {
+                    optionBtn.addEventListener('click', () => {
+                        const selectedOption = optionBtn.textContent.trim();
+                        filteredCharacters = characters.filter(char => 
+                            char[filterType] === selectedOption
+                        );
+                        applyFilters();
+                        document.body.removeChild(filterModal);
+                    });
+                });
+            });
+        });
+
+        fetchCharacters();
+    </script>
+</body>
+</html>

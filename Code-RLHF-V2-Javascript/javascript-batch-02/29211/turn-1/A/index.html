@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Character Explorer</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+<style>
+    body { font-family: 'Arial', sans-serif; background: #f4f4f4; }
+    .navbar { background-color: #00b5cc; }
+    .card { margin: 10px; }
+    .modal-body img { width: 100%; height: auto; }
+    .filter-btn { margin: 5px; }
+    #characterGallery { justify-content: center; }
+    #visualization { margin-top: 20px; }
+    .footer { background: #333; color: white; text-align: center; padding: 10px 0; }
+</style>
+</head>
+<body>
+
+<nav class="navbar navbar-light">
+  <div class="container-fluid">
+    <span class="navbar-brand mb-0 h1 text-white">Character Explorer</span>
+    <small class="text-white-50">Explore the Multiverse!</small>
+  </div>
+</nav>
+
+<div class="container mt-4">
+    <input type="text" id="searchBar" class="form-control mb-3" placeholder="Search for characters...">
+    
+    <div class="btn-group" role="group">
+        <button type="button" class="btn btn-secondary filter-btn" onclick="filterCharacters('status', 'Alive')">Alive</button>
+        <button type="button" class="btn btn-secondary filter-btn" onclick="filterCharacters('status', 'Dead')">Dead</button>
+        <button type="button" class="btn btn-secondary filter-btn" onclick="filterCharacters('status', 'Unknown')">Unknown</button>
+        <button type="button" class="btn btn-secondary filter-btn" onclick="filterCharacters('species', 'Human')">Human</button>
+        <button type="button" class="btn btn-secondary filter-btn" onclick="filterCharacters('species', 'Alien')">Alien</button>
+    </div>
+
+    <div id="characterGallery" class="row row-cols-1 row-cols-md-3 g-4 mt-2"></div>
+
+    <nav aria-label="Page navigation">
+      <ul class="pagination justify-content-center mt-4" id="pagination"></ul>
+    </nav>
+
+    <div id="visualization" class="row">
+        <div class="col-md-6"><canvas id="statusPieChart"></canvas></div>
+        <div class="col-md-6"><canvas id="speciesLineChart"></canvas></div>
+    </div>
+</div>
+
+<footer class="footer mt-5">
+    <div class="container">
+        <span>Made for fans of Rick and Morty.</span>
+    </div>
+</footer>
+
+<div class="modal fade" id="characterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="characterModalLabel"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let characters = [];
+const itemsPerPage = 9;
+let currentPage = 1;
+
+// Fetch characters from API
+fetch('https://api.sampleapis.com/rickandmorty/characters')
+.then(response => response.json())
+.then(data => {
+    characters = data;
+    displayCharacters(characters, 1);
+    setupSearch();
+    updateCharts();
+});
+
+function displayCharacters(chars, page) {
+    const gallery = document.getElementById('characterGallery');
+    gallery.innerHTML = '';
+    const start = (page - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const paginatedItems = chars.slice(start, end);
+
+    paginatedItems.forEach(character => {
+        const col = document.createElement('div');
+        col.className = 'col';
+        col.innerHTML = `
+        <div class="card h-100">
+            <img src="${character.image}" class="card-img-top" alt="${character.name}">
+            <div class="card-body">
+                <h5 class="card-title">${character.name}</h5>
+                <p class="card-text">Status: ${character.status}<br>Species: ${character.species}</p>
+            </div>
+        </div>`;
+        col.onclick = () => showCharacterDetails(character);
+        gallery.appendChild(col);
+    });
+    
+    updatePagination(chars.length);
+}
+
+function showCharacterDetails(character) {
+    const modalBody = document.querySelector('.modal-body');
+    modalBody.innerHTML = `
+    <img src="${character.image}" alt="${character.name}">
+    <p>Name: ${character.name}</p>
+    <p>Status: ${character.status}</p>
+    <p>Species: ${character.species}</p>
+    <p>Type: ${character.type}</p>
+    <p>Gender: ${character.gender}</p>
+    <p>Origin: ${character.origin}</p>`;
+    document.getElementById('characterModalLabel').innerText = character.name;
+    new bootstrap.Modal(document.getElementById('characterModal')).show();
+}
+
+function setupSearch() {
+    document.getElementById('searchBar').addEventListener('keyup', function(e) {
+        const searchString = e.target.value.toLowerCase();
+        const filteredCharacters = characters.filter(char => 
+            char.name.toLowerCase().includes(searchString)
+        );
+        displayCharacters(filteredCharacters, 1);
+    });
+}
+
+function filterCharacters(key, value) {
+    const filtered = value === 'all' ? characters : characters.filter(char => char[key] === value);
+    displayCharacters(filtered, 1);
+}
+
+function updatePagination(totalItems) {
+    const pagination = document.getElementById('pagination');
+    pagination.innerHTML = '';
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.className = 'page-item' + (currentPage === i ? ' active' : '');
+        const link = document.createElement('a');
+        link.className = 'page-link';
+        link.href = '#';
+        link.onclick = () => { currentPage = i; displayCharacters(characters, i); };
+        link.textContent = i;
+        li.appendChild(link);
+        pagination.appendChild(li);
+    }
+}
+
+function updateCharts() {
+    const statusCount = characters.reduce((acc, char) => {
+        acc[char.status] = (acc[char.status] || 0) + 1;
+        return acc;
+    }, {});
+
+    const speciesOverTime = characters.reduce((acc, char) => {
+        if (!acc[char.species]) acc[char.species] = 1;
+        else acc[char.species]++;
+        return acc;
+    }, {});
+
+    new Chart(document.getElementById('statusPieChart').getContext('2d'), {
+        type: 'pie',
+        data: {
+            labels: Object.keys(statusCount),
+            datasets: [{
+                data: Object.values(statusCount),
+                backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56']
+            }]
+        }
+    });
+
+    new Chart(document.getElementById('speciesLineChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: Object.keys(speciesOverTime),
+            datasets: [{
+                label: 'Species Count',
+                data: Object.values(speciesOverTime),
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        }
+    });
+}
+</script>
+</body>
+</html>
