@@ -1,186 +1,171 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Air Hockey</title>
-    <style>
-        body { 
-            font-family: 'Arial', sans-serif; 
-            background: #f0f0f0; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-            margin: 0; 
-            overflow: hidden; 
-        }
-        #gameContainer {
-            position: relative;
-            width: 800px;
-            height: 400px;
-            background: #000;
-        }
-        canvas {
-            display: block;
-        }
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
-        #gameOver, #startScreen {
-            display: none;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Lunar Lander</title>
+<style>
+    canvas { 
+        border: 1px solid black; 
+        display: block; 
+        margin: 0 auto; 
+        background: #000; 
+    }
+    #gameInfo, #gameOver, #startScreen {
+        position: absolute;
+        width: 800px;
+        text-align: center;
+        color: white;
+        font-family: Arial, sans-serif;
+    }
+    #startScreen, #gameOver {
+        background: rgba(0, 0, 0, 0.7);
+        padding: 20px 0;
+    }
+    button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+</style>
 </head>
 <body>
-<div id="gameContainer">
-    <canvas id="gameCanvas" width="800" height="400"></canvas>
-    <div id="startScreen" class="overlay">
-        <h1>Air Hockey</h1>
-        <p>Move your mouse to control the paddle. First to 5 points wins!</p>
-        <button onclick="startGame()">Start Game</button>
-    </div>
-    <div id="gameOver" class="overlay">
-        <h2>Game Over</h2>
-        <p id="finalScore"></p>
-        <button onclick="restartGame()">Try Again</button>
-    </div>
+<div id="startScreen">
+    <h1>Lunar Lander</h1>
+    <p>Use arrow keys to land softly on the flat areas!</p>
+    <button onclick="startGame()">Start Game</button>
 </div>
-
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<div id="gameInfo"></div>
+<div id="gameOver" style="display:none;">
+    <h2>Game Over</h2>
+    <p>Your Score: <span id="finalScore"></span></p>
+    <button onclick="startGame()">Try Again</button>
+</div>
 <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const startScreen = document.getElementById('startScreen');
-    const gameOverScreen = document.getElementById('gameOver');
-    const finalScoreDisplay = document.getElementById('finalScore');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const gameInfo = document.getElementById('gameInfo');
+const gameOver = document.getElementById('gameOver');
+const finalScoreDisplay = document.getElementById('finalScore');
 
-    let gameActive = false;
-    let playerScore = 0, computerScore = 0;
+// Game variables
+let lander = {x: 400, y: 50, vx: 0, vy: 0, fuel: 100, width: 20, height: 40, thrust: 0.3, angle: 0};
+let terrain = [];
+let gameState = 'start';
+let score = 0;
 
-    const paddleWidth = 10, paddleHeight = 80, puckRadius = 7.5;
-    let playerPaddle, computerPaddle, puck;
-
-    // Initialize game objects
-    function initGame() {
-        playerPaddle = {x: 50, y: canvas.height / 2 - paddleHeight / 2, dy: 0};
-        computerPaddle = {x: canvas.width - 50 - paddleWidth, y: canvas.height / 2 - paddleHeight / 2, dy: 2};
-        puck = {x: canvas.width / 2, y: canvas.height / 2, dx: 3, dy: -3, speed: 3};
+// Generate terrain
+function generateTerrain() {
+    terrain = [];
+    let y = 550;
+    for(let x = 0; x < 800; x += 10) {
+        y += Math.random() * 20 - 10; // Smooth terrain
+        y = Math.max(450, Math.min(y, 590)); // Keep within bounds
+        terrain.push({x, y});
     }
+}
 
-    function startGame() {
-        startScreen.style.display = 'none';
-        gameActive = true;
-        initGame();
-        requestAnimationFrame(gameLoop);
-    }
-
-    function restartGame() {
-        playerScore = computerScore = 0;
-        gameOverScreen.style.display = 'none';
-        startGame();
-    }
-
-    // Game loop
-    function gameLoop() {
-        if (!gameActive) return;
-
-        update();
-        render();
-        checkCollision();
-        if (playerScore < 5 && computerScore < 5) {
-            requestAnimationFrame(gameLoop);
-        } else {
-            endGame();
-        }
-    }
-
-    function update() {
-        // Player paddle movement
-        playerPaddle.y = Math.max(Math.min(canvas.height - paddleHeight, mouseY - canvas.offsetTop), 0);
-
-        // Computer paddle AI - simple follow the puck
-        if (computerPaddle.y + paddleHeight/2 < puck.y) computerPaddle.y += computerPaddle.dy;
-        else if (computerPaddle.y + paddleHeight/2 > puck.y) computerPaddle.y -= computerPaddle.dy;
-
-        // Puck movement
-        puck.x += puck.dx;
-        puck.y += puck.dy;
-
-        // Boundary checks for puck
-        if (puck.y - puckRadius < 0 || puck.y + puckRadius > canvas.height) puck.dy *= -1;
-    }
-
-    function render() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'white';
-        // Draw paddles and puck
-        ctx.fillRect(playerPaddle.x, playerPaddle.y, paddleWidth, paddleHeight);
-        ctx.fillRect(computerPaddle.x, computerPaddle.y, paddleWidth, paddleHeight);
-        ctx.beginPath();
-        ctx.arc(puck.x, puck.y, puckRadius, 0, Math.PI*2);
-        ctx.fill();
-        // Draw scores
-        ctx.fillText(playerScore, 100, 50);
-        ctx.fillText(computerScore, canvas.width - 100, 50);
-    }
-
-    function checkCollision() {
-        // Puck collision with paddles
-        if ((puck.x - puckRadius < playerPaddle.x + paddleWidth && 
-             puck.y > playerPaddle.y && puck.y < playerPaddle.y + paddleHeight) ||
-            (puck.x + puckRadius > computerPaddle.x && 
-             puck.y > computerPaddle.y && puck.y < computerPaddle.y + paddleHeight)) {
-            puck.dx *= -1.1; // Increase speed on hit
+// Physics and game logic
+function update() {
+    if(gameState === 'playing') {
+        // Apply gravity
+        lander.vy += 0.05;
+        
+        // Apply thrust
+        if(lander.fuel > 0) {
+            lander.vy -= Math.sin(lander.angle) * lander.thrust * (keys[38] || 0);
+            lander.vx -= Math.cos(lander.angle) * lander.thrust * (keys[38] || 0);
+            lander.fuel -= 0.1; // Fuel consumption
         }
 
-        // Score
-        if (puck.x < 0) { score('computer'); resetPuck(); }
-        if (puck.x > canvas.width) { score('player'); resetPuck(); }
+        // Move lander
+        lander.x += lander.vx;
+        lander.y += lander.vy;
+
+        // Keep lander within screen
+        lander.x = Math.max(0, Math.min(lander.x, 800 - lander.width));
+        lander.y = Math.max(0, Math.min(lander.y, 600 - lander.height));
+
+        // Check for landing or crash
+        for(let i = 0; i < terrain.length - 1; i++) {
+            if(lander.x > terrain[i].x && lander.x < terrain[i+1].x) {
+                let groundY = terrain[i].y + (lander.x - terrain[i].x) * (terrain[i+1].y - terrain[i].y) / 10;
+                if(Math.abs(lander.y + lander.height - groundY) < 2 && Math.abs(lander.vx) < 0.5 && Math.abs(lander.vy) < 1) {
+                    // Successful landing
+                    gameState = 'gameOver';
+                    score += lander.fuel * 10; // Bonus for remaining fuel
+                } else if(lander.y + lander.height > groundY) {
+                    // Crash
+                    gameState = 'gameOver';
+                }
+                break;
+            }
+        }
+
+        // Update HUD
+        gameInfo.innerHTML = `Fuel: ${lander.fuel.toFixed(2)} | Velocity (x,y): (${lander.vx.toFixed(2)}, ${lander.vy.toFixed(2)}) | Score: ${score}`;
     }
+}
 
-    function score(who) {
-        if (who === 'player') playerScore++;
-        else if (who === 'computer') computerScore++;
+// Draw everything
+function draw() {
+    ctx.clearRect(0, 0, 800, 600);
+    
+    // Draw terrain
+    ctx.beginPath();
+    ctx.moveTo(0, 600);
+    terrain.forEach(point => ctx.lineTo(point.x, point.y));
+    ctx.lineTo(800, 600);
+    ctx.closePath();
+    ctx.fillStyle = 'gray';
+    ctx.fill();
+
+    // Draw lander
+    ctx.save();
+    ctx.translate(lander.x + lander.width / 2, lander.y + lander.height / 2);
+    ctx.rotate(lander.angle);
+    ctx.fillStyle = 'red';
+    ctx.fillRect(-lander.width / 2, -lander.height / 2, lander.width, lander.height);
+    ctx.restore();
+
+    if(gameState === 'gameOver') {
+        gameOver.style.display = 'block';
+        finalScoreDisplay.textContent = score;
     }
+}
 
-    function resetPuck() {
-        puck.x = canvas.width / 2;
-        puck.y = canvas.height / 2;
-        puck.dx = -puck.dx; // Reverse direction
-    }
+// Key handling
+const keys = {};
 
-    function endGame() {
-        gameActive = false;
-        finalScoreDisplay.textContent = `Player: ${playerScore} | Computer: ${computerScore}`;
-        gameOverScreen.style.display = 'flex';
-    }
+document.addEventListener('keydown', function(e) {
+    keys[e.keyCode] = true;
+    if(e.keyCode === 37) lander.angle += 0.1; // Left
+    if(e.keyCode === 39) lander.angle -= 0.1; // Right
+});
 
-    let mouseY = 0;
-    canvas.addEventListener('mousemove', function(evt) {
-        mouseY = evt.clientY;
-    });
+document.addEventListener('keyup', function(e) {
+    keys[e.keyCode] = false;
+});
 
-    // Initial state
-    startScreen.style.display = 'flex';
+function startGame() {
+    lander = {x: 400, y: 50, vx: 0, vy: 0, fuel: 100, width: 20, height: 40, thrust: 0.3, angle: 0};
+    generateTerrain();
+    gameState = 'playing';
+    score = 0;
+    document.getElementById('startScreen').style.display = 'none';
+    gameOver.style.display = 'none';
+}
+
+// Game loop
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+// Initialize game
+generateTerrain();
+gameLoop();
 </script>
 </body>
 </html>
