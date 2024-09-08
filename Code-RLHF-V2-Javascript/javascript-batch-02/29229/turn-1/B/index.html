@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Beer Widget</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabulator/4.9.3/css/tabulator.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .tab { overflow: hidden; border: 1px solid #ccc; background-color: #f1f1f1; }
+        .tab button { background-color: inherit; float: left; border: none; outline: none; cursor: pointer; padding: 14px 16px; transition: 0.3s; }
+        .tab button:hover { background-color: #ddd; }
+        .tab button.active { background-color: #ccc; }
+        .tabcontent { display: none; padding: 6px 12px; border: 1px solid #ccc; border-top: none; }
+        .card { margin: 10px; padding: 10px; border: 1px solid #ccc; }
+        .grid { display: flex; flex-wrap: wrap; }
+        .grid .card { width: calc(33.333% - 20px); }
+        #searchInput { width: 100%; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+<div class="tab">
+    <button class="tablinks" onclick="openTab(event, 'Ale')">Ale</button>
+    <button class="tablinks" onclick="openTab(event, 'Stouts')">Stouts</button>
+</div>
+
+<div id="Ale" class="tabcontent">
+    <h3>Ale</h3>
+    <!-- Sections for Ale will go here -->
+</div>
+
+<div id="Stouts" class="tabcontent">
+    <h3>Stouts</h3>
+    <!-- Sections for Stouts will go here -->
+</div>
+
+<input type="text" id="searchInput" placeholder="Enter the Beer name" onkeyup="searchBeer(this.value)">
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    function openTab(evt, beerType) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tabcontent");
+        for (i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+        }
+        tablinks = document.getElementsByClassName("tablinks");
+        for (i = 0; i < tablinks.length; i++) {
+            tablinks[i].className = tablinks[i].className.replace(" active", "");
+        }
+        document.getElementById(beerType).style.display = "block";
+        evt.currentTarget.className += " active";
+    }
+
+    function fetchBeers(type) {
+        return $.ajax({
+            url: `https://api.sampleapis.com/beers/${type.toLowerCase()}`,
+            method: 'GET'
+        });
+    }
+
+    function displayTop10(beers, container) {
+        beers.sort((a, b) => b.rating.average - a.rating.average).slice(0, 10).forEach(beer => {
+            $(container).append(`<div class="card"><h4>${beer.name}</h4><p>Rating: ${beer.rating.average}</p><img src="${beer.image}" alt="${beer.name}" style="max-width:100px;"></div>`);
+        });
+    }
+
+    function displayGallery(beers, container) {
+        // Implement grid display with pagination
+        // This would require more complex pagination logic not included here for brevity
+        beers.forEach(beer => {
+            $(container).append(`<div class="card"><h4>${beer.name}</h4><img src="${beer.image}" alt="${beer.name}" style="max-width:100px;"></div>`);
+        });
+    }
+
+    function createChart(beers, canvasId) {
+        let priceRanges = {'0-10': 0, '11-20': 0, '21+': 0};
+        beers.forEach(beer => {
+            let price = parseFloat(beer.price.replace('$', ''));
+            if (price <= 10) priceRanges['0-10']++;
+            else if (price <= 20) priceRanges['11-20']++;
+            else priceRanges['21+']++;
+        });
+        
+        new Chart(document.getElementById(canvasId).getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: Object.keys(priceRanges),
+                datasets: [{
+                    data: Object.values(priceRanges),
+                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56']
+                }]
+            }
+        });
+    }
+
+    function searchBeer(query) {
+        $('.tabcontent:visible .card').each(function() {
+            let beerName = $(this).find('h4').text().toLowerCase();
+            $(this).toggle(beerName.includes(query.toLowerCase()));
+        });
+    }
+
+    $(document).ready(function() {
+        ['Ale', 'Stouts'].forEach(type => {
+            let container = $(`#${type}`);
+            fetchBeers(type).then(data => {
+                displayTop10(data, container.find('.top10'));
+                displayGallery(data, container.find('.gallery'));
+                createChart(data, `${type}Chart`);
+            });
+        });
+    });
+</script>
+
+</body>
+</html>

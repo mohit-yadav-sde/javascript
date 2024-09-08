@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beer Widget</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .active-tab {
+            background-color: #3182ce;
+            color: white;
+        }
+        .inactive-tab {
+            background-color: gray;
+            color: white;
+        }
+        .beer-image, .gallery-image {
+            width: auto;
+            height: 9rem;
+            margin-left: auto;
+            margin-right: auto;
+            object-fit: cover;
+            border-radius: 0.375rem;
+        }
+        .beer-card {
+            width: auto;
+            border: 1px solid #e2e8f0;
+            height: auto;
+            padding: 1.5rem;
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border-radius: 0.375rem;
+        }
+        .pagination-button {
+            padding: 0.5rem 1rem;
+            background-color: #edf2f7;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 0 0.25rem;
+        }
+        .pagination-button:disabled {
+            background-color: #e2e8f0;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="p-8 bg-gray-100">
+    <div class="max-w-5xl mx-auto">
+        <!-- Top 10 List Section -->
+        <div class="mb-12">
+            <h1 class="text-3xl font-bold text-center mb-6">Top 10 Beers</h1>
+            <div class="flex justify-center mb-8">
+                <button id="top10-tab-ale" class="top10-tab-button font-bold py-2 px-6 rounded-l-lg focus:outline-none active-tab">Ale</button>
+                <button id="top10-tab-stouts" class="top10-tab-button font-bold py-2 px-6 rounded-r-lg focus:outline-none inactive-tab">Stouts</button>
+            </div>
+            <div id="top10-section" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </div>
+
+        <!-- Gallery Section -->
+        <div class="mt-12">
+            <h1 class="text-3xl font-bold text-center mb-6">Gallery</h1>
+            <div class="flex justify-center mb-4">
+                <button id="gallery-tab-ale" class="gallery-tab-button font-bold py-2 px-6 rounded-l-lg focus:outline-none active-tab">Ale</button>
+                <button id="gallery-tab-stouts" class="gallery-tab-button font-bold py-2 px-6 rounded-r-lg focus:outline-none inactive-tab">Stouts</button>
+            </div>
+            <!-- Search Section -->
+            <div class="mb-4 flex justify-center">
+                <input id="gallery-search" type="text" placeholder="Enter the Beer name" class="border p-3 w-1/2 rounded-lg focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div id="gallery-section" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            <div id="gallery-pagination-controls" class="flex justify-between mt-4">
+                <button id="prev-page" class="pagination-button" disabled>Previous</button>
+                <span id="page-info" class="mx-2 content-center font-bold"></span>
+                <button id="next-page" class="pagination-button">Next</button>
+            </div>
+        </div>
+
+        <!-- Visual Section -->
+        <div class="mt-12">
+            <h1 class="text-3xl font-bold text-center mb-6">Visualizations</h1>
+            <div class="flex justify-center mb-8">
+                <button id="chart-tab-ale" class="chart-tab-button font-bold py-2 px-6 rounded-l-lg focus:outline-none active-tab">Ale Chart</button>
+                <button id="chart-tab-stouts" class="chart-tab-button font-bold py-2 px-6 rounded-r-lg focus:outline-none inactive-tab">Stouts Chart</button>
+            </div>
+            <div class="flex justify-center">
+                <canvas id="beer-chart" width="400" height="400"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiAle = 'https://api.sampleapis.com/beers/ale';
+        const apiStouts = 'https://api.sampleapis.com/beers/stouts';
+        let ales = [];
+        let stouts = [];
+        let currentTop10Tab = 'ale';
+        let currentGalleryTab = 'ale';
+        let currentChartTab = 'ale';
+        let chartInstance = null;
+        let galleryPage = 1;
+        let totalGalleryPages = 1;
+        let filteredBeers = [];
+
+        // Fetch data from the APIs
+        async function fetchData() {
+            const aleResponse = await fetch(apiAle);
+            ales = await aleResponse.json();
+            const stoutResponse = await fetch(apiStouts);
+            stouts = await stoutResponse.json();
+            displayTop10(currentTop10Tab);
+            displayGallery(currentGalleryTab);
+            displayChart(currentChartTab);
+        }
+
+        // Display Top 10 List
+        function displayTop10(type) {
+            const section = document.getElementById('top10-section');
+            section.innerHTML = '';
+            const beers = (type === 'ale') ? ales : stouts;
+            const top10 = beers.sort((a, b) => b.rating.average - a.rating.average).slice(0, 10);
+
+            top10.forEach(beer => {
+                section.innerHTML += `
+                    <div class="beer-card">
+                        <img src="${beer.image}" alt="${beer.name}" class="beer-image"/>
+                        <h2 class="mt-4 text-xl font-semibold">${beer.name}</h2>
+                        <p class="mt-2 text-gray-600">Rating: ${beer.rating.average.toFixed(2)}</p>
+                        <p class="text-gray-600">Price: ${beer.price}</p>
+                    </div>
+                `;
+            });
+        }
+
+        // Display Gallery
+        function displayGallery(type, page = 1) {
+            galleryPage = page;
+            const beers = (type === 'ale') ? ales : stouts;
+            filteredBeers = filterBeers(beers);
+            const gallerySection = document.getElementById('gallery-section');
+            gallerySection.innerHTML = '';
+            const perPage = 9;
+            totalGalleryPages = Math.ceil(filteredBeers.length / perPage);
+            const paginatedBeers = filteredBeers.slice((page - 1) * perPage, page * perPage);
+
+            paginatedBeers.forEach(beer => {
+                gallerySection.innerHTML += `
+                    <div class="beer-card">
+                        <img src="${beer.image}" alt="${beer.name}" class="gallery-image"/>
+                        <h2 class="mt-4 text-xl font-semibold">${beer.name}</h2>
+                        <p class="mt-2 text-gray-600">Rating: ${beer.rating.average.toFixed(2)}</p>
+                        <p class="text-gray-600">Price: ${beer.price}</p>
+                    </div>
+                `;
+            });
+
+            updatePaginationControls();
+        }
+
+        // Filter beers based on search input
+        function filterBeers(beers) {
+            const searchTerm = document.getElementById('gallery-search').value.toLowerCase();
+            return beers.filter(beer => beer.name.toLowerCase().includes(searchTerm));
+        }
+
+        // Update Pagination Controls
+        function updatePaginationControls() {
+            const prevButton = document.getElementById('prev-page');
+            const nextButton = document.getElementById('next-page');
+            const pageInfo = document.getElementById('page-info');
+
+            prevButton.disabled = galleryPage === 1;
+            nextButton.disabled = galleryPage === totalGalleryPages;
+
+            prevButton.onclick = () => {
+                if (galleryPage > 1) {
+                    displayGallery(currentGalleryTab, galleryPage - 1);
+                }
+            };
+
+            nextButton.onclick = () => {
+                if (galleryPage < totalGalleryPages) {
+                    displayGallery(currentGalleryTab, galleryPage + 1);
+                }
+            };
+
+            pageInfo.innerText = `Page ${galleryPage} of ${totalGalleryPages}`;
+        }
+
+        // Display Pie Chart
+        function displayChart(type) {
+            const beers = (type === 'ale') ? ales : stouts;
+            const priceSegments = { '<$10': 0, '$10-20': 0, '$20-30': 0, '$30-40': 0, '$40-50': 0, '>$50': 0 };
+
+            beers.forEach(beer => {
+                const price = parseFloat(beer.price.replace('$', '').replace(',', ''));
+                if (price < 10) priceSegments['<$10']++;
+                else if (price < 20) priceSegments['$10-20']++;
+                else if (price < 30) priceSegments['$20-30']++;
+                else if (price < 40) priceSegments['$30-40']++;
+                else if (price < 50) priceSegments['$40-50']++;
+                else priceSegments['>$50']++;
+            });
+
+            const ctx = document.getElementById('beer-chart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(priceSegments),
+                    datasets: [{
+                        data: Object.values(priceSegments),
+                        backgroundColor: ['#f56565', '#fc8181', '#f6ad55', '#ecc94b', '#faf089', '#e2e8f0'],
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(tooltipItem) {
+                                    return tooltipItem.label + ': ' + tooltipItem.raw;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update Tab Styles
+        function updateTabStyles(activeId, tabType) {
+            document.querySelectorAll(`.${tabType}-tab-button`).forEach(button => {
+                button.classList.remove('inactive-tab');
+                button.classList.add('active-tab');
+            });
+            document.getElementById(activeId).classList.remove('active-tab');
+            document.getElementById(activeId).classList.add('inactive-tab');
+        }
+
+        // Event Listeners for Tab Switching
+        document.getElementById('top10-tab-ale').onclick = () => {
+            if (currentTop10Tab !== 'ale') {
+                currentTop10Tab = 'ale';
+                displayTop10(currentTop10Tab);
+                updateTabStyles('top10-tab-ale', 'top10');
+                updateTabStyles('top10-tab-stouts', 'top10');
+            }
+        };
+        document.getElementById('top10-tab-stouts').onclick = () => {
+            if (currentTop10Tab !== 'stouts') {
+                currentTop10Tab = 'stouts';
+                displayTop10(currentTop10Tab);
+                updateTabStyles('top10-tab-stouts', 'top10');
+                updateTabStyles('top10-tab-ale', 'top10');
+            }
+        };
+
+        document.getElementById('gallery-tab-ale').onclick = () => {
+            if (currentGalleryTab !== 'ale') {
+                currentGalleryTab = 'ale';
+                displayGallery(currentGalleryTab);
+                updateTabStyles('gallery-tab-ale', 'gallery');
+                updateTabStyles('gallery-tab-stouts', 'gallery');
+            }
+        };
+        document.getElementById('gallery-tab-stouts').onclick = () => {
+            if (currentGalleryTab !== 'stouts') {
+                currentGalleryTab = 'stouts';
+                displayGallery(currentGalleryTab);
+                updateTabStyles('gallery-tab-stouts', 'gallery');
+                updateTabStyles('gallery-tab-ale', 'gallery');
+            }
+        };
+
+        document.getElementById('chart-tab-ale').onclick = () => {
+            if (currentChartTab !== 'ale') {
+                currentChartTab = 'ale';
+                displayChart(currentChartTab);
+                updateTabStyles('chart-tab-ale', 'chart');
+                updateTabStyles('chart-tab-stouts', 'chart');
+            }
+        };
+        document.getElementById('chart-tab-stouts').onclick = () => {
+            if (currentChartTab !== 'stouts') {
+                currentChartTab = 'stouts';
+                displayChart(currentChartTab);
+                updateTabStyles('chart-tab-stouts', 'chart');
+                updateTabStyles('chart-tab-ale', 'chart');
+            }
+        };
+
+        // Search Logic for Gallery
+        document.getElementById('gallery-search').oninput = () => {
+            displayGallery(currentGalleryTab, 1);
+        };
+
+        fetchData(); // Initial fetch and display with 'ale' as active tab
+    </script>
+</body>
+</html>
