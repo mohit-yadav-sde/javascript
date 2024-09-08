@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Lock / Traffic Jam</title>
+    <style>
+        /* Basic styling for the game layout */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #gameContainer {
+            position: relative;
+        }
+        canvas {
+            border: 2px solid #333;
+        }
+        /* Styling for the start screen */
+        #startScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+        }
+        #startButton {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #startButton:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div id="startScreen">
+            <h1>Grid Lock / Traffic Jam</h1>
+            <p>Instructions:</p>
+            <ol>
+                <li>Click and drag a car to move it</li>
+                <li>Move the red car to the right edge to win</li>
+            </ol>
+            <button id="startButton">Start Game</button>
+        </div>
+    </div>
+    <script>
+        // Get DOM elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+
+        // Game constants
+        const GRID_SIZE = 6;
+        const CELL_SIZE = canvas.width / GRID_SIZE;
+        const COLORS = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6ab04c', '#686de0'];
+
+        // Car class to represent each vehicle on the board
+        class Car {
+            constructor(x, y, length, isVertical, color) {
+                this.x = x;
+                this.y = y;
+                this.length = length;
+                this.isVertical = isVertical;
+                this.color = color;
+            }
+
+            // Draw the car on the canvas
+            draw() {
+                ctx.fillStyle = this.color;
+                if (this.isVertical) {
+                    ctx.fillRect(this.x * CELL_SIZE, this.y * CELL_SIZE, CELL_SIZE, this.length * CELL_SIZE);
+                } else {
+                    ctx.fillRect(this.x * CELL_SIZE, this.y * CELL_SIZE, this.length * CELL_SIZE, CELL_SIZE);
+                }
+            }
+
+            // Check if the car contains a given grid position
+            contains(x, y) {
+                if (this.isVertical) {
+                    return x === this.x && y >= this.y && y < this.y + this.length;
+                } else {
+                    return y === this.y && x >= this.x && x < this.x + this.length;
+                }
+            }
+        }
+
+        // Game class to manage the game state and logic
+        class Game {
+            constructor() {
+                // Initialize cars on the board
+                this.cars = [
+                    new Car(1, 2, 2, false, COLORS[0]), // Red car (target)
+                    new Car(0, 0, 3, true, COLORS[1]),
+                    new Car(2, 0, 2, true, COLORS[2]),
+                    new Car(3, 0, 2, false, COLORS[3]),
+                    new Car(5, 0, 3, true, COLORS[4]),
+                    new Car(3, 3, 3, true, COLORS[5]),
+                    new Car(4, 3, 2, false, COLORS[1]),
+                    new Car(0, 4, 2, false, COLORS[2])
+                ];
+                this.selectedCar = null;
+                this.dragStartPos = null;
+                this.won = false;
+            }
+
+            // Draw the game board and all cars
+            draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw grid
+                ctx.strokeStyle = '#ddd';
+                for (let i = 0; i <= GRID_SIZE; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * CELL_SIZE, 0);
+                    ctx.lineTo(i * CELL_SIZE, canvas.height);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, i * CELL_SIZE);
+                    ctx.lineTo(canvas.width, i * CELL_SIZE);
+                    ctx.stroke();
+                }
+
+                // Draw exit
+                ctx.fillStyle = '#4CAF50';
+                ctx.fillRect(canvas.width, 2 * CELL_SIZE, 10, CELL_SIZE);
+
+                // Draw cars
+                this.cars.forEach(car => car.draw());
+
+                // Draw win message if the game is won
+                if (this.won) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = 'white';
+                    ctx.font = '48px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('You Win!', canvas.width / 2, canvas.height / 2);
+                }
+            }
+
+            // Handle mouse down event to select a car
+            handleMouseDown(x, y) {
+                if (this.won) return;
+                const gridX = Math.floor(x / CELL_SIZE);
+                const gridY = Math.floor(y / CELL_SIZE);
+                this.selectedCar = this.cars.find(car => car.contains(gridX, gridY));
+                if (this.selectedCar) {
+                    this.dragStartPos = this.selectedCar.isVertical ? this.selectedCar.y : this.selectedCar.x;
+                }
+            }
+
+            // Handle mouse move event to drag the selected car
+            handleMouseMove(x, y) {
+                if (this.won || !this.selectedCar || this.dragStartPos === null) return;
+                const gridX = Math.floor(x / CELL_SIZE);
+                const gridY = Math.floor(y / CELL_SIZE);
+                
+                let newPos = this.selectedCar.isVertical ? gridY : gridX;
+                let movement = newPos - this.dragStartPos;
+
+                if (movement !== 0) {
+                    let validMovement = this.getValidMovement(movement);
+                    if (validMovement !== 0) {
+                        if (this.selectedCar.isVertical) {
+                            this.selectedCar.y += validMovement;
+                        } else {
+                            this.selectedCar.x += validMovement;
+                        }
+                        this.dragStartPos += validMovement;
+                        this.checkWin();
+                        this.draw();
+                    }
+                }
+            }
+
+            // Handle mouse up event to end car movement
+            handleMouseUp() {
+                this.selectedCar = null;
+                this.dragStartPos = null;
+            }
+
+            // Calculate the valid movement distance for a car
+            getValidMovement(movement) {
+                let direction = movement > 0 ? 1 : -1;
+                let absMovement = Math.abs(movement);
+                let validMovement = 0;
+
+                for (let i = 1; i <= absMovement; i++) {
+                    let newPos = (this.selectedCar.isVertical ? this.selectedCar.y : this.selectedCar.x) + (i * direction);
+                    if (this.isValidPosition(newPos)) {
+                        validMovement = i * direction;
+                    } else {
+                        break;
+                    }
+                }
+
+                return validMovement;
+            }
+
+            // Check if a new position is valid for the selected car
+            isValidPosition(newPos) {
+                const isRedCar = this.selectedCar === this.cars[0];
+                const maxPos = isRedCar ? GRID_SIZE + 1 : GRID_SIZE;
+
+                if (newPos < 0 || newPos + this.selectedCar.length > maxPos) return false;
+
+                for (let i = 0; i < this.selectedCar.length; i++) {
+                    let x = this.selectedCar.isVertical ? this.selectedCar.x : newPos + i;
+                    let y = this.selectedCar.isVertical ? newPos + i : this.selectedCar.y;
+
+                    for (let car of this.cars) {
+                        if (car !== this.selectedCar && car.contains(x, y)) {
+                            return false;
+                        }
+                    }
+                }
+
+                return true;
+            }
+
+            // Check if the game is won
+            checkWin() {
+                const redCar = this.cars[0];
+                if (redCar.x + redCar.length > GRID_SIZE) {
+                    this.won = true;
+                }
+            }
+        }
+
+        let game;
+
+        // Initialize the game
+        function startGame() {
+            game = new Game();
+            game.draw();
+            startScreen.style.display = 'none';
+        }
+
+        // Event listeners
+        startButton.addEventListener('click', startGame);
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (!game) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            game.handleMouseDown(x, y);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!game) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            game.handleMouseMove(x, y);
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (!game) return;
+            game.handleMouseUp();
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            if (!game) return;
+            game.handleMouseUp();
+        });
+    </script>
+</body>
+</html>

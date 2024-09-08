@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Lock Puzzle</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background-color: #f0f0f0;
+    }
+    #game-container {
+        position: relative;
+    }
+    #board {
+        display: grid;
+        grid-template-columns: repeat(6, 50px);
+        grid-template-rows: repeat(6, 50px);
+        gap: 2px;
+        background-color: #333;
+    }
+    .cell {
+        width: 50px;
+        height: 50px;
+        background-color: #fff;
+        border: 1px solid #ccc;
+    }
+    .car {
+        width: 100%;
+        height: 100%;
+        cursor: grab;
+        transition: background-color 0.3s;
+    }
+    .car:hover {
+        background-color: #ddd;
+    }
+    .target-car {
+        background-color: red;
+    }
+    #start-screen, #win-message {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+    }
+    button {
+        padding: 10px 20px;
+        font-size: 1em;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+<div id="game-container">
+    <div id="board"></div>
+    <div id="start-screen">
+        <h2>Grid Lock Puzzle</h2>
+        <p>Move the cars to let the red car exit!</p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <div id="win-message" style="display: none;">
+        <h2>Congratulations, You've Won!</h2>
+        <button onclick="location.reload()">Play Again</button>
+    </div>
+</div>
+
+<script>
+    const board = document.getElementById('board');
+    const startScreen = document.getElementById('start-screen');
+    const winMessage = document.getElementById('win-message');
+    let cars = [];
+    let selectedCar = null;
+    let offsetX, offsetY;
+
+    function startGame() {
+        startScreen.style.display = 'none';
+        initializeBoard();
+    }
+
+    function initializeBoard() {
+        // Example initial setup. Adjust as needed.
+        cars = [
+            {x: 0, y: 2, length: 2, vertical: false, target: false},
+            {x: 2, y: 0, length: 3, vertical: true, target: false},
+            {x: 3, y: 2, length: 2, vertical: false, target: true}, // Target car
+            {x: 1, y: 4, length: 2, vertical: true, target: false}
+        ];
+
+        board.innerHTML = '';
+        cars.forEach(car => drawCar(car));
+    }
+
+    function drawCar(car) {
+        for(let i = 0; i < car.length; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            if(i === 0) {
+                cell.innerHTML = `<div class="car ${car.target ? 'target-car' : ''}" 
+                    draggable="true" 
+                    ondragstart="drag(event, ${car.x}, ${car.y}, ${car.vertical}, ${car.length})"
+                    style="${car.vertical ? 'height:' : 'width:'} ${car.length * 52 - 2}px;"></div>`;
+            }
+            board.appendChild(cell);
+        }
+    }
+
+    function drag(e, x, y, vertical, length) {
+        selectedCar = {x, y, vertical, length};
+        offsetX = e.clientX - (vertical ? 0 : e.target.offsetLeft);
+        offsetY = e.clientY - (vertical ? e.target.offsetTop : 0);
+    }
+
+    document.addEventListener('dragover', function(e) {
+        e.preventDefault();
+    });
+
+    document.addEventListener('drop', function(e) {
+        e.preventDefault();
+        if(!selectedCar) return;
+
+        const cellSize = 52; // including border
+        let newPos = selectedCar.vertical ? 
+            Math.round((e.clientY - offsetY) / cellSize) : 
+            Math.round((e.clientX - offsetX) / cellSize);
+
+        if(canMove(selectedCar, newPos)) {
+            moveCar(selectedCar, newPos);
+            checkWin();
+        }
+    });
+
+    function canMove(car, newPos) {
+        // Implement collision and boundary checks here
+        // This is a simplified version:
+        return newPos >= 0 && 
+               ((car.vertical && newPos + car.length <= 6) || 
+                (!car.vertical && newPos + car.length <= 6));
+    }
+
+    function moveCar(car, newPos) {
+        if(car.vertical) car.y = newPos;
+        else car.x = newPos;
+        board.innerHTML = '';
+        cars.forEach(c => drawCar(c));
+    }
+
+    function checkWin() {
+        const targetCar = cars.find(c => c.target);
+        if(targetCar.x === 4 && !targetCar.vertical) {
+            winMessage.style.display = 'flex';
+        }
+    }
+</script>
+</body>
+</html>

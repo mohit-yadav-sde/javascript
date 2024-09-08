@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Grid Lock Puzzle</title>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+<style>
+    #game-board {
+        width: 300px;
+        height: 300px;
+        border: 2px solid #000;
+        position: relative;
+    }
+    .cell {
+        width: 48px;
+        height: 48px;
+        border: 1px solid #ccc;
+        float: left;
+    }
+    .car {
+        position: absolute;
+        background-color: blue;
+        border: 1px solid #000;
+        box-sizing: border-box;
+    }
+    .car.target {
+        background-color: red;
+    }
+    #exit {
+        position: absolute;
+        right: -10px;
+        top: 100px;
+        width: 20px;
+        height: 50px;
+        background: #ddd;
+    }
+    .start-screen, .win-message {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(255, 255, 255, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+    }
+    button {
+        padding: 10px 20px;
+        font-size: 16px;
+    }
+</style>
+</head>
+<body>
+
+<div id="start-screen" class="start-screen">
+    <h2>Grid Lock Puzzle</h2>
+    <p>Move the cars to let the red car exit!</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+
+<div id="game-board">
+    <div id="exit"></div>
+</div>
+<div id="win-message" class="win-message" style="display:none;">
+    <h2>Congratulations!</h2>
+    <button onclick="resetGame()">Play Again</button>
+</div>
+
+<script>
+function startGame() {
+    $('#start-screen').hide();
+    setupBoard();
+}
+
+function resetGame() {
+    $('#win-message').hide();
+    setupBoard();
+}
+
+function setupBoard() {
+    const cars = [
+        {id: 'car0', length: 2, orientation: 'h', top: 0, left: 0, isTarget: true},
+        {id: 'car1', length: 2, orientation: 'v', top: 1, left: 2},
+        // Add more cars here
+    ];
+
+    $('#game-board').html('<div id="exit"></div>');
+    cars.forEach(car => {
+        let carElement = $('<div>', {id: car.id, class: 'car ' + (car.isTarget ? 'target' : '')})
+            .css({
+                width: car.orientation === 'h' ? car.length * 50 : 50,
+                height: car.orientation === 'v' ? car.length * 50 : 50,
+                top: car.top * 50,
+                left: car.left * 50
+            });
+        $('#game-board').append(carElement);
+        carElement.draggable({
+            axis: car.orientation === 'h' ? "x" : "y",
+            containment: "#game-board",
+            drag: function(event, ui) {
+                if (!canMove(ui.helper, cars, ui.position)) {
+                    return false;
+                }
+            }
+        });
+    });
+}
+
+function canMove(car, cars, position) {
+    // Implement collision detection logic here
+    // Check if the new position overlaps with any other car or goes out of bounds
+}
+
+$(function() {
+    setupBoard();
+    // Add win condition check within drag event or in a separate check function
+});
+</script>
+
+</body>
+</html>
