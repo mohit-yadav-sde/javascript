@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wine Widget</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: auto; }
+        .top-wines, .gallery, .location, .visual { margin-bottom: 30px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .wine-item { text-align: center; padding: 10px; border: 1px solid #ddd; }
+        #map { height: 400px; }
+        #search { width: 300px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Wine Information Widget</h1>
+    
+    <!-- Top 10 Wines -->
+    <div class="top-wines">
+        <h2>Top 10 Wines by Rating</h2>
+        <div id="top10"></div>
+    </div>
+
+    <!-- Gallery with Search -->
+    <div class="gallery">
+        <input id="search" placeholder="Enter the wine name">
+        <div id="gallery" class="grid"></div>
+        <button id="prevPage">Previous</button>
+        <button id="nextPage">Next</button>
+    </div>
+
+    <!-- Location Section -->
+    <div class="location">
+        <h2>Locations</h2>
+        <div id="map"></div>
+    </div>
+
+    <!-- Visual Stats -->
+    <div class="visual">
+        <h2>Winery Counts</h2>
+        <canvas id="wineryChart" width="400" height="200"></canvas>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Global variables
+    let wines = [];
+    let currentPage = 1;
+    const itemsPerPage = 9;
+
+    // Fetch wine data
+    fetch('https://api.sampleapis.com/wines/reds')
+        .then(response => response.json())
+        .then(data => {
+            wines = data;
+            updateTopWines();
+            setupGallery();
+            setupMap();
+            setupChart();
+        });
+
+    function updateTopWines() {
+        let sortedWines = wines.sort((a, b) => parseFloat(b.rating.average) - parseFloat(a.rating.average)).slice(0, 10);
+        let top10Div = document.getElementById('top10');
+        sortedWines.forEach(wine => {
+            top10Div.innerHTML += `<div>${wine.wine} - ${wine.rating.average}</div>`;
+        });
+    }
+
+    function setupGallery() {
+        const galleryDiv = $('#gallery');
+        const search = $('#search');
+
+        // Autocomplete setup
+        search.autocomplete({
+            source: wines.map(wine => wine.wine),
+            minLength: 2
+        });
+
+        function displayWines(page) {
+            galleryDiv.empty();
+            const start = (page - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            wines.slice(start, end).forEach(wine => {
+                galleryDiv.append(`<div class="wine-item"><img src="${wine.image}" width="100"><p>${wine.wine}</p></div>`);
+            });
+        }
+
+        $('#nextPage').on('click', () => { currentPage++; displayWines(currentPage); });
+        $('#prevPage').on('click', () => { 
+            if(currentPage > 1) { currentPage--; displayWines(currentPage); }
+        });
+
+        displayWines(currentPage);
+    }
+
+    function setupMap() {
+        var map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        wines.forEach(wine => {
+            let location = wine.location.split('\n');
+            // This assumes the last line of location is the country or region for a rough location
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${location[location.length - 1]}`)
+                .then(response => response.json())
+                .then(data => {
+                    if(data[0]) {
+                        L.marker([data[0].lat, data[0].lon]).addTo(map)
+                            .bindPopup(`<img src="${wine.image}" width="50"><br>${wine.wine}`);
+                    }
+                });
+        });
+    }
+
+    function setupChart() {
+        let wineryCounts = wines.reduce((acc, wine) => {
+            acc[wine.winery] = (acc[wine.winery] || 0) + 1;
+            return acc;
+        }, {});
+        let ctx = document.getElementById('wineryChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Object.keys(wineryCounts),
+                datasets: [{
+                    label: 'Number of Wines per Winery',
+                    data: Object.values(wineryCounts),
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            }
+        });
+    }
+</script>
+
+</body>
+</html>

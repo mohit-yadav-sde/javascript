@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wine Widget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.7/dist/autoComplete.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/opencage-api-client"></script>
+    <style>
+        #map { height: 400px; }
+        .autoComplete_wrapper > ul {
+            border: 1px solid #e2e8f0;
+            background-color: white;
+            border-radius: 0.375rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .autoComplete_wrapper > ul > li {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+        }
+        .autoComplete_wrapper > ul > li:hover {
+            background-color: #f3f4f6;
+        }
+        .autoComplete_wrapper mark {
+            background-color: #fde68a;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <div class="bg-white shadow-lg rounded-lg overflow-hidden">
+            <section class="p-6">
+                <h2 class="text-2xl font-bold mb-4 pb-2 border-b-2 border-gray-200">Top 10 Wines</h2>
+                <div id="top-wines-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"></div>
+            </section>
+            
+            <section class="p-6 bg-gray-50">
+                <h2 class="text-2xl font-bold mb-4 pb-2 border-b-2 border-gray-200">Wine Gallery</h2>
+                <div id="search-container" class="mb-4">
+                    <input type="text" id="search-input" placeholder="Enter the wine name" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div id="gallery-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"></div>
+                <div class="flex justify-between items-center mt-4">
+                    <button id="prev-page" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50">Previous</button>
+                    <span id="page-number" class="text-gray-600 font-medium"></span>
+                    <button id="next-page" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50">Next</button>
+                </div>
+            </section>
+            
+            <section class="p-6">
+                <h2 class="text-2xl font-bold mb-4 pb-2 border-b-2 border-gray-200">Wine Locations</h2>
+                <div id="map" class="rounded-lg overflow-hidden shadow-md"></div>
+            </section>
+            
+            <section class="p-6 bg-gray-50">
+                <h2 class="text-2xl font-bold mb-4 pb-2 border-b-2 border-gray-200">Winery Count</h2>
+                <canvas id="winery-chart"></canvas>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        let allWines = [];
+        let filteredWines = [];
+        let currentPage = 1;
+        const itemsPerPage = 9;
+        const openCageApiKey = 'c239c48c6d354bc9b0c75a5958e98f1c'; // Replace with your actual API key
+
+        // Fetch wines data
+        fetch('https://api.sampleapis.com/wines/reds')
+            .then(response => response.json())
+            .then(data => {
+                allWines = data;
+                filteredWines = [...allWines]; // Initialize filteredWines with all wines
+                displayTopWines();
+                displayGallery();
+                initMap();
+                displayWineryChart();
+                initAutocomplete();
+            });
+
+        function displayTopWines() {
+            const topWines = allWines
+                .sort((a, b) => parseFloat(b.rating.average) - parseFloat(a.rating.average))
+                .slice(0, 10);
+            const topWinesList = document.getElementById('top-wines-list');
+            topWinesList.innerHTML = topWines.map(wine => `
+                <div class="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+                    <img src="${wine.image}" alt="${wine.wine}" class="w-full h-48 object-contain rounded-md mb-2">
+                    <h3 class="font-semibold text-lg mb-1 truncate">${wine.wine}</h3>
+                    <p class="text-sm text-gray-600 mb-1">Winery: ${wine.winery}</p>
+                    <p class="text-sm font-medium text-blue-600">Rating: ${wine.rating.average}</p>
+                </div>
+            `).join('');
+        }
+
+        function displayGallery() {
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const galleryWines = filteredWines.slice(startIndex, endIndex);
+            const galleryList = document.getElementById('gallery-list');
+            galleryList.innerHTML = galleryWines.map(wine => `
+                <div class="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+                    <img src="${wine.image}" alt="${wine.wine}" class="w-full h-48 object-contain rounded-md mb-2">
+                    <h3 class="font-semibold text-lg mb-1 truncate">${wine.wine}</h3>
+                    <p class="text-sm text-gray-600 mb-1">Winery: ${wine.winery}</p>
+                    <p class="text-sm font-medium text-blue-600">Rating: ${wine.rating.average}</p>
+                </div>
+            `).join('');
+
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('next-page').disabled = endIndex >= filteredWines.length;
+            updatePageNumber();
+        }
+
+        function updatePageNumber() {
+            const totalPages = Math.ceil(filteredWines.length / itemsPerPage);
+            document.getElementById('page-number').textContent = `Page ${currentPage} of ${totalPages}`;
+        }
+
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                displayGallery();
+            }
+        });
+
+        document.getElementById('next-page').addEventListener('click', () => {
+            if (currentPage < Math.ceil(filteredWines.length / itemsPerPage)) {
+                currentPage++;
+                displayGallery();
+            }
+        });
+
+        async function initMap() {
+            const map = L.map('map').setView([0, 0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            const uniqueLocations = [...new Set(allWines.map(wine => wine.location))];
+            const geocodedLocations = new Map();
+
+            for (const location of uniqueLocations) {
+                try {
+                    const [country, region] = location.split('\n·\n');
+                    const query = `${region}, ${country}`||"";
+                    if (!query) continue; // Skip empty locations
+                    
+                    const result = await opencage.geocode({q: query, key: openCageApiKey});
+                    
+                    if (result.results.length > 0) {
+                        const { lat, lng } = result.results[0].geometry;
+                        geocodedLocations.set(location, { lat, lng });
+                    } else {
+                        console.warn(`No results found for location: ${location}`);
+                    }
+                } catch (error) {
+                    console.error(`Error geocoding location ${location}:`, error);
+                }
+            }
+
+            allWines.forEach(wine => {
+                const coords = geocodedLocations.get(wine.location);
+                if (coords) {
+                    L.marker([coords.lat, coords.lng])
+                        .addTo(map)
+                        .bindPopup(`
+                            <div class="max-w-xs">
+                                <img src="${wine.image}" alt="${wine.wine}" class="w-full h-32 object-contain rounded-t-lg">
+                                <div class="p-2">
+                                    <h3 class="font-semibold text-lg">${wine.wine}</h3>
+                                    <p class="text-sm">${wine.winery}</p>
+                                    <p class="text-sm">${wine.location}</p>
+                                </div>
+                            </div>
+                        `);
+                }
+            });
+        }
+
+        function displayWineryChart() {
+            const wineryCount = allWines.reduce((acc, wine) => {
+                acc[wine.winery] = (acc[wine.winery] || 0) + 1;
+                return acc;
+            }, {});
+
+            const labels = Object.keys(wineryCount);
+            const data = Object.values(wineryCount);
+
+            const ctx = document.getElementById('winery-chart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Wines per Winery',
+                        data: data,
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Wines per Winery'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Wines'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Winery'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initAutocomplete() {
+            const autoCompleteJS = new autoComplete({
+                selector: "#search-input",
+                placeHolder: "Enter the wine name",
+                data: {
+                    src: allWines.map(wine => wine.wine),
+                    cache: true,
+                },
+                resultItem: {
+                    highlight: true
+                },
+                events: {
+                    input: {
+                        selection: (event) => {
+                            const selection = event.detail.selection.value;
+                            autoCompleteJS.input.value = selection;
+                            filterWines(selection);
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('search-input').addEventListener('input', function(e) {
+                if (e.target.value === '') {
+                    filteredWines = [...allWines];
+                    currentPage = 1;
+                    displayGallery();
+                }
+            });
+        }
+
+        function filterWines(query) {
+            filteredWines = allWines.filter(wine => 
+                wine.wine.toLowerCase().includes(query.toLowerCase())
+            );
+            currentPage = 1;
+            displayGallery();
+        }
+    </script>
+</body>
+</html>
