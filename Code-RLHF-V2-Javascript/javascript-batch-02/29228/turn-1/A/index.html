@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Plane Path Game</title>
+<style>
+    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+    #gameCanvas { background: #87CEEB; display: block; }
+    #startScreen, #gameOverScreen { 
+        position: absolute; 
+        top: 50%; 
+        left: 50%; 
+        transform: translate(-50%, -50%);
+        background: white; 
+        padding: 20px; 
+        border: 2px solid black;
+        text-align: center;
+    }
+    .hidden { display: none; }
+</style>
+</head>
+<body>
+<div id="startScreen">
+    <h1>Plane Path Game</h1>
+    <p>Draw paths for planes to reach their airports. Red planes to red airport, blue to blue.</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+<div id="gameOverScreen" class="hidden">
+    <h1>Game Over</h1>
+    <p>Planes landed correctly: <span id="landedCount">0</span></p>
+    <button onclick="location.reload()">Try Again</button>
+</div>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const startScreen = document.getElementById('startScreen');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const landedCount = document.getElementById('landedCount');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const planes = [];
+const airports = [
+    {x: 50, y: canvas.height / 2, type: 'A', color: 'red'},
+    {x: canvas.width - 50, y: canvas.height / 2, type: 'B', color: 'blue'}
+];
+
+let drawing = false;
+let currentPath = [];
+let gameActive = false;
+let correctLandings = 0;
+
+class Plane {
+    constructor(type) {
+        this.type = type;
+        this.color = type === 'A' ? 'red' : 'blue';
+        this.x = type === 'A' ? canvas.width : 0;
+        this.y = Math.random() * canvas.height;
+        this.path = [];
+        this.speed = 2;
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    update() {
+        if (this.path.length > 0) {
+            let dx = this.path[0].x - this.x;
+            let dy = this.path[0].y - this.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < this.speed) {
+                this.x = this.path[0].x;
+                this.y = this.path[0].y;
+                this.path.shift();
+                if (this.path.length === 0) {
+                    this.checkLanding();
+                }
+            } else {
+                this.x += (dx / distance) * this.speed;
+                this.y += (dy / distance) * this.speed;
+            }
+        }
+    }
+
+    checkLanding() {
+        const airport = airports.find(a => a.type === this.type);
+        if (Math.abs(this.x - airport.x) < 10 && Math.abs(this.y - airport.y) < 10) {
+            correctLandings++;
+            this.reset();
+        } else {
+            gameOver("Wrong airport!");
+        }
+    }
+
+    reset() {
+        this.x = this.type === 'A' ? canvas.width : 0;
+        this.y = Math.random() * canvas.height;
+        this.path = [];
+    }
+}
+
+function startGame() {
+    startScreen.classList.add('hidden');
+    gameActive = true;
+    for (let i = 0; i < 3; i++) {
+        planes.push(new Plane('A'));
+        planes.push(new Plane('B'));
+    }
+    gameLoop();
+}
+
+function gameLoop() {
+    if (!gameActive) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawAirports();
+    for (let plane of planes) {
+        plane.draw();
+        plane.update();
+    }
+    drawPaths();
+    checkCollisions();
+    requestAnimationFrame(gameLoop);
+}
+
+function drawAirports() {
+    for (let airport of airports) {
+        ctx.fillStyle = airport.color;
+        ctx.fillRect(airport.x - 10, airport.y - 10, 20, 20);
+    }
+}
+
+function drawPaths() {
+    for (let plane of planes) {
+        if (plane.path.length > 1) {
+            ctx.strokeStyle = plane.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(plane.x, plane.y);
+            for (let point of plane.path) {
+                ctx.lineTo(point.x, point.y);
+            }
+            ctx.stroke();
+        }
+    }
+    if (currentPath.length > 1) {
+        ctx.strokeStyle = 'black';
+        ctx.beginPath();
+        ctx.moveTo(currentPath[0].x, currentPath[0].y);
+        for (let i = 1; i < currentPath.length; i++) {
+            ctx.lineTo(currentPath[i].x, currentPath[i].y);
+        }
+        ctx.stroke();
+    }
+}
+
+function checkCollisions() {
+    for (let i = 0; i < planes.length; i++) {
+        for (let j = i + 1; j < planes.length; j++) {
+            if (Math.hypot(planes[i].x - planes[j].x, planes[i].y - planes[j].y) < 10) {
+                gameOver("Planes collided!");
+                return;
+            }
+        }
+    }
+    if (correctLandings === planes.length) {
+        gameOver("All planes landed correctly!");
+    }
+}
+
+function gameOver(message) {
+    gameActive = false;
+    landedCount.textContent = correctLandings;
+    gameOverScreen.classList.remove('hidden');
+    alert(message);
+}
+
+canvas.addEventListener('mousedown', (e) => {
+    if (!gameActive) return;
+    drawing = true;
+    currentPath = [{x: e.clientX, y: e.clientY}];
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!drawing) return;
+    currentPath.push({x: e.clientX, y: e.clientY});
+});
+
+canvas.addEventListener('mouseup', () => {
+    if (!gameActive) return;
+    drawing = false;
+    if (currentPath.length > 1) {
+        let closestPlane = null;
+        let minDistance = Infinity;
+        for (let plane of planes) {
+            let distance = Math.hypot(plane.x - currentPath[0].x, plane.y - currentPath[0].y);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestPlane = plane;
+            }
+        }
+        if (closestPlane) {
+            closestPlane.path = [...currentPath];
+        }
+    }
+    currentPath = [];
+});
+
+// Handle edge cases for planes going out of bounds
+function wrapPlane(plane) {
+    if (plane.x > canvas.width) plane.x = 0;
+    if (plane.x < 0) plane.x = canvas.width;
+    if (plane.y > canvas.height) plane.y = 0;
+    if (plane.y < 0) plane.y = canvas.height;
+}
+
+// Initial call to setup game
+startGame();
+</script>
+</body>
+</html>

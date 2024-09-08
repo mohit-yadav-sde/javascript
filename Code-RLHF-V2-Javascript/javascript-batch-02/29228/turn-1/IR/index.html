@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Traffic Controller Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.9);
+        }
+        #game-ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container" class="bg-gray-100">
+        <div id="canvas-container"></div>
+        <div id="game-ui" class="hidden">
+            <h2 class="text-xl font-bold mb-2">Air Traffic Status</h2>
+            <div class="flex items-center">
+                <div class="w-6 h-6 rounded-full bg-red-500 mr-2"></div>
+                <span id="planes-a-landed" class="mr-4">0/3</span>
+                <div class="w-6 h-6 rounded-full bg-blue-500 mr-2"></div>
+                <span id="planes-b-landed">0/3</span>
+            </div>
+        </div>
+        <div id="start-screen" class="screen">
+            <h1 class="text-4xl font-bold mb-6 text-blue-600">Air Traffic Controller</h1>
+            <p class="text-xl mb-8 max-w-md text-center">Guide planes to their matching airports. Draw paths with your mouse. Avoid collisions and wrong landings!</p>
+            <button id="start-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-xl transition duration-300">
+                Start Game
+            </button>
+        </div>
+        <div id="game-over-screen" class="screen hidden">
+            <h2 class="text-3xl font-bold mb-4 text-red-600">Game Over</h2>
+            <p id="game-over-message" class="text-xl mb-6"></p>
+            <p id="planes-landed" class="text-lg mb-8"></p>
+            <button id="try-again-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg text-xl transition duration-300">
+                Try Again
+            </button>
+        </div>
+    </div>
+
+<script>
+let planes = [];
+let airports = [];
+let currentPath = [];
+let gameState = 'start';
+let planesLandedA = 0;
+let planesLandedB = 0;
+let totalPlanesPerType = 3;
+
+function setup() {
+    const canvas = createCanvas(windowWidth, windowHeight);
+    canvas.parent('canvas-container');
+    
+    // Create airports at the horizontal edges
+    airports.push(new Airport('A', 'left', color(255, 0, 0)));
+    airports.push(new Airport('B', 'right', color(0, 0, 255)));
+    
+    initGame();
+    
+    // Event listeners
+    document.getElementById('start-button').addEventListener('click', startGame);
+    document.getElementById('try-again-button').addEventListener('click', resetGame);
+}
+
+function draw() {
+    background(240);
+    
+    // Draw airports
+    airports.forEach(airport => airport.display());
+    
+    if (gameState === 'playing') {
+        // Update and display planes
+        planes = planes.filter(plane => !plane.remove);
+        planes.forEach(plane => {
+            plane.update();
+            plane.display();
+        });
+        
+        // Draw current path
+        if (mouseIsPressed) {
+            stroke(0, 150);
+            strokeWeight(3);
+            noFill();
+            beginShape();
+            currentPath.forEach(point => vertex(point.x, point.y));
+            vertex(mouseX, mouseY);
+            endShape();
+        }
+        
+        // Check for collisions and landings
+        checkCollisions();
+        checkLandings();
+
+        // Update UI
+        updateUI();
+    }
+}
+
+function mousePressed() {
+    if (gameState === 'playing') {
+        currentPath = [{x: mouseX, y: mouseY}];
+    }
+}
+
+function mouseDragged() {
+    if (gameState === 'playing') {
+        currentPath.push({x: mouseX, y: mouseY});
+    }
+}
+
+function mouseReleased() {
+    if (gameState === 'playing') {
+        let closestPlane = null;
+        let minDist = Infinity;
+        
+        planes.forEach(plane => {
+            if (!plane.landed) {
+                const d = dist(plane.x, plane.y, currentPath[0].x, currentPath[0].y);
+                if (d < minDist) {
+                    minDist = d;
+                    closestPlane = plane;
+                }
+            }
+        });
+        
+        if (closestPlane && minDist < 30) {
+            closestPlane.setPath(currentPath);
+        }
+        
+        currentPath = [];
+    }
+}
+
+function checkCollisions() {
+    for (let i = 0; i < planes.length; i++) {
+        for (let j = i + 1; j < planes.length; j++) {
+            if (!planes[i].landed && !planes[j].landed && 
+                dist(planes[i].x, planes[i].y, planes[j].x, planes[j].y) < 20) {
+                endGame('Planes collided!');
+                return;
+            }
+        }
+    }
+}
+
+function checkLandings() {
+    planes.forEach(plane => {
+        if (!plane.landed) {
+            airports.forEach(airport => {
+                if (dist(plane.x, plane.y, airport.x, airport.y) < 30) {
+                    if (plane.type === airport.type) {
+                        plane.landed = true;
+                        if (plane.type === 'A') {
+                            planesLandedA++;
+                        } else {
+                            planesLandedB++;
+                        }
+                        // Mark plane for removal
+                        setTimeout(() => {
+                            plane.remove = true;
+                        }, 500);
+                        if (planesLandedA + planesLandedB === totalPlanesPerType * 2) {
+                            endGame('All planes landed successfully!');
+                        }
+                    } else {
+                        endGame('A plane landed at the wrong airport!');
+                    }
+                }
+            });
+        }
+    });
+}
+
+function updateUI() {
+    document.getElementById('planes-a-landed').textContent = `${planesLandedA}/${totalPlanesPerType}`;
+    document.getElementById('planes-b-landed').textContent = `${planesLandedB}/${totalPlanesPerType}`;
+}
+
+function initGame() {
+    planes = [];
+    currentPath = [];
+    planesLandedA = 0;
+    planesLandedB = 0;
+    
+    for (let i = 0; i < totalPlanesPerType; i++) {
+        planes.push(new Plane('A', random(width / 4, 3 * width / 4), random(height)));
+        planes.push(new Plane('B', random(width / 4, 3 * width / 4), random(height)));
+    }
+}
+
+function startGame() {
+    gameState = 'playing';
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('game-ui').classList.remove('hidden');
+}
+
+function endGame(message) {
+    gameState = 'gameover';
+    document.getElementById('game-over-message').textContent = message;
+    document.getElementById('planes-landed').textContent = `Planes landed: ${planesLandedA + planesLandedB}/${totalPlanesPerType * 2}`;
+    document.getElementById('game-ui').classList.add('hidden');
+    document.getElementById('game-over-screen').classList.remove('hidden');
+}
+
+function resetGame() {
+    initGame();
+    gameState = 'start';
+    document.getElementById('game-over-screen').classList.add('hidden');
+    document.getElementById('game-ui').classList.add('hidden');
+    document.getElementById('start-screen').classList.remove('hidden');
+}
+
+class Plane {
+    constructor(type, x, y) {
+        this.type = type;
+        this.x = x;
+        this.y = y;
+        this.speed = 0.5;
+        this.angle = random(TWO_PI);
+        this.path = [];
+        this.currentPathIndex = 0;
+        this.landed = false;
+        this.remove = false;
+    }
+    
+    update() {
+        if (!this.landed && gameState === 'playing') {
+            if (this.path.length > 0 && this.currentPathIndex < this.path.length) {
+                const target = this.path[this.currentPathIndex];
+                this.angle = atan2(target.y - this.y, target.x - this.x);
+                this.x += cos(this.angle) * this.speed;
+                this.y += sin(this.angle) * this.speed;
+                
+                if (dist(this.x, this.y, target.x, target.y) < this.speed) {
+                    this.currentPathIndex++;
+                }
+            } else {
+                this.x += cos(this.angle) * this.speed;
+                this.y += sin(this.angle) * this.speed;
+            }
+            
+            // Wrap around screen edges
+            this.x = (this.x + width) % width;
+            this.y = (this.y + height) % height;
+        }
+    }
+    
+    display() {
+        if (!this.remove) {
+            push();
+            translate(this.x, this.y);
+            rotate(this.angle + HALF_PI);
+            fill(this.type === 'A' ? color(255, 0, 0) : color(0, 0, 255));
+            triangle(0, -10, -5, 10, 5, 10);
+            pop();
+            
+            // Draw path
+            if (this.path.length > 0) {
+                stroke(100, 150);
+                strokeWeight(2);
+                noFill();
+                beginShape();
+                this.path.forEach(point => vertex(point.x, point.y));
+                endShape();
+            }
+        }
+    }
+    
+    setPath(newPath) {
+        this.path = newPath;
+        this.currentPathIndex = 0;
+    }
+}
+
+class Airport {
+    constructor(type, side, color) {
+        this.type = type;
+        this.side = side;
+        this.color = color;
+        this.y = height / 2;
+        this.x = this.side === 'left' ? 50 : width - 50;
+    }
+    
+    display() {
+        push();
+        fill(this.color);
+        stroke(0);
+        strokeWeight(2);
+        rect(this.x - 25, this.y - 25, 50, 50);
+        fill(255);
+        noStroke();
+        textAlign(CENTER, CENTER);
+        textSize(24);
+        text(this.type, this.x, this.y);
+        pop();
+    }
+}
+
+function windowResized() {
+    resizeCanvas(windowWidth, windowHeight);
+    // Update airport positions
+    airports.forEach(airport => {
+        airport.y = height / 2;
+        airport.x = airport.side === 'left' ? 50 : width - 50;
+    });
+}
+</script>
+</body>
+</html>

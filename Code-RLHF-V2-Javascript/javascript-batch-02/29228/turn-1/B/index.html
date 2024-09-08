@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Plane Path Game</title>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+        #gameArea {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: #87CEEB; /* Sky background */
+        }
+        .airport {
+            width: 50px;
+            height: 50px;
+            position: absolute;
+            border-radius: 50%;
+        }
+        #airportA { background: red; left: 10px; top: 50%; }
+        #airportB { background: blue; right: 10px; top: 50%; }
+        .plane {
+            width: 20px;
+            height: 20px;
+            position: absolute;
+            background-color: #000;
+            border-radius: 50%;
+        }
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: white;
+            padding: 20px;
+            border: 2px solid black;
+        }
+        .path {
+            stroke: black;
+            stroke-width: 2;
+            fill: none;
+        }
+    </style>
+</head>
+<body>
+<div id="gameArea">
+    <div id="airportA" class="airport"></div>
+    <div id="airportB" class="airport"></div>
+    <svg id="pathContainer" style="position: absolute; width: 100%; height: 100%;"></svg>
+</div>
+<div id="startScreen">
+    <h1>Plane Path Game</h1>
+    <p>Draw paths for planes to reach their airports. Avoid collisions!</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+<div id="gameOverScreen" style="display: none;">
+    <h2>Game Over</h2>
+    <p id="gameResult"></p>
+    <button onclick="location.reload()">Try Again</button>
+</div>
+
+<script>
+    let planes = [];
+    const gameArea = document.getElementById('gameArea');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const pathContainer = document.getElementById('pathContainer');
+    let drawing = false;
+    let currentPath = null;
+    let paths = [];
+
+    function Plane(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.element = document.createElement('div');
+        this.element.className = 'plane';
+        this.element.style.left = `${x}px`;
+        this.element.style.top = `${y}px`;
+        gameArea.appendChild(this.element);
+        this.path = null;
+    }
+
+    function startGame() {
+        startScreen.style.display = 'none';
+        for (let i = 0; i < 3; i++) {
+            planes.push(new Plane(Math.random() * 200, Math.random() * window.innerHeight, 'A'));
+            planes.push(new Plane(window.innerWidth - 30 - Math.random() * 200, Math.random() * window.innerHeight, 'B'));
+        }
+        gameArea.addEventListener('mousedown', startDrawing);
+        gameArea.addEventListener('mousemove', drawPath);
+        gameArea.addEventListener('mouseup', stopDrawing);
+        gameLoop();
+    }
+
+    function startDrawing(e) {
+        drawing = true;
+        currentPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        currentPath.setAttribute('class', 'path');
+        currentPath.setAttribute('d', `M${e.clientX},${e.clientY}`);
+        pathContainer.appendChild(currentPath);
+    }
+
+    function drawPath(e) {
+        if (!drawing) return;
+        let pathString = currentPath.getAttribute('d') + ` L${e.clientX},${e.clientY}`;
+        currentPath.setAttribute('d', pathString);
+    }
+
+    function stopDrawing() {
+        drawing = false;
+        if (currentPath) paths.push(currentPath);
+        currentPath = null;
+    }
+
+    function movePlanes() {
+        planes.forEach((plane, index) => {
+            if (!plane.path) {
+                let closestPath = paths.reduce((prev, curr) => {
+                    let prevDist = prev ? prev.getTotalLength() : Infinity;
+                    let currDist = curr.getTotalLength();
+                    return prevDist < currDist ? prev : curr;
+                });
+                plane.path = closestPath;
+                paths.splice(paths.indexOf(closestPath), 1);
+            }
+            let path = plane.path;
+            if (path) {
+                let pathLength = path.getTotalLength();
+                let point = path.getPointAtLength(plane.pathProgress || 0);
+                plane.x = point.x;
+                plane.y = point.y;
+                plane.element.style.left = `${point.x}px`;
+                plane.element.style.top = `${point.y}px`;
+                plane.pathProgress = (plane.pathProgress || 0) + 1;
+                if (plane.pathProgress >= pathLength) {
+                    checkLanding(plane);
+                    plane.path = null;
+                    plane.pathProgress = 0;
+                }
+            }
+        });
+    }
+
+    function checkLanding(plane) {
+        let correctAirport = plane.type === 'A' ? 'airportA' : 'airportB';
+        let airport = document.getElementById(correctAirport);
+        if (Math.abs(plane.x - airport.offsetLeft - 25) < 25 && Math.abs(plane.y - airport.offsetTop - 25) < 25) {
+            // Correct landing, but for simplicity, we'll just remove the plane or count it
+        } else {
+            gameOver('A plane landed at the wrong airport!');
+        }
+    }
+
+    function checkCollisions() {
+        for(let i = 0; i < planes.length; i++) {
+            for(let j = i + 1; j < planes.length; j++) {
+                if(Math.hypot(planes[i].x - planes[j].x, planes[i].y - planes[j].y) < 20) {
+                    gameOver('Planes have collided!');
+                    return;
+                }
+            }
+        }
+    }
+
+    function gameLoop() {
+        movePlanes();
+        checkCollisions();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function gameOver(message) {
+        document.getElementById('gameResult').innerText = message;
+        gameOverScreen.style.display = 'block';
+        gameArea.removeEventListener('mousedown', startDrawing);
+        gameArea.removeEventListener('mousemove', drawPath);
+        gameArea.removeEventListener('mouseup', stopDrawing);
+    }
+</script>
+</body>
+</html>
