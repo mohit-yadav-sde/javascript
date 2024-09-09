@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Analysis Widget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/dist/date-fns.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.1/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-md p-6">
+        <h1 class="text-2xl font-bold mb-4">Stock Analysis Widget</h1>
+        
+        <form id="stockForm" class="mb-6">
+            <div class="flex space-x-4 mb-4">
+                <input type="text" id="symbol" placeholder="Symbol" class="border rounded px-2 py-1 flex-1" required>
+                <input type="text" id="region" placeholder="Region" class="border rounded px-2 py-1 flex-1" required>
+                <button type="submit" class="bg-blue-500 text-white px-4 py-1 rounded">Analyze</button>
+            </div>
+        </form>
+
+        <div id="charts" class="mb-6">
+            <canvas id="priceChart" class="mb-4"></canvas>
+            <canvas id="volumeChart"></canvas>
+        </div>
+
+        <div id="stats" class="grid grid-cols-3 gap-4 text-center">
+            <div class="bg-gray-200 p-4 rounded">
+                <h3 class="font-bold">Average Price</h3>
+                <p id="avgPrice">-</p>
+            </div>
+            <div class="bg-gray-200 p-4 rounded">
+                <h3 class="font-bold">Highest Price</h3>
+                <p id="highestPrice">-</p>
+            </div>
+            <div class="bg-gray-200 p-4 rounded">
+                <h3 class="font-bold">Lowest Price</h3>
+                <p id="lowestPrice">-</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let priceChart, volumeChart;
+        let allData = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('stockForm');
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const symbol = document.getElementById('symbol').value;
+                const region = document.getElementById('region').value;
+                await fetchData(symbol, region);
+            });
+        });
+
+        async function fetchData(symbol, region) {
+            const options = {
+                method: 'GET',
+                url: 'https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v3/get-historical-data',
+                params: { symbol, region },
+                headers: {
+                    'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c', // Replace with your actual API key
+                    'x-rapidapi-host': 'apidojo-yahoo-finance-v1.p.rapidapi.com'
+                }
+            };
+
+            try {
+                const response = await axios.request(options);
+                allData = response.data.prices.map(item => ({
+                    date: new Date(item.date * 1000),
+                    open: item.open,
+                    high: item.high,
+                    low: item.low,
+                    close: item.close,
+                    volume: item.volume
+                })).sort((a, b) => a.date - b.date);
+
+                createCharts();
+                updateStats();
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        function createCharts() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        { label: 'Open', data: [], borderColor: 'rgb(75, 192, 192)', tension: 0.1 },
+                        { label: 'High', data: [], borderColor: 'rgb(54, 162, 235)', tension: 0.1 },
+                        { label: 'Low', data: [], borderColor: 'rgb(255, 99, 132)', tension: 0.1 },
+                        { label: 'Close', data: [], borderColor: 'rgb(255, 205, 86)', tension: 0.1 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'x'
+                            },
+                            zoom: {
+                                wheel: {
+                                    enabled: true
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: 'x'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { 
+                            type: 'time',
+                            time: { 
+                                unit: 'day',
+                                displayFormats: {
+                                    day: 'MMM d'
+                                }
+                            }
+                        },
+                        y: { beginAtZero: false }
+                    }
+                }
+            });
+
+            const volumeCtx = document.getElementById('volumeChart').getContext('2d');
+            volumeChart = new Chart(volumeCtx, {
+                type: 'bar',
+                data: {
+                    datasets: [{ label: 'Volume', data: [], backgroundColor: 'rgba(75, 192, 192, 0.6)' }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'x'
+                            },
+                            zoom: {
+                                wheel: {
+                                    enabled: true
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: 'x'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { 
+                            type: 'time',
+                            time: { 
+                                unit: 'day',
+                                displayFormats: {
+                                    day: 'MMM d'
+                                }
+                            }
+                        },
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+
+            updateCharts();
+        }
+
+        function updateCharts() {
+            const chartData = {
+                open: allData.map(item => ({ x: item.date, y: item.open })),
+                high: allData.map(item => ({ x: item.date, y: item.high })),
+                low: allData.map(item => ({ x: item.date, y: item.low })),
+                close: allData.map(item => ({ x: item.date, y: item.close })),
+                volume: allData.map(item => ({ x: item.date, y: item.volume }))
+            };
+
+            priceChart.data.datasets[0].data = chartData.open;
+            priceChart.data.datasets[1].data = chartData.high;
+            priceChart.data.datasets[2].data = chartData.low;
+            priceChart.data.datasets[3].data = chartData.close;
+            priceChart.update();
+
+            volumeChart.data.datasets[0].data = chartData.volume;
+            volumeChart.update();
+        }
+
+        function updateStats() {
+            const avgPrice = allData.reduce((sum, item) => sum + (item.open + item.high + item.low + item.close) / 4, 0) / allData.length;
+            const highestPrice = Math.max(...allData.flatMap(item => [item.open, item.high, item.low, item.close]));
+            const lowestPrice = Math.min(...allData.flatMap(item => [item.open, item.high, item.low, item.close]));
+
+            document.getElementById('avgPrice').textContent = avgPrice.toFixed(4);
+            document.getElementById('highestPrice').textContent = highestPrice.toFixed(4);
+            document.getElementById('lowestPrice').textContent = lowestPrice.toFixed(4);
+        }
+    </script>
+</body>
+</html>

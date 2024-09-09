@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Series Price Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { max-width: 900px; margin: auto; padding: 20px; }
+        .input-form { margin-bottom: 20px; }
+        .charts-container { display: flex; justify-content: space-around; }
+        .chart { width: 45%; }
+        .stats { margin-top: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Stock Price Analysis</h1>
+        <div class="input-form">
+            <input type="text" id="symbol" placeholder="Symbol" required>
+            <input type="text" id="region" placeholder="Region" required>
+            <button onclick="fetchData()">Analyze</button>
+        </div>
+        <div id="error" style="color: red;"></div>
+        <div class="charts-container">
+            <canvas id="priceChart" class="chart"></canvas>
+            <canvas id="volumeChart" class="chart"></canvas>
+        </div>
+        <div class="stats" id="stats">
+            <!-- Stats will be inserted here -->
+        </div>
+    </div>
+
+    <script>
+    async function fetchData() {
+        const symbol = document.getElementById('symbol').value;
+        const region = document.getElementById('region').value;
+        const errorDiv = document.getElementById('error');
+        const statsDiv = document.getElementById('stats');
+        
+        const options = {
+            method: 'GET',
+            url: 'https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v3/get-historical-data',
+            params: {symbol, region},
+            headers: {
+                'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c', // Replace with your actual API key
+                'x-rapidapi-host': 'apidojo-yahoo-finance-v1.p.rapidapi.com'
+            }
+        };
+
+        try {
+            const response = await axios.request(options);
+            const data = response.data.prices;
+            displayCharts(data);
+            displayStats(data);
+            errorDiv.textContent = '';
+        } catch (error) {
+            errorDiv.textContent = 'Error fetching data: ' + error.message;
+            console.error(error);
+        }
+    }
+
+    function displayCharts(data) {
+        const ctxPrice = document.getElementById('priceChart').getContext('2d');
+        const ctxVolume = document.getElementById('volumeChart').getContext('2d');
+
+        const labels = data.map(item => new Date(item.date * 1000).toISOString().split('T')[0]);
+        const priceData = data.map(item => [item.open, item.high, item.low, item.close]);
+        const volumeData = data.map(item => item.volume);
+
+        new Chart(ctxPrice, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Price',
+                    data: priceData,
+                    borderColor: 'rgb(75, 192, 192)',
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: false
+                    }
+                },
+                plugins: {
+                    legend: { display: true }
+                }
+            }
+        });
+
+        new Chart(ctxVolume, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Volume',
+                    data: volumeData,
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgb(54, 162, 235)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                },
+                plugins: {
+                    legend: { display: true }
+                }
+            }
+        });
+    }
+
+    function displayStats(data) {
+        const statsDiv = document.getElementById('stats');
+        const prices = data.map(item => [item.open, item.high, item.low, item.close]).flat();
+        
+        const avgPrice = (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2);
+        const highestPrice = Math.max(...prices).toFixed(2);
+        const lowestPrice = Math.min(...prices).toFixed(2);
+
+        statsDiv.innerHTML = `
+            <p>Average Price: ${avgPrice}</p>
+            <p>Highest Price: ${highestPrice}</p>
+            <p>Lowest Price: ${lowestPrice}</p>
+        `;
+    }
+    </script>
+</body>
+</html>

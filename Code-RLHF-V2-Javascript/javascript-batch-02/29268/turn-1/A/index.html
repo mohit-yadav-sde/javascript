@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Stock Price Analysis</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        #charts-container { margin-top: 20px; }
+        .chart-container { width: 100%; max-width: 800px; margin: auto; }
+        .stat { padding: 10px; background: #f4f4f4; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Stock Price Analysis</h2>
+    <form id="stockForm">
+        <div class="form-group">
+            <label for="symbol">Symbol:</label>
+            <input type="text" class="form-control" id="symbol" placeholder="Enter stock symbol" required>
+        </div>
+        <div class="form-group">
+            <label for="region">Region:</label>
+            <input type="text" class="form-control" id="region" placeholder="Enter region" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Fetch Data</button>
+    </form>
+    
+    <div id="stats" class="mt-4"></div>
+    <div id="charts-container" class="mt-4">
+        <div class="chart-container">
+            <canvas id="priceChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="volumeChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('stockForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const symbol = document.getElementById('symbol').value;
+        const region = document.getElementById('region').value;
+        fetchStockData(symbol, region);
+    });
+
+    async function fetchStockData(symbol, region) {
+        const options = {
+            method: 'GET',
+            url: 'https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v3/get-historical-data',
+            params: { symbol, region },
+            headers: {
+                'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c', // Replace with your actual API key
+                'x-rapidapi-host': 'apidojo-yahoo-finance-v1.p.rapidapi.com'
+            }
+        };
+
+        try {
+            const response = await axios.request(options);
+            displayData(response.data);
+        } catch (error) {
+            console.error('Failed to fetch data:', error);
+        }
+    }
+
+    function displayData(data) {
+        const statsDiv = document.getElementById('stats');
+        statsDiv.innerHTML = ''; // Clear previous stats
+
+        // Calculate statistics
+        let avgPrice = 0, highestPrice = -Infinity, lowestPrice = Infinity;
+        data.prices.forEach(price => {
+            const currentPrice = (price.open + price.high + price.low + price.close) / 4;
+            avgPrice += currentPrice;
+            highestPrice = Math.max(highestPrice, price.high);
+            lowestPrice = Math.min(lowestPrice, price.low);
+        });
+        avgPrice /= data.prices.length;
+
+        // Display stats
+        statsDiv.innerHTML += `<div class="stat">Average Price: ${avgPrice.toFixed(2)}</div>`;
+        statsDiv.innerHTML += `<div class="stat">Highest Price: ${highestPrice.toFixed(2)}</div>`;
+        statsDiv.innerHTML += `<div class="stat">Lowest Price: ${lowestPrice.toFixed(2)}</div>`;
+
+        // Prepare data for charts
+        const dates = data.prices.map(p => new Date(p.date * 1000).toLocaleDateString());
+        const prices = {
+            open: data.prices.map(p => p.open),
+            high: data.prices.map(p => p.high),
+            low: data.prices.map(p => p.low),
+            close: data.prices.map(p => p.close),
+            volume: data.prices.map(p => p.volume)
+        };
+
+        // Price Chart
+        new Chart(document.getElementById('priceChart'), {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'Open',
+                    data: prices.open,
+                    borderColor: 'blue',
+                    fill: false
+                }, {
+                    label: 'High',
+                    data: prices.high,
+                    borderColor: 'green',
+                    fill: false
+                }, {
+                    label: 'Low',
+                    data: prices.low,
+                    borderColor: 'red',
+                    fill: false
+                }, {
+                    label: 'Close',
+                    data: prices.close,
+                    borderColor: 'purple',
+                    fill: false
+                }]
+            },
+            options: { responsive: true, title: { display: true, text: 'Price Over Time' } }
+        });
+
+        // Volume Chart
+        new Chart(document.getElementById('volumeChart'), {
+            type: 'bar',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'Volume',
+                    data: prices.volume,
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: { responsive: true, title: { display: true, text: 'Volume Over Time' } }
+        });
+    }
+</script>
+
+</body>
+</html>
