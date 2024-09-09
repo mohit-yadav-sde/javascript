@@ -142,12 +142,16 @@
                     ctx.stroke();
                 }
 
-                // Draw exit
-                ctx.fillStyle = '#4CAF50';
-                ctx.fillRect(canvas.width, 2 * CELL_SIZE, 10, CELL_SIZE);
-
                 // Draw cars
                 this.cars.forEach(car => car.draw());
+
+                // Draw exit on top of everything
+                const exitWidth = 20;
+                const exitHeight = 2 * CELL_SIZE;
+                const exitY = 2 * CELL_SIZE; // Position it at the third row (index 2)
+    
+                ctx.fillStyle = 'rgba(255, 0, 0, 1)';  // Semi-transparent red
+                ctx.fillRect(canvas.width - exitWidth, exitY, exitWidth, exitHeight);
 
                 // Draw win message if the game is won
                 if (this.won) {
@@ -159,7 +163,7 @@
                     ctx.fillText('You Win!', canvas.width / 2, canvas.height / 2);
                 }
             }
-
+            
             // Handle mouse down event to select a car
             handleMouseDown(x, y) {
                 if (this.won) return;
