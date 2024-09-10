@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mouse vs Cats</title>
+<style>
+    body { font-family: Arial, sans-serif; text-align: center; }
+    #gameContainer { position: relative; width: 400px; height: 400px; margin: 20px auto; border: 2px solid #000; }
+    #grid { width: 100%; height: 100%; position: absolute; }
+    .cell { width: 40px; height: 40px; float: left; }
+    #mouse, .cat, .cheese { position: absolute; transition: all 0.3s; }
+    #mouse { background: url('mouse.png') no-repeat center; background-size: contain; width: 40px; height: 40px; }
+    .cat { background: url('cat.png') no-repeat center; background-size: contain; width: 40px; height: 40px; }
+    .cheese { background: url('cheese.png') no-repeat center; background-size: contain; width: 40px; height: 40px; }
+    .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.8); display: none; flex-direction: column; justify-content: center; align-items: center; }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <div id="startScreen" class="screen">
+        <h1>Mouse vs Cats</h1>
+        <p>Use arrow keys to move. Collect all cheese!</p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <div id="gameOverScreen" class="screen">
+        <h1>Game Over</h1>
+        <p>Your Score: <span id="score"></span></p>
+        <button onclick="location.reload()">Try Again</button>
+    </div>
+    <div id="grid"></div>
+</div>
+
+<script>
+    const gridSize = 10;
+    let mousePos = {x: 0, y: 0}, cats = [], cheese = [], score = 0;
+    const grid = document.getElementById('grid');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const scoreDisplay = document.getElementById('score');
+
+    function createGrid() {
+        for(let i = 0; i < gridSize * gridSize; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            grid.appendChild(cell);
+        }
+    }
+
+    function placeItems() {
+        mousePos = {x: 0, y: 0};
+        document.getElementById('mouse').style.left = '0px';
+        document.getElementById('mouse').style.top = '0px';
+        cats = [{x: 9, y: 9}];
+        cheese = [{x: 5, y: 5}]; // Example position, expand as needed
+    }
+
+    function startGame() {
+        startScreen.style.display = 'none';
+        createGrid();
+        placeItems();
+        document.addEventListener('keydown', moveMouse);
+    }
+
+    function moveMouse(e) {
+        const key = e.key;
+        let newPos = {...mousePos};
+        if(key === 'ArrowUp' && mousePos.y > 0) newPos.y--;
+        else if(key === 'ArrowDown' && mousePos.y < gridSize - 1) newPos.y++;
+        else if(key === 'ArrowLeft' && mousePos.x > 0) newPos.x--;
+        else if(key === 'ArrowRight' && mousePos.x < gridSize - 1) newPos.x++;
+        
+        if (newPos.x !== mousePos.x || newPos.y !== mousePos.y) {
+            mousePos = newPos;
+            updatePositions();
+        }
+    }
+
+    function updatePositions() {
+        document.getElementById('mouse').style.left = `${mousePos.x * 40}px`;
+        document.getElementById('mouse').style.top = `${mousePos.y * 40}px`;
+        // Move cats and check for game over, update cheese collection
+        // This logic should be expanded
+    }
+
+    function gameOver() {
+        scoreDisplay.textContent = score;
+        gameOverScreen.style.display = 'flex';
+    }
+
+    // Initial setup
+    document.getElementById('mouse').style.display = 'none'; // Hide mouse until game starts
+</script>
+
+</body>
+</html>

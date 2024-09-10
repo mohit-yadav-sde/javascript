@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mouse vs Cats</title>
+<style>
+body { font-family: 'Arial', sans-serif; background: #f4f4f4; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+#game-container { position: relative; width: 400px; height: 400px; background: #fff; border: 2px solid #000; }
+.grid-cell { width: 40px; height: 40px; position: absolute; }
+.mouse { background: url('mouse.png'); background-size: cover; transition: all 0.3s; }
+.cat { background: url('cat.png'); background-size: cover; transition: all 0.3s; }
+.cheese { background: url('cheese.png'); background-size: cover; }
+.wall { background: #8B4513; }
+#start-screen, #game-over { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+button { padding: 10px 20px; font-size: 1em; cursor: pointer; }
+#score { position: absolute; top: 10px; left: 10px; color: black; }
+</style>
+</head>
+<body>
+<div id="game-container">
+    <div id="start-screen">
+        <h2>Mouse vs Cats</h2>
+        <p>Use arrow keys to move. Collect all cheese before cats catch you!</p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <div id="game-over" style="display:none;">
+        <h2>Game Over</h2>
+        <p>Your Score: <span id="final-score">0</span></p>
+        <button onclick="startGame()">Try Again</button>
+    </div>
+    <div id="score">Score: 0</div>
+</div>
+
+<script>
+const size = 10; // Grid size
+let gameContainer = document.getElementById('game-container');
+let score = 0;
+let gameState = 'start';
+let mouse, cats, cheeses;
+
+function createGrid() {
+    for(let y = 0; y < size; y++) {
+        for(let x = 0; x < size; x++) {
+            let cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            cell.style.left = `${x * 40}px`;
+            cell.style.top = `${y * 40}px`;
+            gameContainer.appendChild(cell);
+        }
+    }
+}
+
+function placeObject(obj, x, y, className) {
+    let item = document.createElement('div');
+    item.className = className;
+    item.style.left = `${x * 40}px`;
+    item.style.top = `${y * 40}px`;
+    gameContainer.appendChild(item);
+    return item;
+}
+
+function startGame() {
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('game-over').style.display = 'none';
+    gameState = 'play';
+    setupGame();
+}
+
+function setupGame() {
+    gameContainer.innerHTML = ''; // Clear previous game
+    score = 0;
+    updateScore();
+    createGrid();
+    mouse = placeObject(null, 0, 0, 'mouse');
+    cats = [placeObject(null, 9, 9, 'cat')];
+    cheeses = [placeObject(null, 5, 5, 'cheese')]; // Simplified for example
+    // Add walls, more cats, cheese as needed
+    document.addEventListener('keydown', moveMouse);
+}
+
+function moveMouse(e) {
+    if(gameState !== 'play') return;
+    let x = parseInt(mouse.style.left) / 40;
+    let y = parseInt(mouse.style.top) / 40;
+    switch(e.key) {
+        case 'ArrowUp': if(y > 0) y--; break;
+        case 'ArrowDown': if(y < size - 1) y++; break;
+        case 'ArrowLeft': if(x > 0) x--; break;
+        case 'ArrowRight': if(x < size - 1) x++; break;
+    }
+    mouse.style.left = `${x * 40}px`;
+    mouse.style.top = `${y * 40}px`;
+    checkCollision();
+    moveCats();
+}
+
+function checkCollision() {
+    // Check for cheese
+    cheeses = cheeses.filter(cheese => {
+        if (cheese.style.left === mouse.style.left && cheese.style.top === mouse.style.top) {
+            score++;
+            updateScore();
+            gameContainer.removeChild(cheese);
+            return false;
+        }
+        return true;
+    });
+    if (cheeses.length === 0) endGame(true);
+
+    // Check for cat collision
+    cats.forEach(cat => {
+        if (cat.style.left === mouse.style.left && cat.style.top === mouse.style.top) {
+            endGame(false);
+        }
+    });
+}
+
+function moveCats() {
+    cats.forEach(cat => {
+        let mx = parseInt(mouse.style.left) / 40;
+        let my = parseInt(mouse.style.top) / 40;
+        let cx = parseInt(cat.style.left) / 40;
+        let cy = parseInt(cat.style.top) / 40;
+        let dx = mx > cx ? 1 : mx < cx ? -1 : 0;
+        let dy = my > cy ? 1 : my < cy ? -1 : 0;
+        cat.style.left = `${(cx + dx) * 40}px`;
+        cat.style.top = `${(cy + dy) * 40}px`;
+    });
+}
+
+function updateScore() {
+    document.getElementById('score').innerText = `Score: ${score}`;
+}
+
+function endGame(win) {
+    gameState = 'end';
+    document.getElementById('final-score').innerText = score;
+    document.getElementById('game-over').style.display = 'flex';
+    if(win) alert('You win!');
+}
+
+// Start with the start screen
+</script>
+</body>
+</html>
