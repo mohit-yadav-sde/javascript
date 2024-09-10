@@ -149,7 +149,7 @@
             }
 
             // Update distance
-            distance = floor(player.x / 10);
+            distance = floor(player.x / 10)-5;
 
             // Remove off-screen hurdles and coins
             hurdles = hurdles.filter(hurdle => hurdle.x > player.x - width / 2);
