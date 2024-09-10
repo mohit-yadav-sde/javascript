@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mario-like Game</title>
+<style>
+    body { margin: 0; background: #000; overflow: hidden; text-align: center; }
+    canvas { background: #61b0ff; }
+    #startScreen, #gameOverScreen {
+        position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        background: white; padding: 20px; border-radius: 10px;
+    }
+    button { padding: 10px; margin-top: 10px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="startScreen">
+    <h2>Welcome to Mario-like Game</h2>
+    <p>Use ← → to move, Space to jump. Avoid hurdles, collect coins!</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+<div id="gameOverScreen" style="display:none;">
+    <h2>Game Over</h2>
+    <p>Better Luck Next Time!</p>
+    <p>Score: <span id="finalScore"></span></p>
+    <p>Distance: <span id="finalDistance"></span></p>
+    <button onclick="location.reload()">Try Again</button>
+</div>
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.1/howler.min.js"></script>
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScore = document.getElementById('finalScore');
+    const finalDistance = document.getElementById('finalDistance');
+
+    let gameLoop, player, hurdles = [], coins = [], score = 0, distance = 0, cameraX = 0;
+    const playerSpeed = 5, jumpSpeed = -12, gravity = 0.6, hurdleGap = 300, coinGap = 150;
+
+    function startGame() {
+        startScreen.style.display = 'none';
+        initGame();
+        gameLoop = setInterval(updateGame, 1000/60);
+    }
+
+    function initGame() {
+        player = {x: 50, y: canvas.height - 50, width: 30, height: 40, dy: 0, isJumping: false};
+        hurdles = [{x: 800, y: canvas.height - 50, width: 40, height: 50}];
+        coins = [{x: 900, y: canvas.height - 70, width: 20, height: 20}];
+        score = 0;
+        distance = 0;
+        cameraX = 0;
+    }
+
+    function updateGame() {
+        updatePlayer();
+        updateHurdles();
+        updateCoins();
+        checkCollisions();
+        drawGame();
+        distance += 0.1;
+    }
+
+    function updatePlayer() {
+        if(('ArrowLeft' in keys && keys['ArrowLeft']) && player.x > 0) player.x -= playerSpeed;
+        if(('ArrowRight' in keys && keys['ArrowRight']) && player.x < canvas.width - player.width) player.x += playerSpeed;
+        if((' ' in keys && keys[' '] && !player.isJumping)) {
+            player.dy = jumpSpeed;
+            player.isJumping = true;
+        }
+        player.dy += gravity;
+        player.y += player.dy;
+        if(player.y + player.height > canvas.height) {
+            player.y = canvas.height - player.height;
+            player.isJumping = false;
+            player.dy = 0;
+        }
+        cameraX = player.x - 150; // Simple camera follow
+    }
+
+    function updateHurdles() {
+        for(let i = 0; i < hurdles.length; i++) {
+            hurdles[i].x -= playerSpeed;
+            if(hurdles[i].x < -hurdles[i].width) {
+                hurdles[i].x = canvas.width + Math.random() * 500;
+            }
+        }
+        if(hurdles[hurdles.length - 1].x < canvas.width - hurdleGap) {
+            hurdles.push({x: canvas.width + Math.random() * 500, y: canvas.height - 50, width: 40, height: 50});
+        }
+    }
+
+    function updateCoins() {
+        for(let i = 0; i < coins.length; i++) {
+            coins[i].x -= playerSpeed;
+            if(coins[i].x < -coins[i].width) {
+                coins[i].x = canvas.width + Math.random() * 500;
+            }
+        }
+        if(coins[coins.length - 1].x < canvas.width - coinGap) {
+            coins.push({x: canvas.width + Math.random() * 500, y: canvas.height - 70, width: 20, height: 20});
+        }
+    }
+
+    function checkCollisions() {
+        hurdles.forEach(hurdle => {
+            if(player.x < hurdle.x + hurdle.width && 
+               player.x + player.width > hurdle.x && 
+               player.y + player.height > hurdle.y) {
+                gameOver();
+            }
+        });
+        coins.forEach((coin, index) => {
+            if(player.x < coin.x + coin.width && 
+               player.x + player.width > coin.x && 
+               player.y < coin.y + coin.height && 
+               player.y + player.height > coin.y) {
+                score++;
+                coins.splice(index, 1);
+            }
+        });
+    }
+
+    function drawGame() {
+        ctx.save();
+        ctx.translate(-cameraX, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Draw player, hurdles, and coins
+        ctx.fillStyle = 'red';
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+        ctx.fillStyle = 'green';
+        hurdles.forEach(h => ctx.fillRect(h.x, h.y, h.width, h.height));
+        ctx.fillStyle = 'yellow';
+        coins.forEach(c => ctx.fillRect(c.x, c.y, c.width, c.height));
+        ctx.restore();
+        // UI
+        ctx.fillStyle = 'black';
+        ctx.fillText(`Score: ${score}`, 10, 20);
+        ctx.fillText(`Distance: ${Math.floor(distance)}`, 10, 40);
+    }
+
+    function gameOver() {
+        clearInterval(gameLoop);
+        finalScore.textContent = score;
+        finalDistance.textContent = Math.floor(distance);
+        gameOverScreen.style.display = 'block';
+    }
+
+    let keys = {};
+    document.addEventListener('keydown', (e) => keys[e.key] = true);
+    document.addEventListener('keyup', (e) => keys[e.key] = false);
+</script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adventure Run</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+        }
+    </style>
+</head>
+<body class="bg-blue-200 flex justify-center items-center h-screen">
+    <div id="game-container" class="relative">
+        <div id="canvas-container" class="border-8 border-yellow-400 rounded-lg shadow-lg"></div>
+        <div id="ui-overlay" class="absolute top-0 left-0 w-full h-full flex flex-col justify-center items-center text-white text-center">
+            <div id="start-screen" class="bg-blue-500 bg-opacity-90 p-8 rounded-lg border-4 border-yellow-400 shadow-lg">
+                <h1 class="text-4xl font-bold mb-6 text-yellow-400">Adventure Run</h1>
+                <p class="mb-4">Use ← → to move, SPACE to jump</p>
+                <p class="mb-6">Collect coins and avoid hurdles!</p>
+                <button id="start-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 ease-in-out transform hover:scale-105">
+                    Start Game
+                </button>
+            </div>
+            <div id="gameover-screen" class="hidden bg-red-500 bg-opacity-90 p-8 rounded-lg border-4 border-yellow-400 shadow-lg">
+                <h2 class="text-3xl font-bold mb-6 text-yellow-400">Game Over</h2>
+                <p class="text-xl mb-4">Well played, adventurer!</p>
+                <p id="final-score" class="text-2xl mb-2">Score: 0</p>
+                <p id="final-distance" class="text-2xl mb-6">Distance: 0m</p>
+                <button id="try-again-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 ease-in-out transform hover:scale-105">
+                    Try Again
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game variables
+        let player, hurdles, coins;
+        let score = 0;
+        let distance = 0;
+        let gameState = 'START';
+        let groundY;
+
+        function setup() {
+            const canvas = createCanvas(800, 400);
+            canvas.parent('canvas-container');
+            groundY = height - 50;
+            resetGame();
+
+            // Event listeners for buttons
+            document.getElementById('start-button').addEventListener('click', startGame);
+            document.getElementById('try-again-button').addEventListener('click', startGame);
+        }
+
+        function resetGame() {
+            // Initialize game objects and variables
+            player = {
+                x: 50,
+                y: groundY,
+                width: 30,
+                height: 50,
+                velocity: 0,
+                speed: 5,
+                jumpForce: -15
+            };
+            hurdles = [];
+            coins = [];
+            score = 0;
+            distance = 0;
+        }
+
+        function startGame() {
+            gameState = 'PLAYING';
+            resetGame();
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+        }
+
+        function draw() {
+            background(135, 206, 235); // Sky blue background
+
+            if (gameState === 'PLAYING') {
+                updateGame();
+                displayGame();
+            }
+        }
+
+        function updateGame() {
+            // Player movement
+            if (keyIsDown(LEFT_ARROW)) {
+                player.x -= player.speed;
+            }
+            if (keyIsDown(RIGHT_ARROW)) {
+                player.x += player.speed;
+            }
+
+            // Player jump
+            player.y += player.velocity;
+            player.velocity += 0.8; // Gravity
+            if (player.y > groundY) {
+                player.y = groundY;
+                player.velocity = 0;
+            }
+
+            // Generate hurdles
+            if (frameCount % 100 === 0) {
+                hurdles.push({
+                    x: player.x + width,
+                    y: groundY - 30,
+                    width: 30,
+                    height: 60
+                });
+            }
+
+            // Generate coins
+            if (frameCount % 60 === 0) {
+                coins.push({
+                    x: player.x + width,
+                    y: random(height - 150, height - 100),
+                    size: 20
+                });
+            }
+
+            // Check collisions with hurdles
+            for (let i = hurdles.length - 1; i >= 0; i--) {
+                if (checkCollision(player, hurdles[i])) {
+                    gameState = 'GAMEOVER';
+                    document.getElementById('gameover-screen').classList.remove('hidden');
+                    document.getElementById('final-score').textContent = `Score: ${score}`;
+                    document.getElementById('final-distance').textContent = `Distance: ${distance}m`;
+                }
+            }
+
+            // Check collisions with coins
+            for (let i = coins.length - 1; i >= 0; i--) {
+                if (checkCollision(player, {
+                    x: coins[i].x - coins[i].size / 2,
+                    y: coins[i].y - coins[i].size / 2,
+                    width: coins[i].size,
+                    height: coins[i].size
+                })) {
+                    score++; // Increase score
+                    coins.splice(i, 1); // Remove collected coin
+                }
+            }
+
+            // Update distance
+            distance = floor(player.x / 10);
+
+            // Remove off-screen hurdles and coins
+            hurdles = hurdles.filter(hurdle => hurdle.x > player.x - width / 2);
+            coins = coins.filter(coin => coin.x > player.x - width / 2);
+        }
+
+        function displayGame() {
+            push(); // Save the current transformation state
+
+            // Translate the canvas to follow the player
+            translate(-player.x + 100, 0);
+
+            // Draw background elements (clouds, mountains, etc.)
+            drawBackground();
+
+            // Draw ground
+            fill(76, 175, 80);
+            rect(player.x - width/2, groundY, width*2, height - groundY);
+
+            // Draw player
+            fill(255, 0, 0);
+            rect(player.x, player.y - player.height, player.width, player.height);
+
+            // Draw hurdles
+            fill(165, 42, 42);
+            for (let hurdle of hurdles) {
+                rect(hurdle.x, hurdle.y - hurdle.height, hurdle.width, hurdle.height);
+            }
+
+            // Draw coins
+            fill(255, 215, 0);
+            for (let coin of coins) {
+                drawCoin(coin.x, coin.y, coin.size);
+            }
+
+            pop(); // Restore the previous transformation state
+
+            // Display score and distance (fixed position on screen)
+            fill(0);
+            textSize(16);
+            textAlign(LEFT, TOP);
+            text(`Score: ${score}`, 20, 20);
+            text(`Distance: ${distance}m`, 20, 50);
+        }
+
+        function drawBackground() {
+            // Draw clouds
+            fill(255);
+            for (let i = 0; i < 5; i++) {
+                ellipse(player.x + i * 200, 50, 60, 40);
+                ellipse(player.x + i * 200 - 25, 60, 40, 30);
+                ellipse(player.x + i * 200 + 25, 60, 40, 30);
+            }
+
+            // Draw mountains
+            fill(100, 100, 100);
+            triangle(player.x - 100, groundY, player.x + 100, 100, player.x + 300, groundY);
+            triangle(player.x + 200, groundY, player.x + 400, 150, player.x + 600, groundY);
+        }
+
+        function drawCoin(x, y, size) {
+            fill(255, 215, 0);
+            ellipse(x, y, size);
+            fill(218, 165, 32);
+            ellipse(x, y, size * 0.7);
+        }
+
+        function keyPressed() {
+            // Jump when spacebar is pressed and player is on the ground
+            if (key === ' ' && player.y === groundY) {
+                player.velocity = player.jumpForce;
+            }
+        }
+
+        function checkCollision(a, b) {
+            // Simple AABB collision detection
+            return (
+                a.x < b.x + b.width &&
+                a.x + a.width > b.x &&
+                a.y < b.y + b.height &&
+                a.y + a.height > b.y
+            );
+        }
+    </script>
+</body>
+</html>
