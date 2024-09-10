@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Art Gallery</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+    <div id="startScreen" class="fixed inset-0 bg-black bg-opacity-80 flex flex-col justify-center items-center p-4 overflow-y-auto">
+        <h2 class="text-3xl font-bold mb-4">Welcome to Virtual Art Gallery</h2>
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg max-w-2xl w-full mb-6">
+            <h3 class="text-xl font-semibold mb-2">Instructions:</h3>
+            <ol class="list-decimal list-inside space-y-2">
+                <li>Provide links to 3 images of artworks you'd like to display.</li>
+                <li>For each artwork, provide a title, artist name, and additional information (medium, year, etc.).</li>
+                <li>Click "Enter Gallery" to start your 3D gallery experience.</li>
+                <li>In the gallery, use WASD keys to move and your mouse to look around.</li>
+                <li>Click on an artwork to view its information.</li>
+                <li>Click anywhere else to teleport to that location.</li>
+                <li>Press 'E' to toggle the visibility of artwork information.</li>
+                <li>Use the theme selector in the top right to change the gallery's appearance.</li>
+            </ol>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div class="space-y-2">
+                <input type="text" id="artwork1" placeholder="Artwork 1 Image URL" class="w-full px-3 py-2 bg-gray-700 rounded">
+                <input type="text" id="title1" placeholder="Artwork 1 Title" class="w-full px-3 py-2 bg-gray-700 rounded">
+                <input type="text" id="artist1" placeholder="Artist Name" class="w-full px-3 py-2 bg-gray-700 rounded">
+                <textarea id="info1" placeholder="Artwork 1 Information (medium, year, etc.)" class="w-full px-3 py-2 bg-gray-700 rounded"></textarea>
+            </div>
+            <div class="space-y-2">
+                <input type="text" id="artwork2" placeholder="Artwork 2 Image URL" class="w-full px-3 py-2 bg-gray-700 rounded">
+                <input type="text" id="title2" placeholder="Artwork 2 Title" class="w-full px-3 py-2 bg-gray-700 rounded">
+                <input type="text" id="artist2" placeholder="Artist Name" class="w-full px-3 py-2 bg-gray-700 rounded">
+                <textarea id="info2" placeholder="Artwork 2 Information (medium, year, etc.)" class="w-full px-3 py-2 bg-gray-700 rounded"></textarea>
+            </div>
+            <div class="space-y-2">
+                <input type="text" id="artwork3" placeholder="Artwork 3 Image URL" class="w-full px-3 py-2 bg-gray-700 rounded">
+                <input type="text" id="title3" placeholder="Artwork 3 Title" class="w-full px-3 py-2 bg-gray-700 rounded">
+                <input type="text" id="artist3" placeholder="Artist Name" class="w-full px-3 py-2 bg-gray-700 rounded">
+                <textarea id="info3" placeholder="Artwork 3 Information (medium, year, etc.)" class="w-full px-3 py-2 bg-gray-700 rounded"></textarea>
+            </div>
+        </div>
+        <button onclick="startGallery()" class="px-6 py-3 bg-green-500 text-white rounded font-bold hover:bg-green-600 transition">Enter Gallery</button>
+    </div>
+    <!-- <div id="info" class="fixed top-4 left-4 text-white">Virtual Art Gallery</div> -->
+    <div id="controls" class="fixed bottom-4 left-4 text-white">WASD: Move, Mouse: Look, Click: Interact, E: Toggle Info</div>
+    <select id="themeSelector" class="fixed top-4 right-4 bg-gray-700 text-white px-3 py-2 rounded">
+        <option value="modern">Modern</option>
+        <option value="classic">Classic</option>
+        <option value="abstract">Abstract</option>
+    </select>
+    <div id="artistInfo" class="hidden fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-80 text-white p-6 rounded-lg max-w-md w-full"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+    <script>
+        let camera, scene, renderer, controls;
+        let artworks = [];
+        let currentTheme = 'modern';
+
+        const themes = {
+            modern: { wallColor: 0xffffff, floorColor: 0xcccccc, lightColor: 0xffffff },
+            classic: { wallColor: 0xf0e68c, floorColor: 0x8b4513, lightColor: 0xffd700 },
+            abstract: { wallColor: 0x000000, floorColor: 0x0000ff, lightColor: 0xff00ff }
+        };
+
+        const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+
+        function startGallery() {
+            const startScreen = document.getElementById('startScreen');
+            startScreen.classList.add('hidden');
+            init();
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            createGallery();
+            setupLighting();
+            setupControls();
+            setupEventListeners();
+
+            animate();
+        }
+
+        function createGallery() {
+            const roomGeometry = new THREE.BoxGeometry(20, 10, 20);
+            const roomMaterials = [
+                new THREE.MeshPhongMaterial({ color: themes[currentTheme].wallColor, side: THREE.BackSide }),
+                new THREE.MeshPhongMaterial({ color: themes[currentTheme].wallColor, side: THREE.BackSide }),
+                new THREE.MeshPhongMaterial({ color: themes[currentTheme].wallColor, side: THREE.BackSide }),
+                new THREE.MeshPhongMaterial({ color: themes[currentTheme].wallColor, side: THREE.BackSide }),
+                new THREE.MeshPhongMaterial({ color: themes[currentTheme].floorColor, side: THREE.BackSide }),
+                new THREE.MeshPhongMaterial({ color: themes[currentTheme].wallColor, side: THREE.BackSide })
+            ];
+            const room = new THREE.Mesh(roomGeometry, roomMaterials);
+            scene.add(room);
+
+            // Add user-provided artworks
+            for (let i = 1; i <= 3; i++) {
+                const imageUrl = document.getElementById(`artwork${i}`).value;
+                const title = document.getElementById(`title${i}`).value;
+                const artist = document.getElementById(`artist${i}`).value;
+                const info = document.getElementById(`info${i}`).value;
+                
+                if (imageUrl) {
+                    const position = getArtworkPosition(i);
+                    addArtwork(imageUrl, position.x, position.y, position.z, position.rotation, {title, artist, info});
+                }
+            }
+        }
+
+        function getArtworkPosition(index) {
+            switch(index) {
+                case 1: return {x: -9, y: 2, z: 0, rotation: Math.PI / 2};
+                case 2: return {x: 0, y: 2, z: -9, rotation: 0};
+                case 3: return {x: 9, y: 2, z: 0, rotation: -Math.PI / 2};
+                default: return {x: 0, y: 2, z: 0, rotation: 0};
+            }
+        }
+
+        function setupLighting() {
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            const pointLight = new THREE.PointLight(themes[currentTheme].lightColor, 1, 100);
+            pointLight.position.set(0, 8, 0);
+            scene.add(pointLight);
+        }
+
+        function setupControls() {
+            camera.position.set(0, 1.7, 10);
+            camera.lookAt(0, 1.7, 0);
+
+            document.addEventListener('mousemove', onMouseMove, false);
+            document.addEventListener('click', onMouseClick, false);
+            document.addEventListener('keydown', onKeyDown, false);
+        }
+
+        function setupEventListeners() {
+            window.addEventListener('resize', onWindowResize, false);
+            document.getElementById('themeSelector').addEventListener('change', changeTheme);
+        }
+
+        function addArtwork(imageUrl, x, y, z, rotation, artInfo) {
+            const loader = new THREE.TextureLoader();
+            const proxiedUrl = corsProxy + imageUrl;
+            loader.load(proxiedUrl, (texture) => {
+                const aspect = texture.image.width / texture.image.height;
+                const geometry = new THREE.PlaneGeometry(2 * aspect, 2);
+                const material = new THREE.MeshBasicMaterial({ map: texture });
+                const artwork = new THREE.Mesh(geometry, material);
+                artwork.position.set(x, y, z);
+                artwork.rotation.y = rotation;
+                artwork.userData = artInfo;
+                scene.add(artwork);
+                artworks.push(artwork);
+            }, undefined, (error) => {
+                console.error('An error occurred while loading the texture:', error);
+            });
+        }
+
+        function onMouseMove(event) {
+            const mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            const mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+            camera.rotation.y = -mouseX * Math.PI / 4;
+            camera.rotation.x = mouseY * Math.PI / 4;
+        }
+
+        function onMouseClick(event) {
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(artworks);
+            if (intersects.length > 0) {
+                const artwork = intersects[0].object;
+                showArtistInfo(artwork.userData);
+            } else {
+                const intersectsRoom = raycaster.intersectObjects(scene.children);
+                if (intersectsRoom.length > 0) {
+                    const point = intersectsRoom[0].point;
+                    new TWEEN.Tween(camera.position)
+                        .to({ x: point.x, y: camera.position.y, z: point.z }, 1000)
+                        .easing(TWEEN.Easing.Quadratic.Out)
+                        .start();
+                }
+            }
+        }
+
+        function onKeyDown(event) {
+            const speed = 0.1;
+            switch (event.key) {
+                case 'w': camera.position.z -= speed; break;
+                case 's': camera.position.z += speed; break;
+                case 'a': camera.position.x -= speed; break;
+                case 'd': camera.position.x += speed; break;
+                case 'e': toggleArtistInfo(); break;
+            }
+        }
+
+        function showArtistInfo(artInfo) {
+            const infoDiv = document.getElementById('artistInfo');
+            infoDiv.innerHTML = `
+                <h3 class="text-xl font-bold mb-2">${artInfo.title}</h3>
+                <p class="mb-2"><strong>Artist:</strong> ${artInfo.artist}</p>
+                <p>${artInfo.info}</p>
+            `;
+            infoDiv.classList.remove('hidden');
+        }
+
+        function toggleArtistInfo() {
+            const infoDiv = document.getElementById('artistInfo');
+            infoDiv.classList.toggle('hidden');
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function changeTheme(event) {
+            currentTheme = event.target.value;
+            updateTheme();
+        }
+
+        function updateTheme() {
+            const theme = themes[currentTheme];
+            scene.children[0].material.forEach((mat, index) => {
+                if (index === 4) {
+                    mat.color.setHex(theme.floorColor);
+                } else {
+                    mat.color.setHex(theme.wallColor);
+                }
+            });
+            scene.children[2].color.setHex(theme.lightColor);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            TWEEN.update();
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
