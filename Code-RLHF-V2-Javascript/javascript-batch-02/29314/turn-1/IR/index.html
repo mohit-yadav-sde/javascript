@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Solar System Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black m-0 overflow-hidden">
+    <!-- Start screen -->
+    <div id="startScreen" class="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center">
+        <div class="bg-gray-800 p-8 rounded-lg max-w-2xl text-white">
+            <h1 class="text-3xl font-bold mb-4">3D Solar System Simulation</h1>
+            <p class="mb-4">Welcome to our interactive solar system model! Here's how to use it:</p>
+            <ul class="list-disc list-inside mb-6">
+                <li>Pan: Click and drag to move the camera</li>
+                <li>Zoom: Use the mouse wheel to zoom in and out</li>
+                <li>Select: Click on a planet to view its information</li>
+                <li>Adjust: Use the controls in the top-right to change the scale, speed, and view of the simulation</li>
+            </ul>
+            <button id="startButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                Start Simulation
+            </button>
+        </div>
+    </div>
+
+    <!-- Information display at the top of the screen -->
+    <div id="info" class="absolute top-4 w-full text-center text-white font-sans">3D Solar System Simulation</div>
+    <!-- Planet information display at the bottom-left of the screen -->
+    <div id="planetInfo" class="absolute bottom-4 left-4 bg-black bg-opacity-70 text-white p-4 rounded-lg font-sans hidden"></div>
+
+    <script>
+        // Initialize Three.js scene, camera, and renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Add ambient light to the scene
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+
+        // Add point light to represent the sun
+        const sunLight = new THREE.PointLight(0xffffff, 1, 100);
+        sunLight.position.set(0, 0, 0);
+        scene.add(sunLight);
+
+        // Planet data: name, radius, distance from sun, color, and base orbit speed
+        const planetData = [
+            { name: "Mercury", radius: 0.38, distance: 5.7, color: 0xC0C0C0, orbitSpeed: 0.0001 },
+            { name: "Venus", radius: 0.95, distance: 10.8, color: 0xFFA500, orbitSpeed: 0.00007 },
+            { name: "Earth", radius: 1, distance: 15, color: 0x0000FF, orbitSpeed: 0.00005 },
+            { name: "Mars", radius: 0.53, distance: 22.8, color: 0xFF0000, orbitSpeed: 0.00003 },
+            { name: "Jupiter", radius: 11.2, distance: 77.8, color: 0xFFA07A, orbitSpeed: 0.00001 },
+            { name: "Saturn", radius: 9.45, distance: 142.4, color: 0xFFD700, orbitSpeed: 0.000005 },
+            { name: "Uranus", radius: 4, distance: 287.1, color: 0x00FFFF, orbitSpeed: 0.000003 },
+            { name: "Neptune", radius: 3.88, distance: 449.5, color: 0x0000FF, orbitSpeed: 0.000001 }
+        ];
+
+        const planets = [];
+        const planetMeshes = [];
+
+        // Create planets and add them to the scene
+        planetData.forEach((planet) => {
+            const geometry = new THREE.SphereGeometry(planet.radius, 32, 32);
+            const material = new THREE.MeshPhongMaterial({ color: planet.color });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.x = planet.distance;
+            scene.add(mesh);
+            planets.push(planet);
+            planetMeshes.push(mesh);
+        });
+
+        // Create sun and add it to the scene
+        const sunGeometry = new THREE.SphereGeometry(3, 32, 32);
+        const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFF00 });
+        const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+        scene.add(sunMesh);
+
+        // Set initial camera position
+        camera.position.z = 50;
+
+        // Variables for orbit controls
+        let isDragging = false;
+        let previousMousePosition = {
+            x: 0,
+            y: 0
+        };
+
+        // Raycaster for planet selection
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // Scale factor for adjusting planet distances and speed
+        let scaleFactor = 1;
+        let speedFactor = 1;
+
+        // GUI for scale, speed, and view adjustment
+        const gui = new dat.GUI();
+        const controls = {
+            scale: 1,
+            speed: 1,
+            view: 'top'
+        };
+        gui.add(controls, 'scale', 0.1, 2).onChange((value) => {
+            scaleFactor = value;
+            updatePlanetPositions();
+        });
+        gui.add(controls, 'speed', 0.1, 10).onChange((value) => {
+            speedFactor = value;
+        });
+        gui.add(controls, 'view', ['top', 'bottom']).onChange((value) => {
+            updateCameraPosition(value);
+        });
+
+        // Function to update planet positions based on scale factor
+        function updatePlanetPositions() {
+            planetMeshes.forEach((mesh, index) => {
+                const planet = planets[index];
+                mesh.position.x = planet.distance * scaleFactor;
+            });
+        }
+
+        // Function to update camera position based on view
+        function updateCameraPosition(view) {
+            if (view === 'top') {
+                camera.position.set(0, 50, 0);
+                camera.lookAt(0, 0, 0);
+            } else if (view === 'bottom') {
+                camera.position.set(0, -50, 0);
+                camera.lookAt(0, 0, 0);
+            }
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Rotate planets and update their positions
+            planetMeshes.forEach((mesh, index) => {
+                const planet = planets[index];
+                mesh.rotation.y += 0.005 * speedFactor; // Apply speed factor to rotation
+                const angle = Date.now() * planet.orbitSpeed * speedFactor; // Apply speed factor to orbit
+                mesh.position.x = Math.cos(angle) * planet.distance * scaleFactor;
+                mesh.position.z = Math.sin(angle) * planet.distance * scaleFactor;
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // Start screen logic
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+
+        startButton.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            animate(); // Start the animation loop
+        });
+
+        // Event listeners for user interactions
+        window.addEventListener('resize', onWindowResize, false);
+        renderer.domElement.addEventListener('mousedown', onMouseDown, false);
+        renderer.domElement.addEventListener('mousemove', onMouseMove, false);
+        renderer.domElement.addEventListener('mouseup', onMouseUp, false);
+        renderer.domElement.addEventListener('wheel', onMouseWheel, false);
+        renderer.domElement.addEventListener('click', onMouseClick, false);
+
+        // Function to handle window resizing
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Function to handle mouse down event
+        function onMouseDown(event) {
+            isDragging = true;
+            previousMousePosition = {
+                x: event.clientX,
+                y: event.clientY
+            };
+        }
+
+        // Function to handle mouse move event
+        function onMouseMove(event) {
+            if (isDragging) {
+                const deltaMove = {
+                    x: event.clientX - previousMousePosition.x,
+                    y: event.clientY - previousMousePosition.y
+                };
+
+                camera.position.x += deltaMove.x * 0.05;
+                camera.position.y -= deltaMove.y * 0.05;
+
+                previousMousePosition = {
+                    x: event.clientX,
+                    y: event.clientY
+                };
+            }
+        }
+
+        // Function to handle mouse up event
+        function onMouseUp(event) {
+            isDragging = false;
+        }
+
+        // Function to handle mouse wheel event for zooming
+        function onMouseWheel(event) {
+            camera.position.z += event.deltaY * 0.1;
+        }
+
+        // Function to handle mouse click event for planet selection
+        function onMouseClick(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(planetMeshes);
+
+            if (intersects.length > 0) {
+                const selectedPlanet = planets[planetMeshes.indexOf(intersects[0].object)];
+                showPlanetInfo(selectedPlanet);
+            } else {
+                hidePlanetInfo();
+            }
+        }
+
+        // Function to display planet information
+        function showPlanetInfo(planet) {
+            const planetInfo = document.getElementById('planetInfo');
+            planetInfo.innerHTML = `
+                <h3 class="text-xl font-bold mb-2">${planet.name}</h3>
+                <p class="mb-1">Radius: ${planet.radius} Earth radii</p>
+                <p class="mb-1">Distance from Sun: ${planet.distance} AU</p>
+                <p>Orbit Speed: ${(planet.orbitSpeed * speedFactor).toFixed(8)} rad/s</p>
+            `;
+            planetInfo.classList.remove('hidden');
+        }
+
+        // Function to hide planet information
+        function hidePlanetInfo() {
+            const planetInfo = document.getElementById('planetInfo');
+            planetInfo.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

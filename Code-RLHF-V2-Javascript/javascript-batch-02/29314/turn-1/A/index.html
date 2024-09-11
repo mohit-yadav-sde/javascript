@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>3D Solar System Simulation</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #infoOverlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #startScreen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 1000;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div id="startScreen">
+        <h1>Welcome to the Solar System Simulation</h1>
+        <p>Click on planets for details. Use mouse to zoom, pan, and rotate.</p>
+        <button onclick="startSimulation()">Start Exploring</button>
+    </div>
+    <div id="infoOverlay"></div>
+    <div id="controls">
+        <label>Scale: <input type="range" id="scaleSlider" min="0.1" max="1" step="0.1" value="1"></label>
+        <label>Speed: <input type="range" id="speedSlider" min="0.1" max="10" step="0.1" value="1"></label>
+    </div>
+
+    <script>
+    let scene, camera, renderer, controls;
+    let planets = [];
+    const solarSystemScale = 1; // This can be adjusted for visibility
+
+    function startSimulation() {
+        document.getElementById('startScreen').style.display = 'none';
+        init();
+        animate();
+    }
+
+    function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Camera setup
+        camera.position.set(0, 50, 100);
+
+        // Controls for orbit
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        // Adding Sun
+        let sunGeometry = new THREE.SphereGeometry(6.96 * solarSystemScale, 32, 32);
+        let sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffd700 });
+        let sun = new THREE.Mesh(sunGeometry, sunMaterial);
+        scene.add(sun);
+
+        // Function to create planets
+        function createPlanet(size, texture, position, orbitRadius, speed) {
+            let geometry = new THREE.SphereGeometry(size * solarSystemScale, 32, 32);
+            let material = new THREE.MeshBasicMaterial({ map: new THREE.TextureLoader().load(texture) });
+            let planet = new THREE.Mesh(geometry, material);
+            let orbit = new THREE.Object3D();
+            orbit.add(planet);
+            orbit.position.set(orbitRadius * solarSystemScale, 0, 0);
+            scene.add(orbit);
+            planets.push({mesh: planet, orbit: orbit, speed: speed});
+        }
+
+        // Add planets (simplified for this example)
+        createPlanet(0.38, 'textures/earth.jpg', 0, 15, 0.01); // Earth as an example
+
+        // Event listeners for interaction
+        window.addEventListener('click', onMouseClick, false);
+        document.getElementById('scaleSlider').addEventListener('input', adjustScale);
+        document.getElementById('speedSlider').addEventListener('input', adjustSpeed);
+    }
+
+    function onMouseClick(event) {
+        const mouse = new THREE.Vector2();
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouse, camera);
+
+        const intersects = raycaster.intersectObjects(scene.children, true);
+        if (intersects.length > 0) {
+            // Assuming the first intersection is the clicked planet
+            const planetInfo = intersects[0].object.parent; // Get the orbit or parent object
+            showInfo(planetInfo.name || 'Unknown'); // Here you would map planet objects to info
+        }
+    }
+
+    function showInfo(name) {
+        // Logic to show planet information
+        document.getElementById('infoOverlay').style.display = 'block';
+        document.getElementById('infoOverlay').innerHTML = `<h3>${name}</h3><p>Some info...</p>`;
+    }
+
+    function adjustScale(e) {
+        solarSystemScale = parseFloat(e.target.value);
+        // Re-scale planets and orbits
+    }
+
+    function adjustSpeed(e) {
+        const speed = parseFloat(e.target.value);
+        planets.forEach(p => p.speed = p.originalSpeed * speed); // Assuming you store original speed
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        planets.forEach(p => {
+            p.orbit.rotation.y += p.speed;
+        });
+        renderer.render(scene, camera);
+    }
+
+    // Responsive design
+    window.addEventListener('resize', onWindowResize, false);
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    </script>
+</body>
+</html>
