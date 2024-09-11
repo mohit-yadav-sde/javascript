@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teddy Bear Adventure</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Fredoka One', cursive;
+        }
+        
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        .pixel-corners {
+            clip-path: polygon(
+                0px calc(100% - 10px),
+                10px calc(100% - 10px),
+                10px 100%,
+                calc(100% - 10px) 100%,
+                calc(100% - 10px) calc(100% - 10px),
+                100% calc(100% - 10px),
+                100% 10px,
+                calc(100% - 10px) 10px,
+                calc(100% - 10px) 0px,
+                10px 0px,
+                10px 10px,
+                0px 10px
+            );
+        }
+    </style>
+    <!-- p5.js library for the game -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+</head>
+<body class="bg-indigo-900">
+
+<!-- Start Screen with Tailwind styles -->
+<div id="startScreen" class="absolute inset-0 flex flex-col justify-center items-center bg-indigo-900 bg-opacity-90 text-white z-10">
+    <h1 class="text-6xl font-bold mb-8 text-yellow-300 animate-pulse">Teddy Bear Adventure</h1>
+    <div class="bg-indigo-800 p-8 rounded-xl shadow-lg pixel-corners">
+        <p class="text-2xl mb-4">Help Lily collect all the teddy bears!</p>
+        <ul class="list-disc list-inside text-left mb-6 text-xl">
+            <li>Use arrow keys to move Lily</li>
+            <li>Jump on platforms to reach the bears</li>
+            <li>Collect all bears and reach the rainbow exit</li>
+        </ul>
+        <button onclick="startGame()" class="px-8 py-4 bg-green-500 text-white text-2xl font-semibold rounded-lg shadow-md hover:bg-green-600 transition duration-300 transform hover:scale-105">
+            Start Adventure
+        </button>
+    </div>
+</div>
+
+<!-- Game Information (Teddy Bears Collected) -->
+<div id="gameInfo" class="fixed top-4 left-4 p-4 bg-indigo-800 bg-opacity-70 text-white rounded-lg hidden pixel-corners">
+    <p class="text-2xl">Bears Collected: <span id="collected" class="text-yellow-300">0</span> / <span id="total" class="text-yellow-300">3</span></p>
+</div>
+
+<script>
+    let girl, bears = [], platforms = [], exit, clouds = [];
+    let collected = 0;
+    let totalBears = 3;
+    let gravity = 0.4;
+    let gameStarted = false;
+    let girlImg, bearImg;
+
+    function preload() {
+        girlImg = loadImage('https://static.vecteezy.com/system/resources/thumbnails/001/206/117/small_2x/girl.png');
+        bearImg = loadImage('https://r2.erweima.ai/imgcompressed/compressed_c2733321479d42dc37aa4ee8abd23671.webp');
+    }
+
+    function setup() {
+        let canvas = createCanvas(windowWidth, windowHeight);
+        canvas.id('gameCanvas');
+        
+        girl = new Girl(100, height - 150);
+        
+        for (let i = 0; i < totalBears; i++) {
+            bears.push(new Bear(random(200, width - 300), random(200, height - 250)));
+        }
+        
+        platforms.push(new Platform(0, height - 100, width, 100));
+        platforms.push(new Platform(200, height - 300, 200, 30));
+        platforms.push(new Platform(500, height - 450, 200, 30));
+        
+        exit = new Exit(width - 60, 0, 50, height);
+        
+        for (let i = 0; i < 5; i++) {
+            clouds.push(new Cloud(random(width), random(height/2)));
+        }
+    }
+
+    function draw() {
+        if (!gameStarted) return;
+        
+        background(100, 180, 255);  // Light blue sky
+        
+        for (let cloud of clouds) {
+            cloud.move();
+            cloud.show();
+        }
+        
+        for (let bear of bears) {
+            bear.show();
+        }
+        
+        girl.update();
+        girl.show();
+        
+        for (let platform of platforms) {
+            platform.show();
+        }
+        
+        exit.show();
+        
+        for (let i = bears.length - 1; i >= 0; i--) {
+            if (girl.hits(bears[i])) {
+                bears.splice(i, 1);
+                collected++;
+                document.getElementById('collected').innerText = collected;
+            }
+        }
+        
+        if (collected === totalBears && girl.reachesExit(exit)) {
+            noLoop();
+            setTimeout(() => {
+                alert("Congratulations! You collected all the teddy bears!");
+                location.reload();
+            }, 100);
+        }
+    }
+
+    function keyPressed() {
+        if (keyCode === UP_ARROW && girl.onGround()) {
+            girl.jump();
+        }
+    }
+
+    class Girl {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.w = 60;
+            this.h = 90;
+            this.ySpeed = 0;
+            this.xSpeed = 0;
+            this.onPlatform = false;
+        }
+
+        show() {
+            image(girlImg, this.x, this.y, this.w, this.h);
+        }
+
+        update() {
+            this.xSpeed = 0;
+            if (keyIsDown(LEFT_ARROW)) this.xSpeed = -5;
+            if (keyIsDown(RIGHT_ARROW)) this.xSpeed = 5;
+            
+            this.x += this.xSpeed;
+            this.ySpeed += gravity;
+            let newY = this.y + this.ySpeed;
+            
+            this.onPlatform = false;
+            for (let platform of platforms) {
+                if (this.x + this.w > platform.x && this.x < platform.x + platform.w) {
+                    if (this.y + this.h <= platform.y && newY + this.h >= platform.y) {
+                        newY = platform.y - this.h;
+                        this.ySpeed = 0;
+                        this.onPlatform = true;
+                    } else if (this.y >= platform.y + platform.h && newY < platform.y + platform.h) {
+                        newY = platform.y + platform.h;
+                        this.ySpeed = 0;
+                    } else if (newY + this.h > platform.y && newY < platform.y + platform.h) {
+                        if (this.x + this.w <= platform.x) {
+                            this.x = platform.x - this.w;
+                        } else if (this.x >= platform.x + platform.w) {
+                            this.x = platform.x + platform.w;
+                        }
+                    }
+                }
+            }
+            
+            this.y = newY;
+            
+            if (this.y + this.h > height - 100) {
+                this.y = height - 100 - this.h;
+                this.ySpeed = 0;
+                this.onPlatform = true;
+            }
+        }
+
+        jump() {
+            this.ySpeed = -16;
+        }
+
+        onGround() {
+            return this.onPlatform;
+        }
+
+        hits(bear) {
+            return this.x + this.w > bear.x && this.x < bear.x + bear.w &&
+                   this.y + this.h > bear.y && this.y < bear.y + bear.h;
+        }
+
+        reachesExit(exit) {
+            return this.x + this.w > exit.x && this.x < exit.x + exit.w &&
+                   this.y + this.h > exit.y && this.y < exit.y + exit.h;
+        }
+    }
+
+    class Bear {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.w = 50;
+            this.h = 50;
+        }
+
+        show() {
+            image(bearImg, this.x, this.y, this.w, this.h);
+        }
+    }
+
+    class Platform {
+        constructor(x, y, w, h) {
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+        }
+
+        show() {
+            fill(139, 69, 19);  // Brown color for platforms
+            rect(this.x, this.y, this.w, this.h);
+        }
+    }
+
+    class Exit {
+        constructor(x, y, w, h) {
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+        }
+
+        show() {
+            fill(255, 0, 0, 100);  // Semi-transparent red color for exit
+            rect(this.x, this.y, this.w, this.h);
+        }
+    }
+
+    class Cloud {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.speed = random(0.5, 1.5);
+        }
+
+        move() {
+            this.x += this.speed;
+            if (this.x > width) this.x = -100;
+        }
+
+        show() {
+            fill(255);  // White color for clouds
+            ellipse(this.x, this.y, 100, 60);
+            ellipse(this.x + 25, this.y - 10, 70, 50);
+            ellipse(this.x - 25, this.y - 10, 70, 50);
+        }
+    }
+
+    function startGame() {
+        document.getElementById('startScreen').style.display = 'none';
+        document.getElementById('gameInfo').classList.remove('hidden');
+        gameStarted = true;
+    }
+
+    function windowResized() {
+        resizeCanvas(windowWidth, windowHeight);
+    }
+</script>
+
+</body>
+</html>

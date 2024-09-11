@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Little Girl's Teddy Bear Adventure</title>
+<style>
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+}
+#startScreen {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    background: rgba(255,255,255,0.8);
+    padding: 20px;
+    border-radius: 10px;
+}
+#gameArea {
+    width: 100%;
+    height: 100%;
+    background: #87CEEB;
+    display: none;
+    position: relative;
+}
+.character, .teddy, .platform, .exit {
+    position: absolute;
+}
+.character {
+    width: 50px;
+    height: 50px;
+    background: url('https://static.vecteezy.com/system/resources/thumbnails/001/206/117/small_2x/girl.png') no-repeat;
+    background-size: cover;
+}
+.teddy {
+    width: 30px;
+    height: 30px;
+    background: url('https://r2.erweima.ai/imgcompressed/compressed_c2733321479d42dc37aa4ee8abd23671.webp') no-repeat;
+    background-size: cover;
+}
+.platform {
+    background: green;
+}
+.exit {
+    right: 0;
+    width: 10px;
+    height: 100%;
+    background: red;
+}
+</style>
+</head>
+<body>
+<div id="startScreen">
+    <h1>Little Girl's Adventure</h1>
+    <p>Collect all teddy bears and reach the red exit!</p>
+    <p>Use arrow keys to move and jump.</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+<div id="gameArea"></div>
+
+<script>
+const gameArea = document.getElementById('gameArea');
+const startScreen = document.getElementById('startScreen');
+let character, platforms = [], teddies = [], isJumping = false, gravity = 0.5, jumpStrength = -10, velocityY = 0;
+let collectedTeddies = 0, totalTeddies = 3; // Example number of teddies
+
+function startGame() {
+    startScreen.style.display = 'none';
+    gameArea.style.display = 'block';
+    setupGame();
+}
+
+function setupGame() {
+    // Setup character
+    character = document.createElement('div');
+    character.className = 'character';
+    character.style.bottom = '0px';
+    character.style.left = '50px';
+    gameArea.appendChild(character);
+
+    // Setup platforms
+    const platformPositions = [
+        {width: '100%', height: '20px', bottom: '0'},
+        {width: '200px', height: '20px', bottom: '150px', left: '0'},
+        {width: '200px', height: '20px', bottom: '300px', left: '300px'},
+    ];
+    platformPositions.forEach(pos => {
+        let platform = document.createElement('div');
+        platform.className = 'platform';
+        Object.assign(platform.style, pos);
+        gameArea.appendChild(platform);
+        platforms.push(platform);
+    });
+
+    // Setup teddies
+    const teddyPositions = [
+        {bottom: '170px', left: '100px'},
+        {bottom: '320px', left: '350px'},
+        {bottom: '50px', left: '600px'},
+    ];
+    teddyPositions.forEach(pos => {
+        let teddy = document.createElement('div');
+        teddy.className = 'teddy';
+        Object.assign(teddy.style, pos);
+        gameArea.appendChild(teddy);
+        teddies.push(teddy);
+    });
+
+    // Setup exit
+    const exit = document.createElement('div');
+    exit.className = 'exit';
+    gameArea.appendChild(exit);
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    gameLoop();
+}
+
+function handleKeyDown(e) {
+    if (e.key === 'ArrowRight') {
+        character.style.transform = 'scaleX(1)';
+    } else if (e.key === 'ArrowLeft') {
+        character.style.transform = 'scaleX(-1)';
+    } else if (e.key === 'ArrowUp' && !isJumping) {
+        velocityY = jumpStrength;
+        isJumping = true;
+    }
+}
+
+function handleKeyUp(e) {
+    if (e.key === 'ArrowUp') {
+        if (velocityY < -5) velocityY = -5; // Limit the upward force when key is released
+    }
+}
+
+function gameLoop() {
+    // Character movement
+    let characterRect = character.getBoundingClientRect();
+    velocityY += gravity;
+    character.style.bottom = (parseFloat(character.style.bottom || 0) + velocityY) + 'px';
+
+    // Collision with platforms
+    platforms.forEach(platform => {
+        if (checkCollision(character, platform)) {
+            character.style.bottom = (parseFloat(platform.style.bottom) + parseFloat(platform.style.height)) + 'px';
+            velocityY = 0;
+            isJumping = false;
+        }
+    });
+
+    // Collect teddy bears
+    teddies.forEach((teddy, index) => {
+        if (checkCollision(character, teddy)) {
+            gameArea.removeChild(teddy);
+            teddies.splice(index, 1);
+            collectedTeddies++;
+        }
+    });
+
+    // Check for win condition
+    if (characterRect.right >= gameArea.clientWidth && collectedTeddies === totalTeddies) {
+        alert('You Win! All teddies collected!');
+        return;
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+function checkCollision(a, b) {
+    const aRect = a.getBoundingClientRect();
+    const bRect = b.getBoundingClientRect();
+    return !(
+        aRect.top + aRect.height <= bRect.top ||
+        aRect.top >= bRect.top + bRect.height ||
+        aRect.left + aRect.width <= bRect.left ||
+        aRect.left >= bRect.left + bRect.width
+    );
+}
+</script>
+</body>
+</html>
