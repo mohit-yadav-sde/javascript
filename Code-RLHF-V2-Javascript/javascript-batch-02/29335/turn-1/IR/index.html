@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Straight Road Car Game</title>
+  <style>
+    /* Basic styling for the body */
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #2c3e50;
+      font-family: Arial, sans-serif;
+    }
+    
+    /* Styling for start and game over screens */
+    #startScreen, #gameOver {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(45deg, #2c3e50, #34495e);
+      color: white;
+      text-align: center;
+    }
+    #gameOver {
+      display: none;
+    }
+    
+    /* Button styling */
+    button {
+      display: block;
+      margin: 20px auto;
+      padding: 15px 30px;
+      font-size: 20px;
+      cursor: pointer;
+      background-color: #e74c3c;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      transition: all 0.3s ease;
+    }
+    button:hover {
+      background-color: #c0392b;
+      transform: scale(1.05);
+    }
+    
+    /* Typography styling */
+    h1 {
+      font-size: 48px;
+      margin-bottom: 20px;
+      color: #3498db;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    }
+    p {
+      font-size: 20px;
+      margin: 0 0 20px;
+      max-width: 80%;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="startScreen">
+  <h1>Car Driving Game</h1>
+  <p>Use the arrow keys to move the car left and right.</p>
+  <p>Avoid obstacles and stay on the road!</p>
+  <button onclick="startGame()">Start Game</button>
+</div>
+
+<!-- Game Over Screen -->
+<div id="gameOver">
+  <h1>Game Over!</h1>
+  <p>Your score: <span id="finalScore"></span></p>
+  <button onclick="resetGame()">Try Again</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+<script>
+  // Game variables
+  let car;
+  let roadWidth = 200;
+  let carWidth = 50;
+  let carHeight = 80;
+  let whiteLineWidth = 10;
+  let gameOver = false;
+  let gameStarted = false;
+  let roadX = 200;
+  let obstacles = [];
+  let carSpeed = 3;
+  let obstacleSpeed = 3;
+  let score = 0;
+  let roadY = 0;
+
+  // p5.js setup function
+  function setup() {
+    createCanvas(400, 600);
+    car = createVector(roadX - carWidth / 2, height - carHeight - 20);
+
+    // Spawn initial obstacles
+    for (let i = 0; i < 5; i++) {
+      spawnObstacle();
+    }
+  }
+
+  // p5.js draw function - game loop
+  function draw() {
+    if (!gameStarted || gameOver) return;
+
+    // Create a gradient background
+    let gradientColors = [color(52, 152, 219), color(41, 128, 185)];
+    setGradient(0, 0, width, height, gradientColors[0], gradientColors[1]);
+
+    // Draw road
+    fill(50);
+    rect((width - roadWidth) / 2, 0, roadWidth, height);
+
+    // Draw moving road lines
+    stroke(255);
+    strokeWeight(5);
+    for (let i = roadY % 40; i < height; i += 40) {
+      line(width / 2, i, width / 2, i + 20);
+    }
+    roadY += carSpeed;
+
+    // Draw white lines
+    noStroke();
+    fill(255);
+    rect((width - roadWidth) / 2 - whiteLineWidth, 0, whiteLineWidth, height);
+    rect((width + roadWidth) / 2, 0, whiteLineWidth, height);
+
+    // Move car forward
+    car.y -= carSpeed;
+
+    // Draw car
+    drawCar(car.x, car.y);
+
+    // Car movement
+    if (keyIsDown(LEFT_ARROW)) {
+      car.x -= 5;
+    } else if (keyIsDown(RIGHT_ARROW)) {
+      car.x += 5;
+    }
+
+    // Check if car crossed the white lines
+    if (car.x < (width - roadWidth) / 2 - carWidth || car.x + carWidth > (width + roadWidth) / 2 + whiteLineWidth) {
+      triggerGameOver();
+    }
+
+    // Move and display obstacles
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      obstacles[i].y += obstacleSpeed;
+      drawObstacle(obstacles[i].x, obstacles[i].y, obstacles[i].width, obstacles[i].height);
+
+      // Check for collision with car
+      if (checkCollision(obstacles[i])) {
+        triggerGameOver();
+      }
+
+      // Remove off-screen obstacles and add new ones
+      if (obstacles[i].y > height) {
+        obstacles.splice(i, 1);
+        spawnObstacle();
+        score++;
+      }
+    }
+
+    // Display score
+    fill(255);
+    textSize(24);
+    textAlign(LEFT);
+    text(`Score: ${score}`, 10, 30);
+
+    // Check if car reached the end
+    if (car.y < 0) {
+      triggerGameOver();
+    }
+  }
+
+  // Function to create a gradient background
+  function setGradient(x, y, w, h, c1, c2) {
+    noFill();
+    for (let i = y; i <= y + h; i++) {
+      let inter = map(i, y, y + h, 0, 1);
+      let c = lerpColor(c1, c2, inter);
+      stroke(c);
+      line(x, i, x + w, i);
+    }
+  }
+
+  // Function to draw the car
+  function drawCar(x, y) {
+    fill(255, 0, 0);
+    rect(x, y, carWidth, carHeight, 5);
+    fill(200);
+    rect(x + 5, y + 15, carWidth - 10, 20);
+    fill(0);
+    rect(x + 10, y + carHeight - 20, 10, 20);
+    rect(x + carWidth - 20, y + carHeight - 20, 10, 20);
+  }
+
+  // Function to draw an obstacle
+  function drawObstacle(x, y, w, h) {
+    fill(0, 255, 0);
+    rect(x, y, w, h, 5);
+    fill(100);
+    rect(x + 5, y + 5, w - 10, h - 10);
+  }
+
+  // Function to spawn a new obstacle
+  function spawnObstacle() {
+    let obstacle = {
+      x: random((width - roadWidth) / 2 + 20, (width + roadWidth) / 2 - 60),
+      y: random(-500, -50),
+      width: 40,
+      height: 40
+    };
+    obstacles.push(obstacle);
+  }
+
+  // Function to check collision between car and obstacle
+  function checkCollision(obstacle) {
+    return !(car.x + carWidth < obstacle.x + 10 || car.x > obstacle.x + obstacle.width - 10 || 
+             car.y + carHeight < obstacle.y + 10 || car.y > obstacle.y + obstacle.height - 10);
+  }
+
+  // Function to trigger game over
+  function triggerGameOver() {
+    gameOver = true;
+    document.getElementById('gameOver').style.display = 'flex';
+    document.getElementById('finalScore').textContent = score;
+  }
+
+  // Function to reset the game
+  function resetGame() {
+    car = createVector((width - roadWidth) / 2 + roadWidth / 2 - carWidth / 2, height - carHeight - 20);
+    gameOver = false;
+    obstacles = [];
+    score = 0;
+    for (let i = 0; i < 5; i++) {
+      spawnObstacle();
+    }
+    document.getElementById('gameOver').style.display = 'none';
+  }
+
+  // Function to start the game
+  function startGame() {
+    gameStarted = true;
+    document.getElementById('startScreen').style.display = 'none';
+  }
+
+  // Function to handle key presses
+  function keyPressed() {
+    if (!gameStarted && !gameOver && key === ' ') {
+      startGame();
+    }
+  }
+</script>
+
+</body>
+</html>
