@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plane vs Birds</title>
+<style>
+    body { margin: 0; background: #87CEEB; overflow: hidden; }
+    canvas { display: block; }
+    #startScreen, #gameOverScreen {
+        position: absolute; 
+        top: 0; 
+        left: 0; 
+        width: 100%; 
+        height: 100%; 
+        background: rgba(0, 0, 0, 0.7); 
+        color: white; 
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center; 
+        align-items: center; 
+        font-family: Arial, sans-serif;
+    }
+    button {
+        padding: 10px 20px; 
+        font-size: 1em; 
+        cursor: pointer; 
+        background-color: #4CAF50; 
+        color: white; 
+        border: none; 
+        border-radius: 5px;
+    }
+    button:hover { background-color: #45a049; }
+</style>
+</head>
+<body>
+<div id="startScreen">
+    <h1>Plane vs Birds</h1>
+    <p>Use arrow keys to move, space to shoot. Avoid the birds, collect coins!</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+<div id="gameOverScreen" style="display: none;">
+    <h2>Game Over</h2>
+    <p>Your Score: <span id="scoreDisplay">0</span></p>
+    <button onclick="restartGame()">Try Again</button>
+</div>
+<canvas id="gameCanvas"></canvas>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let plane, birds = [], coins = [], score = 0, gameLoop, isGameOver = true;
+
+class Plane {
+    constructor() {
+        this.x = canvas.width / 2;
+        this.y = canvas.height - 50;
+        this.width = 50;
+        this.height = 30;
+        this.speed = 5;
+    }
+
+    draw() {
+        ctx.fillStyle = 'red';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+    }
+
+    move(dir) {
+        if (dir === 'left' && this.x > 0) this.x -= this.speed;
+        if (dir === 'right' && this.x < canvas.width - this.width) this.x += this.speed;
+    }
+
+    shoot() {
+        // Simplified shooting mechanism for example
+        console.log('Shoot!');
+    }
+}
+
+function startGame() {
+    plane = new Plane();
+    birds = [];
+    coins = [];
+    score = 0;
+    document.getElementById('startScreen').style.display = 'none';
+    isGameOver = false;
+    gameLoop = setInterval(updateGame, 20);
+}
+
+function restartGame() {
+    document.getElementById('gameOverScreen').style.display = 'none';
+    startGame();
+}
+
+function updateGame() {
+    if (isGameOver) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Update and draw plane
+    plane.draw();
+    
+    // Spawn birds and coins
+    if (Math.random() < 0.02) birds.push({x: Math.random() * canvas.width, y: 0, speed: 2 + Math.random() * 3});
+    if (Math.random() < 0.01) coins.push({x: Math.random() * canvas.width, y: 0});
+
+    // Update and check collisions
+    for (let b of birds) {
+        b.y += b.speed;
+        ctx.fillStyle = 'black';
+        ctx.fillRect(b.x, b.y, 20, 20);
+        if (b.y > canvas.height || checkCollision(plane, b)) {
+            if (b.y > canvas.height) birds.splice(birds.indexOf(b), 1);
+            else gameOver();
+        }
+    }
+
+    for (let c of coins) {
+        c.y += 2;
+        ctx.fillStyle = 'gold';
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        if (c.y > canvas.height || checkCollision(plane, c, 5)) {
+            if (c.y > canvas.height) coins.splice(coins.indexOf(c), 1);
+            else {
+                coins.splice(coins.indexOf(c), 1);
+                score += 10;
+            }
+        }
+    }
+
+    // Score display
+    ctx.fillStyle = 'white';
+    ctx.font = '20px Arial';
+    ctx.fillText('Score: ' + score, 10, 30);
+}
+
+function checkCollision(obj1, obj2, radius = 0) {
+    return !(
+        obj1.x > obj2.x + 20 || 
+        obj1.x + obj1.width < obj2.x || 
+        obj1.y > obj2.y + 20 || 
+        obj1.y + obj1.height < obj2.y
+    );
+}
+
+function gameOver() {
+    clearInterval(gameLoop);
+    isGameOver = true;
+    document.getElementById('scoreDisplay').textContent = score;
+    document.getElementById('gameOverScreen').style.display = 'flex';
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') plane.move('left');
+    if (e.key === 'ArrowRight') plane.move('right');
+    if (e.key === ' ') plane.shoot();
+});
+
+// Responsive canvas
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+});
+</script>
+</body>
+</html>
