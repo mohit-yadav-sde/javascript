@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Crossroad Challenge</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+    <style>
+        body { 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #gameCanvas {
+            display: block;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameCanvas"></div>
+    <script>
+    let player, traffic, score, gameState;
+    const ROAD_WIDTH = 100;
+    const CAR_SIZE = 40;
+
+    function setup() {
+        createCanvas(600, 600);
+        resetGame();
+    }
+
+    function draw() {
+        background(51);
+
+        if (gameState === 'start') {
+            drawStartScreen();
+        } else if (gameState === 'playing') {
+            playGame();
+        } else if (gameState === 'game over') {
+            drawGameOver();
+        }
+    }
+
+    function resetGame() {
+        player = new Car(width / 2, height - 50, CAR_SIZE, 'blue');
+        traffic = [];
+        score = 0;
+        gameState = 'start';
+        for (let i = 0; i < 5; i++) {
+            traffic.push(new TrafficCar());
+        }
+    }
+
+    function drawStartScreen() {
+        fill(255);
+        textSize(32);
+        textAlign(CENTER, CENTER);
+        text("Crossroad Challenge", width / 2, height / 4);
+        textSize(16);
+        text("Use arrow keys to move.\nAvoid the cars.\nReach the top to score.", width / 2, height / 2 - 30);
+        text("Press SPACE to start", width / 2, height * 3/4);
+    }
+
+    function playGame() {
+        // Background with roads
+        background(128, 255, 128); // Grass
+        fill(100);
+        rect(width / 2 - ROAD_WIDTH / 2, 0, ROAD_WIDTH, height); // Vertical road
+        rect(0, height / 2 - ROAD_WIDTH / 2, width, ROAD_WIDTH); // Horizontal road
+
+        // Player movement and display
+        player.show();
+        player.move();
+
+        // Traffic movement and generation
+        for (let car of traffic) {
+            car.show();
+            car.move();
+            if (car.offscreen()) {
+                car.reset();
+            }
+            if (car.hits(player)) {
+                gameState = 'game over';
+            }
+        }
+
+        // Score
+        fill(0);
+        textSize(20);
+        text(`Score: ${score}`, 50, 30);
+
+        // Check if player reached top
+        if (player.y < 0) {
+            score++;
+            player.y = height - 50;
+        }
+    }
+
+    function drawGameOver() {
+        fill(255, 0, 0);
+        textSize(32);
+        textAlign(CENTER, CENTER);
+        text("Game Over", width / 2, height / 3);
+        textSize(20);
+        text(`Your Score: ${score}`, width / 2, height / 2);
+        text("Press SPACE to try again", width / 2, height * 2/3);
+    }
+
+    function keyPressed() {
+        if (keyCode === 32) {  // SPACE key
+            if (gameState === 'start' || gameState === 'game over') {
+                resetGame();
+                gameState = 'playing';
+            }
+        }
+        if (gameState === 'playing') {
+            if (keyCode === UP_ARROW) player.speedY = -2;
+            if (keyCode === DOWN_ARROW) player.speedY = 2;
+            if (keyCode === LEFT_ARROW) player.speedX = -2;
+            if (keyCode === RIGHT_ARROW) player.speedX = 2;
+        }
+    }
+
+    function keyReleased() {
+        if (gameState === 'playing') {
+            if (keyCode === UP_ARROW || keyCode === DOWN_ARROW) player.speedY = 0;
+            if (keyCode === LEFT_ARROW || keyCode === RIGHT_ARROW) player.speedX = 0;
+        }
+    }
+
+    class Car {
+        constructor(x, y, size, color) {
+            this.x = x;
+            this.y = y;
+            this.size = size;
+            this.color = color;
+            this.speedX = 0;
+            this.speedY = 0;
+        }
+
+        show() {
+            fill(this.color);
+            rect(this.x, this.y, this.size, this.size * 1.5);
+        }
+
+        move() {
+            this.x += this.speedX;
+            this.y += this.speedY;
+            this.x = constrain(this.x, 0, width - this.size);
+            this.y = constrain(this.y, 0, height - this.size * 1.5);
+        }
+    }
+
+    class TrafficCar extends Car {
+        constructor() {
+            super(random(width), random([-100, height + 100]), CAR_SIZE, 'red');
+            this.speed = random(1, 3) * (this.y < 0 ? 1 : -1);
+        }
+
+        move() {
+            this.y += this.speed;
+        }
+
+        reset() {
+            this.y = this.speed > 0 ? -100 : height + 100;
+            this.x = random(width - CAR_SIZE);
+        }
+
+        offscreen() {
+            return this.y > height + 100 || this.y < -100;
+        }
+
+        hits(player) {
+            return collideRectRect(this.x, this.y, this.size, this.size * 1.5, player.x, player.y, player.size, player.size * 1.5);
+        }
+    }
+    </script>
+</body>
+</html>

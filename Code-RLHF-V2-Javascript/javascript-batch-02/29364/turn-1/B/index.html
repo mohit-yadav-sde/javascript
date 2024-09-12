@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Crossroad Challenge</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        body { 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f0f0f0; 
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #gameInfo {
+            position: absolute;
+            top: 10px;
+            width: 600px;
+            text-align: center;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+<div id="gameInfo"></div>
+<script>
+let gameState = 'start';
+let player, score = 0;
+let traffic = [];
+
+function setup() {
+    createCanvas(600, 600);
+    player = new Car(width/2, height - 50, 30, 60, color(255, 0, 0));
+}
+
+function draw() {
+    background(135, 206, 235); // Sky background for contrast
+    drawRoads();
+    
+    if (gameState === 'start') {
+        showStartScreen();
+    } else if (gameState === 'playing') {
+        playGame();
+    } else if (gameState === 'game over') {
+        showGameOver();
+    }
+}
+
+function drawRoads() {
+    fill(100);
+    // Vertical road
+    rect(width/2 - 25, 0, 50, height);
+    // Horizontal road
+    rect(0, height/2 - 25, width, 50);
+}
+
+function showStartScreen() {
+    fill(0);
+    textSize(32);
+    textAlign(CENTER);
+    text("Crossroad Challenge", width/2, height/2 - 50);
+    textSize(16);
+    text("Use arrow keys to move. Avoid traffic!", width/2, height/2);
+    if (frameCount % 60 < 30) text("Click to Start", width/2, height/2 + 50);
+}
+
+function playGame() {
+    player.update();
+    player.show();
+    
+    // Traffic management
+    if (frameCount % 60 === 0) {
+        traffic.push(new Car(random(width), -20, 30, 60, color(0, 255, 0)));
+        traffic.push(new Car(-20, random(height), 60, 30, color(0, 0, 255)));
+    }
+    
+    for (let i = traffic.length - 1; i >= 0; i--) {
+        traffic[i].update();
+        traffic[i].show();
+        if (traffic[i].offscreen()) traffic.splice(i, 1);
+        if (player.hits(traffic[i])) {
+            gameState = 'game over';
+        }
+    }
+    
+    // Score update
+    if (player.y < 0) {
+        score++;
+        player.y = height - 50;
+    }
+    
+    updateScoreDisplay();
+}
+
+function showGameOver() {
+    textSize(32);
+    fill(0);
+    textAlign(CENTER);
+    text("Game Over", width/2, height/2 - 30);
+    text("Score: " + score, width/2, height/2);
+    text("Click to Try Again", width/2, height/2 + 30);
+}
+
+function updateScoreDisplay() {
+    document.getElementById('gameInfo').innerText = 'Score: ' + score;
+}
+
+function mousePressed() {
+    if (gameState === 'start' || gameState === 'game over') {
+        gameState = 'playing';
+        score = 0;
+        traffic = [];
+    }
+}
+
+class Car {
+    constructor(x, y, w, h, c) {
+        this.x = x;
+        this.y = y;
+        this.w = w;
+        this.h = h;
+        this.c = c;
+        this.speed = 2;
+    }
+    
+    update() {
+        this.y += this.speed; // Default movement for vertical traffic
+        if (this.w > this.h) this.x += this.speed; // Horizontal movement
+    }
+    
+    show() {
+        fill(this.c);
+        rect(this.x, this.y, this.w, this.h);
+    }
+    
+    offscreen() {
+        return (this.x > width || this.x + this.w < 0 || this.y > height || this.y + this.h < 0);
+    }
+    
+    hits(car) {
+        return !(this.x > car.x + car.w || this.x + this.w < car.x || 
+                 this.y > car.y + car.h || this.y + this.h < car.y);
+    }
+}
+
+function keyPressed() {
+    if (keyCode === UP_ARROW) player.y -= 10;
+    if (keyCode === DOWN_ARROW) player.y += 10;
+    if (keyCode === LEFT_ARROW) player.x -= 10;
+    if (keyCode === RIGHT_ARROW) player.x += 10;
+    // Keep player within bounds
+    player.x = constrain(player.x, 0, width - player.w);
+    player.y = constrain(player.y, 0, height - player.h);
+}
+</script>
+</body>
+</html>
