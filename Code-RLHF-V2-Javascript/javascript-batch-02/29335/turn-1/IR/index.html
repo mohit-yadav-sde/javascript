@@ -81,7 +81,6 @@
 <!-- Game Over Screen -->
 <div id="gameOver">
   <h1>Game Over!</h1>
-  <p>Your score: <span id="finalScore"></span></p>
   <button onclick="resetGame()">Try Again</button>
 </div>
 
@@ -99,7 +98,6 @@
   let obstacles = [];
   let carSpeed = 3;
   let obstacleSpeed = 3;
-  let score = 0;
   let roadY = 0;
 
   // p5.js setup function
@@ -171,15 +169,9 @@
       if (obstacles[i].y > height) {
         obstacles.splice(i, 1);
         spawnObstacle();
-        score++;
       }
     }
 
-    // Display score
-    fill(255);
-    textSize(24);
-    textAlign(LEFT);
-    text(`Score: ${score}`, 10, 30);
 
     // Check if car reached the end
     if (car.y < 0) {
@@ -238,7 +230,6 @@
   function triggerGameOver() {
     gameOver = true;
     document.getElementById('gameOver').style.display = 'flex';
-    document.getElementById('finalScore').textContent = score;
   }
 
   // Function to reset the game
@@ -246,7 +237,6 @@
     car = createVector((width - roadWidth) / 2 + roadWidth / 2 - carWidth / 2, height - carHeight - 20);
     gameOver = false;
     obstacles = [];
-    score = 0;
     for (let i = 0; i < 5; i++) {
       spawnObstacle();
     }
