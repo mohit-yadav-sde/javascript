@@ -48,30 +48,41 @@
         sunLight.position.set(0, 0, 0);
         scene.add(sunLight);
 
-        // Planet data: name, radius, distance from sun, color, and base orbit speed
+        // Planet data: name, radius, distance from sun, color, base orbit speed, surface temperature, atmosphere, and interesting facts
         const planetData = [
-            { name: "Mercury", radius: 0.38, distance: 5.7, color: 0xC0C0C0, orbitSpeed: 0.0001 },
-            { name: "Venus", radius: 0.95, distance: 10.8, color: 0xFFA500, orbitSpeed: 0.00007 },
-            { name: "Earth", radius: 1, distance: 15, color: 0x0000FF, orbitSpeed: 0.00005 },
-            { name: "Mars", radius: 0.53, distance: 22.8, color: 0xFF0000, orbitSpeed: 0.00003 },
-            { name: "Jupiter", radius: 11.2, distance: 77.8, color: 0xFFA07A, orbitSpeed: 0.00001 },
-            { name: "Saturn", radius: 9.45, distance: 142.4, color: 0xFFD700, orbitSpeed: 0.000005 },
-            { name: "Uranus", radius: 4, distance: 287.1, color: 0x00FFFF, orbitSpeed: 0.000003 },
-            { name: "Neptune", radius: 3.88, distance: 449.5, color: 0x0000FF, orbitSpeed: 0.000001 }
+            { name: "Mercury", radius: 0.38, distance: 5.7, color: 0xC0C0C0, orbitSpeed: 0.0001, surfaceTemp: "430°C (day), -180°C (night)", atmosphere: "Virtually none", facts: "Smallest planet in the solar system", moons: [] },
+            { name: "Venus", radius: 0.95, distance: 10.8, color: 0xFFA500, orbitSpeed: 0.00007, surfaceTemp: "462°C", atmosphere: "Thick, mostly CO2", facts: "Rotates backwards compared to other planets", moons: [] },
+            { name: "Earth", radius: 1, distance: 15, color: 0x0000FF, orbitSpeed: 0.00005, surfaceTemp: "15°C (average)", atmosphere: "78% nitrogen, 21% oxygen", facts: "Only known planet with life", moons: [{ name: "Moon", radius: 0.27, distance: 0.4, color: 0xDDDDDD }] },
+            { name: "Mars", radius: 0.53, distance: 22.8, color: 0xFF0000, orbitSpeed: 0.00003, surfaceTemp: "-63°C (average)", atmosphere: "Thin, mostly CO2", facts: "Has the largest volcano in the solar system", moons: [{ name: "Phobos", radius: 0.05, distance: 0.2, color: 0xAAAAAA }, { name: "Deimos", radius: 0.03, distance: 0.3, color: 0x888888 }] },
+            { name: "Jupiter", radius: 11.2, distance: 77.8, color: 0xFFA07A, orbitSpeed: 0.00001, surfaceTemp: "-110°C (cloud top)", atmosphere: "Hydrogen and helium", facts: "Largest planet in the solar system", moons: [{ name: "Io", radius: 0.286, distance: 2, color: 0xFFFF00 }, { name: "Europa", radius: 0.245, distance: 2.5, color: 0xFFFFFF }, { name: "Ganymede", radius: 0.413, distance: 3, color: 0xCCCCCC }, { name: "Callisto", radius: 0.378, distance: 3.5, color: 0x888888 }] },
+            { name: "Saturn", radius: 9.45, distance: 142.4, color: 0xFFD700, orbitSpeed: 0.000005, surfaceTemp: "-140°C (average)", atmosphere: "Hydrogen and helium", facts: "Has the most extensive ring system", moons: [{ name: "Titan", radius: 0.404, distance: 4, color: 0xFFAA00 }] },
+            { name: "Uranus", radius: 4, distance: 287.1, color: 0x00FFFF, orbitSpeed: 0.000003, surfaceTemp: "-195°C (average)", atmosphere: "Hydrogen, helium, and methane", facts: "Rotates on its side", moons: [{ name: "Miranda", radius: 0.037, distance: 1.5, color: 0xCCCCCC }] },
+            { name: "Neptune", radius: 3.88, distance: 449.5, color: 0x0000FF, orbitSpeed: 0.000001, surfaceTemp: "-200°C (average)", atmosphere: "Hydrogen, helium, and methane", facts: "Has the strongest winds in the solar system", moons: [{ name: "Triton", radius: 0.212, distance: 2, color: 0xFFFFFF }] }
         ];
 
         const planets = [];
         const planetMeshes = [];
+        const moonMeshes = [];
 
-        // Create planets and add them to the scene
+        // Create planets, moons, and add them to the scene
         planetData.forEach((planet) => {
-            const geometry = new THREE.SphereGeometry(planet.radius, 32, 32);
-            const material = new THREE.MeshPhongMaterial({ color: planet.color });
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.position.x = planet.distance;
-            scene.add(mesh);
+            const planetGeometry = new THREE.SphereGeometry(planet.radius, 32, 32);
+            const planetMaterial = new THREE.MeshPhongMaterial({ color: planet.color });
+            const planetMesh = new THREE.Mesh(planetGeometry, planetMaterial);
+            planetMesh.position.x = planet.distance;
+            scene.add(planetMesh);
             planets.push(planet);
-            planetMeshes.push(mesh);
+            planetMeshes.push(planetMesh);
+
+            // Create moons for each planet
+            planet.moons.forEach((moon) => {
+                const moonGeometry = new THREE.SphereGeometry(moon.radius, 32, 32);
+                const moonMaterial = new THREE.MeshPhongMaterial({ color: moon.color });
+                const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
+                moonMesh.position.x = planet.distance + moon.distance;
+                scene.add(moonMesh);
+                moonMeshes.push({ mesh: moonMesh, planet: planetMesh, orbitRadius: moon.distance });
+            });
         });
 
         // Create sun and add it to the scene
@@ -81,7 +92,9 @@
         scene.add(sunMesh);
 
         // Set initial camera position
-        camera.position.z = 50;
+        const defaultCameraPosition = new THREE.Vector3(0, 30, 100);
+        camera.position.copy(defaultCameraPosition);
+        camera.lookAt(0, 0, 0);
 
         // Variables for orbit controls
         let isDragging = false;
@@ -103,7 +116,6 @@
         const controls = {
             scale: 1,
             speed: 1,
-            view: 'top'
         };
         gui.add(controls, 'scale', 0.1, 2).onChange((value) => {
             scaleFactor = value;
@@ -112,9 +124,7 @@
         gui.add(controls, 'speed', 0.1, 10).onChange((value) => {
             speedFactor = value;
         });
-        gui.add(controls, 'view', ['top', 'bottom']).onChange((value) => {
-            updateCameraPosition(value);
-        });
+        
 
         // Function to update planet positions based on scale factor
         function updatePlanetPositions() {
@@ -122,17 +132,23 @@
                 const planet = planets[index];
                 mesh.position.x = planet.distance * scaleFactor;
             });
+            moonMeshes.forEach((moonData) => {
+                const planetPosition = moonData.planet.position;
+                moonData.mesh.position.x = planetPosition.x + moonData.orbitRadius * scaleFactor;
+            });
         }
 
         // Function to update camera position based on view
         function updateCameraPosition(view) {
-            if (view === 'top') {
-                camera.position.set(0, 50, 0);
-                camera.lookAt(0, 0, 0);
-            } else if (view === 'bottom') {
-                camera.position.set(0, -50, 0);
-                camera.lookAt(0, 0, 0);
+            switch (view) {
+                case 'default':
+                    camera.position.copy(defaultCameraPosition);
+                    break;
+                case 'side':
+                    camera.position.set(100, 0, 0);
+                    break;
             }
+            camera.lookAt(0, 0, 0);
         }
 
         // Animation loop
@@ -142,10 +158,18 @@
             // Rotate planets and update their positions
             planetMeshes.forEach((mesh, index) => {
                 const planet = planets[index];
-                mesh.rotation.y += 0.005 * speedFactor; // Apply speed factor to rotation
-                const angle = Date.now() * planet.orbitSpeed * speedFactor; // Apply speed factor to orbit
+                mesh.rotation.y += 0.005 * speedFactor;
+                const angle = Date.now() * planet.orbitSpeed * speedFactor;
                 mesh.position.x = Math.cos(angle) * planet.distance * scaleFactor;
                 mesh.position.z = Math.sin(angle) * planet.distance * scaleFactor;
+            });
+
+            // Update moon positions
+            moonMeshes.forEach((moonData) => {
+                const planetPosition = moonData.planet.position;
+                const moonAngle = Date.now() * 0.001 * speedFactor;
+                moonData.mesh.position.x = planetPosition.x + Math.cos(moonAngle) * moonData.orbitRadius * scaleFactor;
+                moonData.mesh.position.z = planetPosition.z + Math.sin(moonAngle) * moonData.orbitRadius * scaleFactor;
             });
 
             renderer.render(scene, camera);
@@ -228,15 +252,18 @@
                 hidePlanetInfo();
             }
         }
-
-        // Function to display planet information
+// Function to display planet information
         function showPlanetInfo(planet) {
             const planetInfo = document.getElementById('planetInfo');
             planetInfo.innerHTML = `
                 <h3 class="text-xl font-bold mb-2">${planet.name}</h3>
                 <p class="mb-1">Radius: ${planet.radius} Earth radii</p>
                 <p class="mb-1">Distance from Sun: ${planet.distance} AU</p>
-                <p>Orbit Speed: ${(planet.orbitSpeed * speedFactor).toFixed(8)} rad/s</p>
+                <p class="mb-1">Orbit Speed: ${(planet.orbitSpeed * speedFactor).toFixed(8)} rad/s</p>
+                <p class="mb-1">Surface Temperature: ${planet.surfaceTemp}</p>
+                <p class="mb-1">Atmosphere: ${planet.atmosphere}</p>
+                <p class="mb-1">Interesting Fact: ${planet.facts}</p>
+                <p class="mb-1">Moons: ${planet.moons.length > 0 ? planet.moons.map(moon => moon.name).join(', ') : 'None'}</p>
             `;
             planetInfo.classList.remove('hidden');
         }
