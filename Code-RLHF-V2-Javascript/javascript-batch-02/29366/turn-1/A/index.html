@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sniper Game</title>
+<style>
+    body, html {
+        height: 100%;
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #f0f0f0;
+    }
+    #gameCanvas {
+        width: 2000px;
+        height: 600px;
+        background: url('https://via.placeholder.com/2000x600/87CEEB/000000?text=Sky+Background') no-repeat;
+        position: relative;
+        overflow: hidden;
+    }
+    #scope {
+        width: 200px;
+        height: 200px;
+        position: absolute;
+        background: url('https://via.placeholder.com/200x200/000000/FFFFFF?text=Scope') no-repeat;
+        pointer-events: none;
+    }
+    #target {
+        width: 50px;
+        height: 100px;
+        background: red;
+        position: absolute;
+        bottom: 0;
+    }
+    .hurdle {
+        position: absolute;
+        background: #8B4513;
+        bottom: 0;
+    }
+    #ui {
+        position: absolute;
+        text-align: center;
+        width: 100%;
+        top: 50%;
+        transform: translateY(-50%);
+        display: none;
+    }
+    button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+<div id="gameCanvas">
+    <div id="scope"></div>
+    <div id="target"></div>
+</div>
+<div id="ui">
+    <h1 id="gameTitle">Sniper Game</h1>
+    <p id="instructions">Move your mouse to aim. Click to shoot. 2 shots only!</p>
+    <button id="startGame">Start Game</button>
+    <div id="gameOver" style="display:none;">
+        <h2 id="gameResult"></h2>
+        <button id="tryAgain">Try Again</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const scope = document.getElementById('scope');
+    const target = document.getElementById('target');
+    const startGameBtn = document.getElementById('startGame');
+    const tryAgainBtn = document.getElementById('tryAgain');
+    const gameOverUI = document.getElementById('gameOver');
+    const gameResult = document.getElementById('gameResult');
+    const ui = document.getElementById('ui');
+    const instructions = document.getElementById('instructions');
+
+    let shotsLeft = 2;
+    let gameActive = false;
+    let targetDirection = 1;
+    let hurdles = [];
+
+    // Setup game environment
+    function setupGame() {
+        for(let i = 0; i < 5; i++) {
+            let hurdle = document.createElement('div');
+            hurdle.className = 'hurdle';
+            hurdle.style.width = '100px';
+            hurdle.style.height = `${Math.random() * 200 + 200}px`;
+            hurdle.style.left = `${Math.random() * 1900}px`;
+            canvas.appendChild(hurdle);
+            hurdles.push(hurdle);
+        }
+        canvas.addEventListener('mousemove', moveScope);
+        canvas.addEventListener('click', shoot);
+    }
+
+    // Move scope with mouse
+    function moveScope(e) {
+        if(gameActive) {
+            let rect = canvas.getBoundingClientRect();
+            let x = e.clientX - rect.left - 100; // centering scope
+            let y = e.clientY - rect.top - 100;
+            scope.style.left = `${Math.max(0, Math.min(x, 1800))}px`;
+            scope.style.top = `${Math.max(0, Math.min(y, 400))}px`;
+        }
+    }
+
+    // Shooting mechanism
+    function shoot() {
+        if(shotsLeft > 0 && gameActive) {
+            shotsLeft--;
+            if(checkHit()) {
+                endGame(true);
+            } else if(shotsLeft === 0) {
+                endGame(false);
+            }
+        }
+    }
+
+    // Check if target is hit
+    function checkHit() {
+        let scopeRect = scope.getBoundingClientRect();
+        let targetRect = target.getBoundingClientRect();
+        return !(scopeRect.right < targetRect.left || 
+                 scopeRect.left > targetRect.right || 
+                 scopeRect.bottom < targetRect.top || 
+                 scopeRect.top > targetRect.bottom);
+    }
+
+    // Target movement
+    function moveTarget() {
+        let currentPos = parseInt(target.style.left || '0');
+        if(currentPos >= 1950 || currentPos <= 0) targetDirection *= -1;
+        target.style.left = `${currentPos + targetDirection * 2}px`;
+        
+        // Random jump
+        if(Math.random() < 0.01) {
+            target.style.bottom = '100px';
+            setTimeout(() => target.style.bottom = '0px', 500);
+        }
+    }
+
+    // Game flow control
+    function startGame() {
+        gameActive = true;
+        shotsLeft = 2;
+        ui.style.display = 'none';
+        target.style.left = '0px';
+        setInterval(moveTarget, 30);
+    }
+
+    function endGame(win) {
+        gameActive = false;
+        gameResult.textContent = win ? "You Win!" : "Game Over! You Lose!";
+        gameOverUI.style.display = 'block';
+        ui.style.display = 'block';
+    }
+
+    // Event listeners for buttons
+    startGameBtn.onclick = startGame;
+    tryAgainBtn.onclick = () => {
+        while (canvas.firstChild) {
+            canvas.removeChild(canvas.firstChild);
+        }
+        hurdles = [];
+        setupGame();
+        startGame();
+    };
+
+    // Initial setup
+    setupGame();
+</script>
+</body>
+</html>

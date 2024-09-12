@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sniper Game</title>
+<style>
+body, html {
+    margin: 0; padding: 0; overflow: hidden;
+    font-family: Arial, sans-serif;
+}
+#game-area {
+    width: 2000px; height: 600px; background: lightblue url('data:image/png;base64,sky-ground-pattern'); position: relative;
+    cursor: none;
+}
+#scope {
+    width: 200px; height: 200px; position: absolute; background: transparent; pointer-events: none;
+    background-image: url('data:image/png;base64,scope-image'); background-size: cover;
+}
+.target {
+    width: 50px; height: 100px; background: red; position: absolute; left: 0; top: 500px;
+}
+.hurdle {
+    position: absolute; background: brown; border: 2px solid #8B4513;
+}
+#ui {
+    position: fixed; top: 0; left: 0; right: 0; text-align: center; padding: 20px; background: rgba(0,0,0,0.5); color: white;
+}
+#shots-left { position: absolute; top: 10px; left: 10px; }
+#start-screen, #game-over {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 5px; display: none;
+}
+button { padding: 10px 20px; margin-top: 10px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="game-area">
+    <div id="scope"></div>
+    <div class="target"></div>
+</div>
+<div id="ui">
+    <div id="shots-left">Shots Left: 2</div>
+    <div id="start-screen">
+        <h1>Sniper Game</h1>
+        <p>Move the scope with your mouse. Click to shoot. Hit the target!</p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <div id="game-over">
+        <h2>Game Over</h2>
+        <p id="game-result"></p>
+        <button onclick="startGame()">Try Again</button>
+    </div>
+</div>
+<script>
+const gameArea = document.getElementById('game-area');
+const scope = document.getElementById('scope');
+const target = document.querySelector('.target');
+const shotsLeftUI = document.getElementById('shots-left');
+const startScreen = document.getElementById('start-screen');
+const gameOverScreen = document.getElementById('game-over');
+const gameResult = document.getElementById('game-result');
+
+let shotsLeft = 2;
+let gameRunning = false;
+let targetInterval;
+
+function startGame() {
+    startScreen.style.display = 'none';
+    gameOverScreen.style.display = 'none';
+    shotsLeft = 2;
+    updateShotsLeft();
+    gameRunning = true;
+    createHurdles();
+    moveTarget();
+}
+
+function createHurdles() {
+    for(let i = 0; i < 10; i++) {
+        const hurdle = document.createElement('div');
+        hurdle.className = 'hurdle';
+        hurdle.style.left = `${Math.random() * 1800}px`;
+        hurdle.style.top = `${600 - (200 + Math.random() * 200)}px`;
+        hurdle.style.width = '50px';
+        hurdle.style.height = `${200 + Math.random() * 200}px`;
+        gameArea.appendChild(hurdle);
+    }
+}
+
+function moveTarget() {
+    let pos = 0;
+    const speed = 2;
+    targetInterval = setInterval(() => {
+        if (!gameRunning) return;
+        pos += speed;
+        target.style.left = `${pos}px`;
+        if (Math.random() > 0.98) target.style.top = `${500 - (Math.random() * 50)}px`; // Random jump
+        if (pos > 2000) pos = -50; // Reset position
+    }, 30);
+}
+
+gameArea.addEventListener('mousemove', (e) => {
+    if (gameRunning) {
+        scope.style.left = `${e.clientX - 100}px`;
+        scope.style.top = `${e.clientY - 100}px`;
+    }
+});
+
+gameArea.addEventListener('click', (e) => {
+    if (gameRunning && shotsLeft > 0) {
+        shotsLeft--;
+        updateShotsLeft();
+        checkHit(e.clientX, e.clientY);
+        if (shotsLeft === 0) endGame();
+    }
+});
+
+function checkHit(x, y) {
+    const rect = target.getBoundingClientRect();
+    if (x > rect.left && x < rect.right && y > rect.top && y < rect.bottom) {
+        endGame(true);
+    }
+}
+
+function updateShotsLeft() {
+    shotsLeftUI.textContent = `Shots Left: ${shotsLeft}`;
+}
+
+function endGame(win = false) {
+    gameRunning = false;
+    clearInterval(targetInterval);
+    gameResult.textContent = win ? 'You Win!' : 'You Lose!';
+    gameOverScreen.style.display = 'block';
+}
+
+// Initial state
+startScreen.style.display = 'block';
+</script>
+</body>
+</html>
