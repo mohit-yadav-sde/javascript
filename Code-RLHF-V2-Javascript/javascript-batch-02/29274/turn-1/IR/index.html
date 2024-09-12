@@ -27,7 +27,7 @@
             </div>
             <div id="gameover-screen" class="hidden bg-red-500 bg-opacity-90 p-8 rounded-lg border-4 border-yellow-400 shadow-lg">
                 <h2 class="text-3xl font-bold mb-6 text-yellow-400">Game Over</h2>
-                <p class="text-xl mb-4">Well played, adventurer!</p>
+                <p class="text-xl mb-4">Better Luck Next Time!</p>
                 <p id="final-score" class="text-2xl mb-2">Score: 0</p>
                 <p id="final-distance" class="text-2xl mb-6">Distance: 0m</p>
                 <button id="try-again-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-full transition duration-300 ease-in-out transform hover:scale-105">
@@ -44,6 +44,11 @@
         let distance = 0;
         let gameState = 'START';
         let groundY;
+        let clouds = [];
+        let mountains = [];
+        let lastHurdleX = 0;
+        let nextHurdleDistance;
+        let playerSpeed = 0; // New variable to track player's forward speed
 
         function setup() {
             const canvas = createCanvas(800, 400);
@@ -54,12 +59,29 @@
             // Event listeners for buttons
             document.getElementById('start-button').addEventListener('click', startGame);
             document.getElementById('try-again-button').addEventListener('click', startGame);
+
+            // Initialize clouds
+            for (let i = 0; i < 5; i++) {
+                clouds.push({
+                    x: i * 200,
+                    y: random(50, 100),
+                    size: random(40, 60)
+                });
+            }
+
+            // Initialize mountains
+            for (let i = 0; i < 3; i++) {
+                mountains.push({
+                    x: i * 400,
+                    height: random(100, 200)
+                });
+            }
         }
 
         function resetGame() {
             // Initialize game objects and variables
             player = {
-                x: 50,
+                x: 100,
                 y: groundY,
                 width: 30,
                 height: 50,
@@ -71,6 +93,9 @@
             coins = [];
             score = 0;
             distance = 0;
+            lastHurdleX = 0;
+            nextHurdleDistance = random(200, 500);
+            playerSpeed = 0;
         }
 
         function startGame() {
@@ -91,11 +116,14 @@
 
         function updateGame() {
             // Player movement
-            if (keyIsDown(LEFT_ARROW)) {
+            if (keyIsDown(LEFT_ARROW) && player.x > 50) {
                 player.x -= player.speed;
-            }
-            if (keyIsDown(RIGHT_ARROW)) {
+                playerSpeed = 0; // No forward movement
+            } else if (keyIsDown(RIGHT_ARROW)) {
                 player.x += player.speed;
+                playerSpeed = player.speed; // Moving forward
+            } else {
+                playerSpeed = 0; // Not moving when no key is pressed
             }
 
             // Player jump
@@ -107,13 +135,15 @@
             }
 
             // Generate hurdles
-            if (frameCount % 100 === 0) {
+            if (player.x > lastHurdleX + nextHurdleDistance) {
                 hurdles.push({
                     x: player.x + width,
                     y: groundY - 30,
                     width: 30,
                     height: 60
                 });
+                lastHurdleX = player.x;
+                nextHurdleDistance = random(200, 500); // Set next hurdle distance randomly
             }
 
             // Generate coins
@@ -148,12 +178,33 @@
                 }
             }
 
-            // Update distance
-            distance = floor(player.x / 10)-5;
+            // Update distance only when moving forward
+            if (playerSpeed > 0) {
+                distance = max(0, floor(player.x / 10) - 10);
+            }
 
-            // Remove off-screen hurdles and coins
-            hurdles = hurdles.filter(hurdle => hurdle.x > player.x - width / 2);
-            coins = coins.filter(coin => coin.x > player.x - width / 2);
+            // Remove far off-screen hurdles and coins
+            hurdles = hurdles.filter(hurdle => hurdle.x > player.x - width * 2);
+            coins = coins.filter(coin => coin.x > player.x - width * 2);
+
+            // Update clouds
+            for (let cloud of clouds) {
+                cloud.x -= playerSpeed * 0.2; // Clouds move only when player moves forward
+                if (cloud.x < player.x - width / 2) {
+                    cloud.x += width * 1.5;
+                    cloud.y = random(50, 100);
+                    cloud.size = random(40, 60);
+                }
+            }
+
+            // Update mountains
+            for (let mountain of mountains) {
+                mountain.x -= playerSpeed * 0.5; // Mountains move only when player moves forward
+                if (mountain.x < player.x - width / 2) {
+                    mountain.x += width * 1.5;
+                    mountain.height = random(100, 200);
+                }
+            }
         }
 
         function displayGame() {
@@ -162,7 +213,7 @@
             // Translate the canvas to follow the player
             translate(-player.x + 100, 0);
 
-            // Draw background elements (clouds, mountains, etc.)
+            // Draw background elements
             drawBackground();
 
             // Draw ground
@@ -196,18 +247,21 @@
         }
 
         function drawBackground() {
-            // Draw clouds
-            fill(255);
-            for (let i = 0; i < 5; i++) {
-                ellipse(player.x + i * 200, 50, 60, 40);
-                ellipse(player.x + i * 200 - 25, 60, 40, 30);
-                ellipse(player.x + i * 200 + 25, 60, 40, 30);
-            }
-
             // Draw mountains
             fill(100, 100, 100);
-            triangle(player.x - 100, groundY, player.x + 100, 100, player.x + 300, groundY);
-            triangle(player.x + 200, groundY, player.x + 400, 150, player.x + 600, groundY);
+            for (let mountain of mountains) {
+                triangle(mountain.x, groundY, 
+                         mountain.x - 200, groundY, 
+                         mountain.x - 100, groundY - mountain.height);
+            }
+
+            // Draw clouds
+            fill(255);
+            for (let cloud of clouds) {
+                ellipse(cloud.x, cloud.y, cloud.size, cloud.size * 0.6);
+                ellipse(cloud.x - cloud.size * 0.3, cloud.y + cloud.size * 0.1, cloud.size * 0.7, cloud.size * 0.4);
+                ellipse(cloud.x + cloud.size * 0.3, cloud.y + cloud.size * 0.1, cloud.size * 0.7, cloud.size * 0.4);
+            }
         }
 
         function drawCoin(x, y, size) {

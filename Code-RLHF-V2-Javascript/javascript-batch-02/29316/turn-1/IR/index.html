@@ -61,8 +61,19 @@
 </div>
 
 <!-- Game Information (Teddy Bears Collected) -->
-<div id="gameInfo" class="fixed top-4 left-4 p-4 bg-indigo-800 bg-opacity-70 text-white rounded-lg hidden pixel-corners">
+<div id="gameInfo" class="fixed top-4 left-4 p-4 bg-indigo-800 bg-opacity-70 text-white rounded-lg hidden">
     <p class="text-2xl">Bears Collected: <span id="collected" class="text-yellow-300">0</span> / <span id="total" class="text-yellow-300">3</span></p>
+</div>
+
+<!-- Congratulations Screen -->
+<div id="congratsScreen" class="fixed inset-0 flex flex-col justify-center items-center bg-indigo-900 bg-opacity-90 text-white z-20 hidden">
+    <div class="bg-indigo-800 p-8 rounded-xl shadow-lg pixel-corners text-center">
+        <h2 class="text-4xl font-bold mb-4 text-yellow-300 animate-bounce">Congratulations!</h2>
+        <p class="text-2xl mb-6">You collected all the teddy bears!</p>
+        <button onclick="restartGame()" class="px-6 py-3 bg-green-500 text-white text-xl font-semibold rounded-lg shadow-md hover:bg-green-600 transition duration-300 transform hover:scale-105">
+            Play Again
+        </button>
+    </div>
 </div>
 
 <script>
@@ -84,19 +95,28 @@
         
         girl = new Girl(100, height - 150);
         
+        platforms = [
+            new Platform(0, height - 100, width, 100),
+            new Platform(200, height - 300, 200, 30),
+            new Platform(500, height - 450, 200, 30)
+        ];
+        
+        bears = [];
         for (let i = 0; i < totalBears; i++) {
             bears.push(new Bear(random(200, width - 300), random(200, height - 250)));
         }
         
-        platforms.push(new Platform(0, height - 100, width, 100));
-        platforms.push(new Platform(200, height - 300, 200, 30));
-        platforms.push(new Platform(500, height - 450, 200, 30));
-        
         exit = new Exit(width - 60, 0, 50, height);
         
+        clouds = [];
         for (let i = 0; i < 5; i++) {
             clouds.push(new Cloud(random(width), random(height/2)));
         }
+
+        // Update the UI
+        updateUI();
+        
+        console.log("Setup complete. Total bears:", totalBears);
     }
 
     function draw() {
@@ -126,17 +146,19 @@
             if (girl.hits(bears[i])) {
                 bears.splice(i, 1);
                 collected++;
-                document.getElementById('collected').innerText = collected;
+                console.log("Bear collected! Total collected:", collected);
+                updateUI();
             }
         }
         
         if (collected === totalBears && girl.reachesExit(exit)) {
-            noLoop();
-            setTimeout(() => {
-                alert("Congratulations! You collected all the teddy bears!");
-                location.reload();
-            }, 100);
+            endGame();
         }
+    }
+
+    function updateUI() {
+        document.getElementById('collected').innerText = collected;
+        document.getElementById('total').innerText = totalBears;
     }
 
     function keyPressed() {
@@ -165,7 +187,7 @@
             if (keyIsDown(LEFT_ARROW)) this.xSpeed = -5;
             if (keyIsDown(RIGHT_ARROW)) this.xSpeed = 5;
             
-            this.x += this.xSpeed;
+            this.x = constrain(this.x + this.xSpeed, 0, width - this.w);
             this.ySpeed += gravity;
             let newY = this.y + this.ySpeed;
             
@@ -179,12 +201,6 @@
                     } else if (this.y >= platform.y + platform.h && newY < platform.y + platform.h) {
                         newY = platform.y + platform.h;
                         this.ySpeed = 0;
-                    } else if (newY + this.h > platform.y && newY < platform.y + platform.h) {
-                        if (this.x + this.w <= platform.x) {
-                            this.x = platform.x - this.w;
-                        } else if (this.x >= platform.x + platform.w) {
-                            this.x = platform.x + platform.w;
-                        }
                     }
                 }
             }
@@ -253,8 +269,20 @@
         }
 
         show() {
-            fill(255, 0, 0, 100);  // Semi-transparent red color for exit
-            rect(this.x, this.y, this.w, this.h);
+            // Rainbow gradient for the exit
+            for (let i = 0; i < this.h; i++) {
+                let c = color(lerpColor(color(255, 0, 0), color(0, 0, 255), i / this.h));
+                stroke(c);
+                line(this.x, this.y + i, this.x + this.w, this.y + i);
+            }
+            
+            // Add a pulsing effect
+            let pulseSize = sin(frameCount * 0.05) * 10;
+            noFill();
+            stroke(255, 255, 0);
+            strokeWeight(3);
+            rect(this.x - pulseSize/2, this.y - pulseSize/2, this.w + pulseSize, this.h + pulseSize);
+            strokeWeight(1);
         }
     }
 
@@ -282,10 +310,32 @@
         document.getElementById('startScreen').style.display = 'none';
         document.getElementById('gameInfo').classList.remove('hidden');
         gameStarted = true;
+        console.log("Game started");
+    }
+
+    function endGame() {
+        noLoop();
+        document.getElementById('congratsScreen').classList.remove('hidden');
+        console.log("Game ended. Total bears collected:", collected);
+    }
+
+    function restartGame() {
+        document.getElementById('congratsScreen').classList.add('hidden');
+        // Reset game state
+        collected = 0;
+        updateUI();
+        setup();
+        loop();
+        console.log("Game restarted");
     }
 
     function windowResized() {
         resizeCanvas(windowWidth, windowHeight);
+        // Adjust platform and exit positions based on new size
+        platforms[0].y = height - 100;
+        platforms[0].w = width;
+        exit.x = width - 60;
+        exit.h = height;
     }
 </script>
 
