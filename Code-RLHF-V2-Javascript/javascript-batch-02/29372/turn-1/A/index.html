@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Grenade Zombies</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #overlay, #gameOver {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.7);
+            flex-direction: column;
+        }
+    </style>
+</head>
+<body>
+<div id="overlay" class="hidden">
+    <h1 class="text-4xl text-white mb-4">Grenade Zombies</h1>
+    <p class="text-white mb-4">Throw grenades to blast zombies and collect stars for a 3-star score! Use your mouse to aim and throw grenades.</p>
+    <button id="startButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Start Game</button>
+</div>
+<div id="gameOver" class="hidden">
+    <h1 id="gameOverMessage" class="text-4xl text-white mb-4"></h1>
+    <p id="starsCollected" class="text-white mb-4"></p>
+    <button id="tryAgainButton" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Try Again</button>
+</div>
+<script>
+let player, zombies = [], grenades = [], stars = [], hurdles = [];
+let grenadeCount = 2;
+let score = 0;
+
+function setup() {
+    createCanvas(windowWidth, windowHeight);
+    player = new Player();
+    for(let i = 0; i < 3; i++) {
+        zombies.push(new Zombie(random(width), random(height - 100)));
+        stars.push(new Star(random(width), random(height - 100)));
+    }
+    for(let i = 0; i < 5; i++) {
+        hurdles.push(new Hurdle(random(width), random(height - 100), random(50, 150), 20));
+    }
+}
+
+function draw() {
+    background(220);
+    
+    // Draw and update game objects
+    hurdles.forEach(h => h.show());
+    zombies.forEach(z => z.show());
+    stars.forEach(s => s.show());
+    player.show();
+    
+    grenades.forEach(g => {
+        g.update();
+        g.show();
+    });
+
+    // UI
+    fill(0);
+    text(`Grenades: ${grenadeCount}`, 10, 20);
+    text(`Stars: ${score}`, 10, 40);
+
+    checkCollisions();
+    checkGameOver();
+}
+
+function checkCollisions() {
+    for(let i = grenades.length - 1; i >= 0; i--) {
+        let g = grenades[i];
+        for(let z of zombies) {
+            if(g.hits(z)) {
+                zombies.splice(zombies.indexOf(z), 1);
+                grenades.splice(i, 1);
+                score++;
+                break;
+            }
+        }
+        for(let s of stars) {
+            if(g.hits(s)) {
+                stars.splice(stars.indexOf(s), 1);
+                score++;
+            }
+        }
+    }
+}
+
+function checkGameOver() {
+    if(zombies.length === 0 || grenadeCount === 0) {
+        document.getElementById('gameOverMessage').innerText = zombies.length === 0 ? "You blasted the zombie!" : "You used all grenades! Game Over.";
+        document.getElementById('starsCollected').innerText = `Stars Collected: ${score}`;
+        document.getElementById('overlay').classList.add('hidden');
+        document.getElementById('gameOver').classList.remove('hidden');
+        noLoop();
+    }
+}
+
+class Player {
+    constructor() {
+        this.pos = createVector(50, height - 50);
+    }
+
+    show() {
+        fill(0, 255, 0);
+        ellipse(this.pos.x, this.pos.y, 30, 30);
+        if(mouseIsPressed && grenadeCount > 0) {
+            stroke(255);
+            line(this.pos.x, this.pos.y, mouseX, mouseY);
+        }
+    }
+}
+
+class Zombie {
+    constructor(x, y) {
+        this.pos = createVector(x, y);
+        this.size = 40;
+    }
+
+    show() {
+        fill(255, 0, 0);
+        ellipse(this.pos.x, this.pos.y, this.size, this.size);
+    }
+}
+
+class Grenade {
+    constructor(x, y, vx, vy) {
+        this.pos = createVector(x, y);
+        this.vel = createVector(vx, vy);
+        this.acc = createVector(0, 0.1); // Gravity
+        this.size = 10;
+    }
+
+    update() {
+        this.vel.add(this.acc);
+        this.pos.add(this.vel);
+        if(this.pos.y > height - this.size / 2) {
+            this.vel.y *= -0.5; // Bounce
+            this.pos.y = height - this.size / 2;
+        }
+    }
+
+    show() {
+        fill(100);
+        ellipse(this.pos.x, this.pos.y, this.size, this.size);
+    }
+
+    hits(obj) {
+        let d = dist(this.pos.x, this.pos.y, obj.pos.x, obj.pos.y);
+        return d < this.size / 2 + obj.size / 2;
+    }
+}
+
+class Star {
+    constructor(x, y) {
+        this.pos = createVector(x, y);
+        this.size = 20;
+    }
+
+    show() {
+        fill(255, 255, 0);
+        star(this.pos.x, this.pos.y, 5, 10, 5);
+    }
+}
+
+class Hurdle {
+    constructor(x, y, w, h) {
+        this.pos = createVector(x, y);
+        this.w = w;
+        this.h = h;
+    }
+
+    show() {
+        fill(128);
+        rect(this.pos.x, this.pos.y, this.w, this.h);
+    }
+}
+
+function star(x, y, radius1, radius2, npoints) {
+    let angle = TWO_PI / npoints;
+    let halfAngle = angle / 2.0;
+    beginShape();
+    for (let a = 0; a < TWO_PI; a += angle) {
+        let sx = x + cos(a) * radius2;
+        let sy = y + sin(a) * radius2;
+        vertex(sx, sy);
+        sx = x + cos(a + halfAngle) * radius1;
+        sy = y + sin(a + halfAngle) * radius1;
+        vertex(sx, sy);
+    }
+    endShape(CLOSE);
+}
+
+function mousePressed() {
+    if(mouseButton === LEFT && grenadeCount > 0) {
+        let force = p5.Vector.sub(createVector(mouseX, mouseY), player.pos);
+        force.mult(0.05); // Scaling the force
+        grenades.push(new Grenade(player.pos.x, player.pos.y, force.x, force.y));
+        grenadeCount--;
+    }
+}
+
+document.getElementById('startButton').onclick = () => {
+    document.getElementById('overlay').classList.add('hidden');
+    loop();
+};
+
+document.getElementById('tryAgainButton').onclick = () => {
+    location.reload();
+};
+</script>
+</body>
+</html>

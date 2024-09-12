@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grenade Blast Game</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    #game-container canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-white">
+
+  <!-- Start Screen -->
+  <div id="start-screen" class="flex justify-center items-center h-screen bg-gradient-to-br from-gray-800 to-gray-900">
+    <div class="text-center bg-gray-800 p-8 rounded-lg shadow-xl border border-gray-700">
+      <h1 class="text-4xl font-bold mb-4 text-green-400">Grenade Blast Game</h1>
+      <p class="mt-4 text-gray-300">Throw grenades to blast zombies and collect stars for a 3-star score!</p>
+      <p class="text-gray-300">Use your mouse to aim and throw.</p>
+      <button id="start-game-btn" class="mt-6 bg-green-500 text-white px-6 py-3 rounded-full hover:bg-green-600 transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-400">
+        Start Game
+      </button>
+    </div>
+  </div>
+
+  <!-- Game UI -->
+  <div id="game-container" class="hidden h-screen w-full relative">
+    <div id="game-ui" class="absolute top-4 left-4 flex items-center space-x-4">
+      <div class="bg-gray-800 px-4 py-2 rounded-lg shadow-md">
+        <span class="text-green-400 font-bold">Grenades:</span> <span id="grenade-count" class="text-white">0/2</span>
+      </div>
+      <div class="bg-gray-800 px-4 py-2 rounded-lg shadow-md">
+        <span class="text-yellow-400 font-bold">Stars:</span> <span id="star-count" class="text-white">0/2</span>
+      </div>
+    </div>
+
+    <div id="game-over-screen" class="hidden absolute inset-0 flex justify-center items-center bg-black bg-opacity-75">
+      <div class="text-center bg-gray-800 p-8 rounded-lg shadow-xl border border-gray-700">
+        <h2 id="game-over-message" class="text-3xl font-bold mb-4 text-red-400"></h2>
+        <p id="final-score" class="text-xl mb-4 text-yellow-400"></p>
+        <button id="try-again-btn" class="mt-6 bg-blue-500 text-white px-6 py-3 rounded-full hover:bg-blue-600 transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          Try Again
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let zombie, player, grenade, grenades = 2, grenadeUsed = 0, gameOver = false;
+    let hurdles = [];
+    let stars = [];
+    let collectedStars = 0;
+    let gameState = 'start';  // 'start', 'play', 'gameOver'
+    let grenadeThrown = false;
+    let mousePressedBefore = false;
+
+    function setup() {
+      let canvas = createCanvas(windowWidth, windowHeight);
+      canvas.parent('game-container');
+
+      player = { x: 100, y: height - 100, size: 60 };
+      zombie = { x: width - 150, y: height - 100, size: 60 };
+      grenade = { x: player.x, y: player.y, size: 30, vx: 0, vy: 0, gravity: 0.4, thrown: false };
+      
+      createHurdles();
+      createStars();
+      updateGameElements(); // Call this to set initial positions
+    }
+
+    function draw() {
+      if (gameState === 'play' && !gameOver) {
+        drawBackground();
+        drawPlayer();
+        drawZombie();
+        drawHurdles();
+        drawStars();
+        drawGrenade();
+
+        if (!grenade.thrown && mousePressedBefore && mouseIsPressed) {
+          showTrajectoryLine();
+        }
+
+        if (grenade.thrown) {
+          moveGrenade();
+        }
+      }
+    }
+
+    function drawBackground() {
+      // Create a gradient background
+      let c1 = color(25, 25, 112);  // Midnight Blue
+      let c2 = color(0, 0, 0);      // Black
+      for (let y = 0; y < height; y++) {
+        let inter = map(y, 0, height, 0, 1);
+        let c = lerpColor(c1, c2, inter);
+        stroke(c);
+        line(0, y, width, y);
+      }
+    }
+
+    function drawPlayer() {
+      fill(0, 255, 0);
+      ellipse(player.x, player.y - player.size/2, player.size);
+      fill(0, 200, 0);
+      rect(player.x - player.size/4, player.y - player.size/2, player.size/2, player.size/2);
+    }
+
+    function drawZombie() {
+      fill(255, 0, 0);
+      ellipse(zombie.x, zombie.y - zombie.size/2, zombie.size);
+      fill(200, 0, 0);
+      rect(zombie.x - zombie.size/4, zombie.y - zombie.size/2, zombie.size/2, zombie.size/2);
+    }
+
+    function createHurdles() {
+      hurdles = [
+        { x: width / 3, y: height - 200, width: 50, height: 100 },
+        { x: 2 * width / 3, y: height - 300, width: 50, height: 150 }
+      ];
+    }
+
+    function drawHurdles() {
+      for (let hurdle of hurdles) {
+        fill(100, 100, 100);
+        rect(hurdle.x, hurdle.y, hurdle.width, hurdle.height);
+        fill(80, 80, 80);
+        rect(hurdle.x + 5, hurdle.y + 5, hurdle.width - 10, hurdle.height - 10);
+      }
+    }
+
+    function createStars() {
+      stars = [
+        { x: width / 4, y: height - 250, collected: false },
+        { x: width / 2, y: height - 350, collected: false }
+      ];
+    }
+
+    function drawStars() {
+      for (let star of stars) {
+        if (!star.collected) {
+          fill(255, 255, 0);
+          drawStar(star.x, star.y, 15, 7, 5);
+        }
+      }
+    }
+
+    function drawGrenade() {
+      push();
+      translate(grenade.x, grenade.y);
+      rotate(frameCount / 10);
+      fill(100);
+      ellipse(0, 0, grenade.size);
+      fill(80);
+      ellipse(0, 0, grenade.size * 0.6);
+      pop();
+    }
+
+    function showTrajectoryLine() {
+      stroke(255, 200);
+      strokeWeight(2);
+      let dots = 10;
+      for (let i = 0; i < dots; i++) {
+        let x = lerp(grenade.x, mouseX, i/dots);
+        let y = lerp(grenade.y, mouseY, i/dots);
+        point(x, y);
+      }
+    }
+
+    function mousePressed() {
+      if (gameState === 'play') {
+        mousePressedBefore = true;
+      }
+    }
+
+    function mouseReleased() {
+      if (gameState === 'play' && !grenade.thrown && grenades > 0 && mousePressedBefore) {
+        grenade.vx = (mouseX - grenade.x) / 10;
+        grenade.vy = (mouseY - grenade.y) / 10;
+        grenade.thrown = true;
+        grenadeUsed++;
+        document.getElementById('grenade-count').innerText = `${grenadeUsed}/2`;
+      }
+    }
+
+    function moveGrenade() {
+      grenade.x += grenade.vx;
+      grenade.y += grenade.vy;
+      grenade.vy += grenade.gravity;
+
+      checkHurdleCollision();
+      checkStarCollision();
+
+      if (grenade.y > height) {
+        resetGrenade();
+      }
+
+      if (dist(grenade.x, grenade.y, zombie.x, zombie.y) < (grenade.size + zombie.size) / 2) {
+        endGame(true);
+      }
+    }
+
+    function resetGrenade() {
+      grenade.x = player.x;
+      grenade.y = player.y;
+      grenade.vx = 0;
+      grenade.vy = 0;
+      grenade.thrown = false;
+      if (grenadeUsed >= 2) {
+        endGame(false);
+      }
+    }
+
+    function checkHurdleCollision() {
+      for (let hurdle of hurdles) {
+        if (grenade.x + grenade.size / 2 >= hurdle.x &&
+            grenade.x - grenade.size / 2 <= hurdle.x + hurdle.width && 
+            grenade.y + grenade.size / 2 >= hurdle.y) {
+          grenade.vx = 0;
+        }
+      }
+    }
+
+    function checkStarCollision() {
+      for (let star of stars) {
+        if (!star.collected && dist(grenade.x, grenade.y, star.x, star.y) < grenade.size / 2 + 15) {
+          star.collected = true;
+          collectedStars++;
+          document.getElementById('star-count').innerText = `${collectedStars}/2`;
+        }
+      }
+    }
+
+    function endGame(victory) {
+      gameOver = true;
+      gameState = 'gameOver';
+      document.getElementById('game-over-screen').classList.remove('hidden');
+      document.getElementById('game-over-message').innerText = victory ? 'You blasted the zombie!' : 'You used all grenades! Game Over.';
+      document.getElementById('final-score').innerText = `Stars collected: ${collectedStars}/2`;
+    }
+
+    function drawStar(x, y, radius1, radius2, npoints) {
+      let angle = TWO_PI / npoints;
+      let halfAngle = angle / 2.0;
+      beginShape();
+      for (let a = 0; a < TWO_PI; a += angle) {
+        let sx = x + cos(a) * radius2;
+        let sy = y + sin(a) * radius2;
+        vertex(sx, sy);
+        sx = x + cos(a + halfAngle) * radius1;
+        sy = y + sin(a + halfAngle) * radius1;
+        vertex(sx, sy);
+      }
+      endShape(CLOSE);
+    }
+
+    // New function to update game elements on resize
+    function updateGameElements() {
+      // Update player position
+      player.y = height - 100;
+
+      // Update zombie position
+      zombie.x = width - 150;
+      zombie.y = height - 100;
+
+      // Update hurdles
+      hurdles[0] = { x: width / 3, y: height - 200, width: 50, height: 100 };
+      hurdles[1] = { x: 2 * width / 3, y: height - 300, width: 50, height: 150 };
+
+      // Update stars
+      stars[0] = { x: width / 4, y: height - 250, collected: stars[0] ? stars[0].collected : false };
+      stars[1] = { x: width / 2, y: height - 350, collected: stars[1] ? stars[1].collected : false };
+
+      // Reset grenade position if not thrown
+      if (!grenade.thrown) {
+        grenade.x = player.x;
+        grenade.y = player.y;
+      }
+    }
+
+    // Updated windowResized function
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      updateGameElements();
+    }
+
+    // Start Game Logic
+    document.getElementById('start-game-btn').addEventListener('click', () => {
+      document.getElementById('start-screen').classList.add('hidden');
+      document.getElementById('game-container').classList.remove('hidden');
+      gameState = 'play';
+      grenades = 2;
+      grenadeUsed = 0;
+      collectedStars = 0;
+      gameOver = false;
+      document.getElementById('grenade-count').innerText = '0/2';
+      document.getElementById('star-count').innerText = '0/2';
+    });
+
+    // Try Again Button Logic
+    document.getElementById('try-again-btn').addEventListener('click', () => {
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>

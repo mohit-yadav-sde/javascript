@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zombie Grenade Game</title>
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center h-screen">
+    <div id="gameContainer" style="display: none;">
+        <div id="grenadeCount" class="mb-4"></div>
+    </div>
+    <div id="startScreen" class="text-center">
+        <h1 class="text-4xl mb-4">Zombie Grenade Blast</h1>
+        <p class="mb-4">Throw grenades to blast zombies and collect stars for a 3-star score! Use your mouse to aim and throw grenades.</p>
+        <button id="startButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Start Game</button>
+    </div>
+    <div id="gameOverScreen" style="display: none;" class="text-center">
+        <h2 class="text-3xl mb-4"></h2>
+        <p id="starsCollected" class="mb-4"></p>
+        <button id="tryAgain" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Try Again</button>
+    </div>
+    <script>
+        let player, zombie, grenades = [], stars = [], hurdles = [];
+let grenadeCount = 2;
+let starsCollected = 0;
+let gameState = 'start';
+
+function setup() {
+    createCanvas(800, 600);
+    player = new Player();
+    zombie = new Zombie();
+    for (let i = 0; i < 5; i++) {
+        stars.push(new Star());
+    }
+}
+
+function draw() {
+    background(51);
+    
+    if (gameState === 'start') {
+        // Handled by HTML/CSS
+    } else if (gameState === 'play') {
+        updateGame();
+    } else if (gameState === 'end') {
+        // Game over screen in HTML
+    }
+}
+
+function updateGame() {
+    player.show();
+    for (let star of stars) star.show();
+    zombie.show();
+    
+    for (let g of grenades) {
+        g.update();
+        g.show();
+        if (g.hits(zombie)) {
+            gameState = 'end';
+            document.getElementById('gameOverScreen').style.display = 'block';
+            document.querySelector('#gameOverScreen h2').textContent = "You blasted the zombie!";
+        }
+    }
+    
+    // Check star collection
+    stars = stars.filter(star => {
+        if (!star.collected) {
+            grenades.forEach(g => {
+                if (g.hits(star)) {
+                    star.collected = true;
+                    starsCollected++;
+                }
+            });
+        }
+        return !star.collected;
+    });
+    
+    // Update grenade count display
+    document.getElementById('grenadeCount').innerText = `Grenades Left: ${grenadeCount}`;
+    
+    if (grenadeCount === 0) {
+        gameState = 'end';
+        document.getElementById('gameOverScreen').style.display = 'block';
+        document.querySelector('#gameOverScreen h2').textContent = "You used all grenades! Game Over.";
+    }
+}
+
+function mousePressed() {
+    if (gameState === 'play' && grenadeCount > 0) {
+        grenades.push(new Grenade(mouseX, mouseY));
+        grenadeCount--;
+    }
+}
+
+// Classes for Player, Zombie, Grenade, Star, etc. would be defined here
+class Player {
+    constructor() { /*...*/ }
+    show() { /*...*/ }
+}
+
+class Zombie {
+    constructor() { /*...*/ }
+    show() { /*...*/ }
+}
+
+class Grenade {
+    constructor(x, y) { /*...*/ }
+    update() { /*...*/ }
+    show() { /*...*/ }
+    hits(target) { /*...*/ }
+}
+
+class Star {
+    constructor() { /*...*/ }
+    show() { /*...*/ }
+}
+
+// Event listeners for buttons
+document.getElementById('startButton').addEventListener('click', () => {
+    gameState = 'play';
+    document.getElementById('startScreen').style.display = 'none';
+    document.getElementById('gameContainer').style.display = 'block';
+});
+
+document.getElementById('tryAgain').addEventListener('click', () => {
+    location.reload(); // Simple reload for reset
+});
+
+// Initial call to setup
+function preload() {
+    setup();
+}
+
+// This ensures the canvas is created after the DOM is fully loaded
+window.onload = function() {
+    let canvas = createCanvas(800, 600);
+    canvas.parent('gameContainer');
+};
+    </script>
+</body>
+</html>
