@@ -18,7 +18,7 @@
                 <li>Pan: Click and drag to move the camera</li>
                 <li>Zoom: Use the mouse wheel to zoom in and out</li>
                 <li>Select: Click on a planet to view its information</li>
-                <li>Adjust: Use the controls in the top-right to change the scale, speed, and view of the simulation</li>
+                <li>Adjust: Use the controls in the top-right to change the scale and speed of the simulation</li>
             </ul>
             <button id="startButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
                 Start Simulation
@@ -52,12 +52,12 @@
         const planetData = [
             { name: "Mercury", radius: 0.38, distance: 5.7, color: 0xC0C0C0, orbitSpeed: 0.0001, surfaceTemp: "430°C (day), -180°C (night)", atmosphere: "Virtually none", facts: "Smallest planet in the solar system", moons: [] },
             { name: "Venus", radius: 0.95, distance: 10.8, color: 0xFFA500, orbitSpeed: 0.00007, surfaceTemp: "462°C", atmosphere: "Thick, mostly CO2", facts: "Rotates backwards compared to other planets", moons: [] },
-            { name: "Earth", radius: 1, distance: 15, color: 0x0000FF, orbitSpeed: 0.00005, surfaceTemp: "15°C (average)", atmosphere: "78% nitrogen, 21% oxygen", facts: "Only known planet with life", moons: [{ name: "Moon", radius: 0.27, distance: 0.4, color: 0xDDDDDD }] },
-            { name: "Mars", radius: 0.53, distance: 22.8, color: 0xFF0000, orbitSpeed: 0.00003, surfaceTemp: "-63°C (average)", atmosphere: "Thin, mostly CO2", facts: "Has the largest volcano in the solar system", moons: [{ name: "Phobos", radius: 0.05, distance: 0.2, color: 0xAAAAAA }, { name: "Deimos", radius: 0.03, distance: 0.3, color: 0x888888 }] },
-            { name: "Jupiter", radius: 11.2, distance: 77.8, color: 0xFFA07A, orbitSpeed: 0.00001, surfaceTemp: "-110°C (cloud top)", atmosphere: "Hydrogen and helium", facts: "Largest planet in the solar system", moons: [{ name: "Io", radius: 0.286, distance: 2, color: 0xFFFF00 }, { name: "Europa", radius: 0.245, distance: 2.5, color: 0xFFFFFF }, { name: "Ganymede", radius: 0.413, distance: 3, color: 0xCCCCCC }, { name: "Callisto", radius: 0.378, distance: 3.5, color: 0x888888 }] },
-            { name: "Saturn", radius: 9.45, distance: 142.4, color: 0xFFD700, orbitSpeed: 0.000005, surfaceTemp: "-140°C (average)", atmosphere: "Hydrogen and helium", facts: "Has the most extensive ring system", moons: [{ name: "Titan", radius: 0.404, distance: 4, color: 0xFFAA00 }] },
-            { name: "Uranus", radius: 4, distance: 287.1, color: 0x00FFFF, orbitSpeed: 0.000003, surfaceTemp: "-195°C (average)", atmosphere: "Hydrogen, helium, and methane", facts: "Rotates on its side", moons: [{ name: "Miranda", radius: 0.037, distance: 1.5, color: 0xCCCCCC }] },
-            { name: "Neptune", radius: 3.88, distance: 449.5, color: 0x0000FF, orbitSpeed: 0.000001, surfaceTemp: "-200°C (average)", atmosphere: "Hydrogen, helium, and methane", facts: "Has the strongest winds in the solar system", moons: [{ name: "Triton", radius: 0.212, distance: 2, color: 0xFFFFFF }] }
+            { name: "Earth", radius: 1, distance: 15, color: 0x0000FF, orbitSpeed: 0.00005, surfaceTemp: "15°C (average)", atmosphere: "78% nitrogen, 21% oxygen", facts: "Only known planet with life", moons: [{ name: "Moon", radius: 0.27, distance: 2, color: 0xDDDDDD }] },
+            { name: "Mars", radius: 0.53, distance: 22.8, color: 0xFF0000, orbitSpeed: 0.00003, surfaceTemp: "-63°C (average)", atmosphere: "Thin, mostly CO2", facts: "Has the largest volcano in the solar system", moons: [{ name: "Phobos", radius: 0.15, distance: 1.5, color: 0xAAAAAA }, { name: "Deimos", radius: 0.1, distance: 2, color: 0x888888 }] },
+            { name: "Jupiter", radius: 11.2, distance: 77.8, color: 0xFFA07A, orbitSpeed: 0.00001, surfaceTemp: "-110°C (cloud top)", atmosphere: "Hydrogen and helium", facts: "Largest planet in the solar system", moons: [{ name: "Io", radius: 0.5, distance: 13, color: 0xFFFF00 }, { name: "Europa", radius: 0.4, distance: 14, color: 0xFFFFFF }, { name: "Ganymede", radius: 0.6, distance: 15, color: 0xCCCCCC }, { name: "Callisto", radius: 0.55, distance: 16, color: 0x888888 }] },
+            { name: "Saturn", radius: 9.45, distance: 142.4, color: 0xFFD700, orbitSpeed: 0.000005, surfaceTemp: "-140°C (average)", atmosphere: "Hydrogen and helium", facts: "Has the most extensive ring system", moons: [{ name: "Titan", radius: 0.8, distance: 12, color: 0xFFAA00 }] },
+            { name: "Uranus", radius: 4, distance: 287.1, color: 0x00FFFF, orbitSpeed: 0.000003, surfaceTemp: "-195°C (average)", atmosphere: "Hydrogen, helium, and methane", facts: "Rotates on its side", moons: [{ name: "Miranda", radius: 0.3, distance: 6, color: 0xCCCCCC }] },
+            { name: "Neptune", radius: 3.88, distance: 449.5, color: 0x0000FF, orbitSpeed: 0.000001, surfaceTemp: "-200°C (average)", atmosphere: "Hydrogen, helium, and methane", facts: "Has the strongest winds in the solar system", moons: [{ name: "Triton", radius: 0.5, distance: 6, color: 0xFFFFFF }] }
         ];
 
         const planets = [];
@@ -77,7 +77,11 @@
             // Create moons for each planet
             planet.moons.forEach((moon) => {
                 const moonGeometry = new THREE.SphereGeometry(moon.radius, 32, 32);
-                const moonMaterial = new THREE.MeshPhongMaterial({ color: moon.color });
+                const moonMaterial = new THREE.MeshStandardMaterial({ 
+                    color: moon.color,
+                    metalness: 0.5,
+                    roughness: 0.5
+                });
                 const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
                 moonMesh.position.x = planet.distance + moon.distance;
                 scene.add(moonMesh);
@@ -92,7 +96,7 @@
         scene.add(sunMesh);
 
         // Set initial camera position
-        const defaultCameraPosition = new THREE.Vector3(0, 30, 100);
+        const defaultCameraPosition = new THREE.Vector3(0, 50, 150);
         camera.position.copy(defaultCameraPosition);
         camera.lookAt(0, 0, 0);
 
@@ -111,7 +115,7 @@
         let scaleFactor = 1;
         let speedFactor = 1;
 
-        // GUI for scale, speed, and view adjustment
+        // GUI for scale and speed adjustment
         const gui = new dat.GUI();
         const controls = {
             scale: 1,
@@ -124,7 +128,6 @@
         gui.add(controls, 'speed', 0.1, 10).onChange((value) => {
             speedFactor = value;
         });
-        
 
         // Function to update planet positions based on scale factor
         function updatePlanetPositions() {
@@ -136,19 +139,6 @@
                 const planetPosition = moonData.planet.position;
                 moonData.mesh.position.x = planetPosition.x + moonData.orbitRadius * scaleFactor;
             });
-        }
-
-        // Function to update camera position based on view
-        function updateCameraPosition(view) {
-            switch (view) {
-                case 'default':
-                    camera.position.copy(defaultCameraPosition);
-                    break;
-                case 'side':
-                    camera.position.set(100, 0, 0);
-                    break;
-            }
-            camera.lookAt(0, 0, 0);
         }
 
         // Animation loop
@@ -252,7 +242,8 @@
                 hidePlanetInfo();
             }
         }
-// Function to display planet information
+
+        // Function to display planet information
         function showPlanetInfo(planet) {
             const planetInfo = document.getElementById('planetInfo');
             planetInfo.innerHTML = `
