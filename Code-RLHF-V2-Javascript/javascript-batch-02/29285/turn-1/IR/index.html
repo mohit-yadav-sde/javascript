@@ -74,32 +74,9 @@
   // Game variables
   let mouse, cats = [], cheeseCount = 0, score = 0;
   let gameState = 'start'; // 'start', 'playing', 'gameOver'
-  let moveDelay = 15;  // Time in frames between moves
-  let moveCounter = 0;  // Counter to track movement
 
   // Game grid
-  const grid = [
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,0,0,0,1,0,2,0,1,0,0,0,0,0,2,0,1,0,0,1],
-    [1,0,1,0,1,0,1,0,1,0,1,1,1,0,1,0,1,0,1,1],
-    [1,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,1],
-    [1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1,1,0,1],
-    [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
-    [1,0,1,1,1,1,1,0,1,0,1,1,1,0,1,1,1,1,0,1],
-    [1,0,0,0,0,0,1,0,1,0,0,0,1,0,1,0,0,0,0,1],
-    [1,1,1,1,1,0,1,0,1,1,1,0,1,0,1,1,1,1,0,1],
-    [1,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1],
-    [1,1,1,0,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,1],
-    [1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
-    [1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1,1,1,1],
-    [1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
-    [1,0,1,1,1,1,1,0,1,1,1,0,1,0,1,1,1,1,1,1],
-    [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,1],
-    [1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1],
-    [1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  ];
+  let grid = [];
 
   function setup() {
     createCanvas(cols * tileSize, rows * tileSize);
@@ -121,14 +98,48 @@
     cheeseCount = 0;
     score = 0;
 
-    // Count cheese in the grid
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        if (grid[y][x] === 2) cheeseCount++;
-      }
-    }
+    // Generate a new grid with randomly placed cheese
+    grid = generateGrid();
 
     document.querySelector('.score').innerText = `Score: ${score}`;
+  }
+
+  function generateGrid() {
+    let newGrid = [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1],
+      [1,0,1,0,1,0,1,0,1,0,1,1,1,0,1,0,1,0,1,1],
+      [1,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,1],
+      [1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1,1,0,1],
+      [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+      [1,0,1,1,1,1,1,0,1,0,1,1,1,0,1,1,1,1,0,1],
+      [1,0,0,0,0,0,1,0,1,0,0,0,1,0,1,0,0,0,0,1],
+      [1,1,1,1,1,0,1,0,1,1,1,0,1,0,1,1,1,1,0,1],
+      [1,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1],
+      [1,1,1,0,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,1],
+      [1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
+      [1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1,1,1,1],
+      [1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+      [1,0,1,1,1,1,1,0,1,1,1,0,1,0,1,1,1,1,1,1],
+      [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,1],
+      [1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1],
+      [1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+
+    // Add cheese randomly
+    for (let i = 0; i < 10; i++) {  // Place 10 pieces of cheese
+      let x, y;
+      do {
+        x = Math.floor(Math.random() * cols);
+        y = Math.floor(Math.random() * rows);
+      } while (newGrid[y][x] !== 0);  // Ensure cheese is placed on empty spaces
+      newGrid[y][x] = 2;
+      cheeseCount++;
+    }
+
+    return newGrid;
   }
 
   function drawGrid() {
@@ -193,51 +204,46 @@
       this.y = y;
       this.displayX = x * tileSize;
       this.displayY = y * tileSize;
-      this.xSpeed = 0;
-      this.ySpeed = 0;
+      this.nextX = x;
+      this.nextY = y;
       this.isMoving = false;
-      this.moveDelay = 15; // Frames between moves
-      this.moveCounter = 0;
     }
 
     move() {
-      // Update display position for smooth movement
-      this.displayX = lerp(this.displayX, this.x * tileSize, 0.2);
-      this.displayY = lerp(this.displayY, this.y * tileSize, 0.2);
+      if (this.isMoving) {
+        // Update display position for smooth movement
+        this.displayX = lerp(this.displayX, this.x * tileSize, 0.2);
+        this.displayY = lerp(this.displayY, this.y * tileSize, 0.2);
 
-      // Check if we've nearly reached the target position
-      if (abs(this.displayX - this.x * tileSize) < 1 && abs(this.displayY - this.y * tileSize) < 1) {
-        this.displayX = this.x * tileSize;
-        this.displayY = this.y * tileSize;
-        this.isMoving = false;
-      }
+        // Check if we've nearly reached the target position
+        if (abs(this.displayX - this.x * tileSize) < 1 && abs(this.displayY - this.y * tileSize) < 1) {
+          this.displayX = this.x * tileSize;
+          this.displayY = this.y * tileSize;
+          this.isMoving = false;
 
-      // If not moving, check for next move
-      if (!this.isMoving) {
-        this.moveCounter++;
-        if (this.moveCounter >= this.moveDelay) {
-          this.moveCounter = 0;
-          const nextX = this.x + this.xSpeed;
-          const nextY = this.y + this.ySpeed;
+          // Collect cheese
+          if (grid[this.y][this.x] === 2) {
+            grid[this.y][this.x] = 0;
+            score++;
+            cheeseCount--;
+            document.querySelector('.score').innerText = `Score: ${score}`;
 
-          if (grid[nextY][nextX] !== 1) { // Only move if it's not a wall
-            this.x = nextX;
-            this.y = nextY;
-            this.isMoving = true;
-
-            // Collect cheese
-            if (grid[this.y][this.x] === 2) {
-              grid[this.y][this.x] = 0;
-              score++;
-              cheeseCount--;
-              document.querySelector('.score').innerText = `Score: ${score}`;
-
-              // Check for win only after collecting the last cheese
-              if (cheeseCount === 0) {
-                gameOver();
-              }
+            // Check for win only after collecting the last cheese
+            if (cheeseCount === 0) {
+              gameOver();
             }
           }
+        }
+      } else if (this.x !== this.nextX || this.y !== this.nextY) {
+        // Start moving to the next position
+        if (grid[this.nextY][this.nextX] !== 1) { // Only move if it's not a wall
+          this.x = this.nextX;
+          this.y = this.nextY;
+          this.isMoving = true;
+        } else {
+          // If it's a wall, reset next position
+          this.nextX = this.x;
+          this.nextY = this.y;
         }
       }
     }
@@ -248,10 +254,10 @@
       ellipse(this.displayX + tileSize / 2, this.displayY + tileSize / 2, tileSize / 1.5);
     }
 
-    setDirection(xSpeed, ySpeed) {
-      // Set the direction of movement
-      this.xSpeed = xSpeed;
-      this.ySpeed = ySpeed;
+    setDirection(dx, dy) {
+      // Set the next position to move to
+      this.nextX = this.x + dx;
+      this.nextY = this.y + dy;
     }
 
     collides(cat) {
@@ -267,18 +273,60 @@
       this.displayX = x * tileSize;
       this.displayY = y * tileSize;
       this.moveCounter = 0;
-      this.moveDelay = 30; // Frames between moves
+      this.moveDelay = 10; // Decreased from 30 to 10 for more frequent movement
+      this.state = 'chase'; // 'chase' or 'wander'
+      this.stateCounter = 0;
+      this.stateChangeDelay = 180; // Change state every 3 seconds (60 frames per second)
     }
 
     chase(target) {
-      // Move towards the target (mouse)
       this.moveCounter++;
+      this.stateCounter++;
+
+      // Change state if needed
+      if (this.stateCounter >= this.stateChangeDelay) {
+        this.state = this.state === 'chase' ? 'wander' : 'chase';
+        this.stateCounter = 0;
+      }
+
       if (this.moveCounter >= this.moveDelay) {
         this.moveCounter = 0;
-        if (target.x > this.x && grid[this.y][this.x + 1] !== 1) this.x++;
-        else if (target.x < this.x && grid[this.y][this.x - 1] !== 1) this.x--;
-        else if (target.y > this.y && grid[this.y + 1][this.x] !== 1) this.y++;
-        else if (target.y < this.y && grid[this.y - 1][this.x] !== 1) this.y--;
+        let moveX = 0;
+        let moveY = 0;
+
+        if (this.state === 'chase') {
+          let dx = target.x - this.x;
+          let dy = target.y - this.y;
+          
+          // Determine the direction to move
+          if (Math.abs(dx) > Math.abs(dy)) {
+            moveX = Math.sign(dx);
+          } else {
+            moveY = Math.sign(dy);
+          }
+        } else { // 'wander' state
+          // Move randomly
+          let randomDir = Math.floor(Math.random() * 4);
+          switch(randomDir) {
+            case 0: moveX = 1; break;
+            case 1: moveX = -1; break;
+            case 2: moveY = 1; break;
+            case 3: moveY = -1; break;
+          }
+        }
+        
+        // Try to move in the determined direction
+        if (grid[this.y + moveY][this.x + moveX] !== 1) {
+          this.x += moveX;
+          this.y += moveY;
+        } else if (moveX !== 0 && grid[this.y][this.x + moveX] !== 1) {
+          // If can't move diagonally, try moving horizontally
+          this.x += moveX;
+        } else if (moveY !== 0 && grid[this.y + moveY][this.x] !== 1) {
+          // If can't move horizontally, try moving vertically
+          this.y += moveY;
+        }
+        // If all moves are blocked, the cat stays in place
       }
 
       // Check for collision with mouse
@@ -289,8 +337,8 @@
 
     display() {
       // Draw the cat with smooth movement
-      this.displayX = lerp(this.displayX, this.x * tileSize, 0.1);
-      this.displayY = lerp(this.displayY, this.y * tileSize, 0.1);
+      this.displayX = lerp(this.displayX, this.x * tileSize, 0.2);
+      this.displayY = lerp(this.displayY, this.y * tileSize, 0.2);
 
       fill(255, 0, 0);
       ellipse(this.displayX + tileSize / 2, this.displayY + tileSize / 2, tileSize / 1.5);
