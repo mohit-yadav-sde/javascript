@@ -4,295 +4,550 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Star Wars Wiki</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Include Chart.js library for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* Import Roboto font from Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+        
+        /* Reset default styles and set box-sizing */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Set global styles for the body */
         body {
-            font-family: 'Orbitron', sans-serif;
-            background-image: url('https://via.placeholder.com/1920x1080.png');
-            background-size: cover;
-            background-attachment: fixed;
+            font-family: 'Roboto', sans-serif;
+            background-color: #0c0d0e;
+            color: #e0e0e0;
+            line-height: 1.6;
         }
 
-        .star-wars-yellow {
-            color: #FFE81F;
+        /* Style the header */
+        header {
+            background-color: #1c1e22;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
         }
 
-        .lightsaber-glow {
-            text-shadow: 0 0 5px #FFE81F, 0 0 10px #FFE81F, 0 0 15px #FFE81F, 0 0 20px #FFE81F;
+        /* Style the main title */
+        h1 {
+            font-size: 2.5rem;
+            color: #ffd700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
 
-        .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #FFE81F;
-            border-top: 5px solid #000;
+        /* Style the main content area */
+        main {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Style the sorting controls */
+        #sorting {
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        /* Style the select dropdowns */
+        select {
+            background-color: #2c2e32;
+            color: #e0e0e0;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        select:hover {
+            background-color: #3c3e42;
+        }
+
+        /* Style the movie grid */
+        #movie-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        /* Style individual movie cards */
+        .movie-card {
+            background-color: #1c1e22;
+            padding: 1.5rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .movie-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        }
+
+        .movie-card h2 {
+            color: #ffd700;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Style the modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+
+        /* Style the modal content */
+        .modal-content {
+            background-color: #1c1e22;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 900px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        /* Style the close button */
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close:hover {
+            color: #fff;
+        }
+
+        /* Style the horizontal scrolling containers */
+        .horizontal-scroll {
+            display: flex;
+            overflow-x: auto;
+            gap: 1rem;
+            padding: 1rem 0;
+            scrollbar-width: thin;
+            scrollbar-color: #ffd700 #1c1e22;
+        }
+
+        /* Style the scrollbar for WebKit browsers */
+        .horizontal-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .horizontal-scroll::-webkit-scrollbar-track {
+            background: #1c1e22;
+        }
+
+        .horizontal-scroll::-webkit-scrollbar-thumb {
+            background-color: #ffd700;
+            border-radius: 20px;
+        }
+
+        /* Style character and species cards */
+        .character-card, .species-card {
+            background-color: #2c2e32;
+            padding: 1rem;
+            border-radius: 8px;
+            min-width: 200px;
+            transition: transform 0.3s;
+        }
+
+        .character-card:hover, .species-card:hover {
+            transform: scale(1.05);
+        }
+
+        /* Style the loading indicator */
+        #loading {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: #ffd700;
+        }
+
+        /* Style the chart containers */
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            margin: 1.5rem auto;
+        }
+
+        /* Style the section headers */
+        h3 {
+            color: #ffd700;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Style the loading text */
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 1.2rem;
+            color: #ffd700;
+        }
+
+        /* Style the loading spinner */
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #ffd700;
             border-radius: 50%;
+            width: 40px;
+            height: 40px;
             animation: spin 1s linear infinite;
+            margin: 20px auto;
         }
 
+        /* Define the spin animation for the loading spinner */
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
 
-        .loading-text {
-            font-size: 1.2em;
-            color: #FFE81F;
-            text-shadow: 0 0 5px #FFE81F;
-            animation: glow 1.5s ease-in-out infinite alternate;
+        /* Remove extra space after charts */
+        #modal-body {
+            display: flex;
+            flex-direction: column;
         }
 
-        @keyframes glow {
-            from { text-shadow: 0 0 5px #FFE81F; }
-            to { text-shadow: 0 0 10px #FFE81F, 0 0 15px #FFE81F; }
+        #modal-body > *:last-child {
+            margin-bottom: 0;
         }
 
-        .hide-scrollbar::-webkit-scrollbar {
-            display: none;
+        #charts {
+            margin-bottom: 0;
         }
 
-        .hide-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-
-        .movie-card {
-            background: rgba(0, 0, 0, 0.7);
-            border: 2px solid #FFE81F;
-            transition: all 0.3s ease;
-        }
-
-        .movie-card:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 15px #FFE81F;
-        }
-
-        .modal-content {
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #FFE81F;
-        }
-
-        .detail-card {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid #FFE81F;
+        .chart-container:last-child {
+            margin-bottom: 0;
         }
     </style>
 </head>
-<body class="text-gray-300">
-    <header class="bg-black bg-opacity-80 p-4 sticky top-0 z-50">
-        <h1 class="text-4xl font-bold star-wars-yellow lightsaber-glow">Star Wars Wiki</h1>
+<body>
+    <!-- Header section -->
+    <header>
+        <h1>Star Wars Wiki</h1>
     </header>
 
-    <main class="container mx-auto p-4">
-        <div class="mb-4 flex justify-between items-center">
-            <label for="sort" class="mr-2 star-wars-yellow">Sort by:</label>
-            <select id="sort" class="p-2 rounded bg-black text-yellow-300 border border-yellow-300">
-                <option value="episode_asc">Episode (Ascending)</option>
-                <option value="episode_desc">Episode (Descending)</option>
-                <option value="release_asc">Release Date (Ascending)</option>
-                <option value="release_desc">Release Date (Descending)</option>
+    <!-- Main content area -->
+    <main>
+        <!-- Sorting controls -->
+        <div id="sorting">
+            <select id="sort-by">
+                <option value="episode">Sort by Episode</option>
+                <option value="release_date">Sort by Release Date</option>
+            </select>
+            <select id="sort-order">
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
             </select>
         </div>
-        <div id="movieGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+        <!-- Loading indicator -->
+        <div id="loading">Loading...</div>
+
+        <!-- Container for movie cards -->
+        <div id="movie-grid"></div>
     </main>
 
-    <div id="modal" class="fixed inset-0 bg-black bg-opacity-80 hidden overflow-y-auto h-full w-full">
-        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md modal-content max-h-[80vh] flex flex-col">
-            <div class="flex justify-between items-center mb-4 sticky top-0 bg-black z-10">
-                <h2 id="modalTitle" class="text-2xl font-bold star-wars-yellow lightsaber-glow"></h2>
-                <button id="closeModal" class="bg-red-700 hover:bg-red-800 text-white font-bold py-2 px-4 rounded">
-                    Close
-                </button>
-            </div>
-            <div id="modalContent" class="overflow-y-auto flex-grow"></div>
+    <!-- Modal for displaying detailed movie information -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="modal-body"></div>
         </div>
     </div>
 
     <script>
+        // Base URL for the Star Wars API
         const apiUrl = 'https://swapi.dev/api/films/';
+        
+        // Array to store fetched movie data
         let movies = [];
+        
+        // Variables to store chart instances
+        let birthYearChart, speciesChart;
 
-        function formatDate(dateString) {
-            const options = { year: 'numeric', month: 'long', day: 'numeric' };
-            return new Date(dateString).toLocaleDateString(undefined, options);
-        }
-
+        // Function to fetch movie data from the API
         async function fetchMovies() {
             try {
-                const response = await axios.get(apiUrl);
-                movies = response.data.results;
-                sortMovies('episode_asc');
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                movies = data.results;
+                sortMovies(); // Sort movies by episode in ascending order on page load
                 renderMovies();
+                document.getElementById('loading').style.display = 'none';
             } catch (error) {
                 console.error('Error fetching movies:', error);
             }
         }
 
+        // Function to render movie cards
         function renderMovies() {
-            const movieGrid = document.getElementById('movieGrid');
+            const movieGrid = document.getElementById('movie-grid');
             movieGrid.innerHTML = '';
-
             movies.forEach(movie => {
                 const movieCard = document.createElement('div');
-                movieCard.className = 'movie-card p-4 rounded shadow cursor-pointer';
+                movieCard.className = 'movie-card';
                 movieCard.innerHTML = `
-                    <h2 class="text-xl font-bold mb-2 star-wars-yellow">${movie.title}</h2>
-                    <p>Episode: ${movie.episode_id}</p>
-                    <p>Directed by: ${movie.director}</p>
-                    <p>Release Date: ${formatDate(movie.release_date)}</p>
+                    <h2>${movie.title}</h2>
+                    <p><strong>Episode:</strong> ${movie.episode_id}</p>
+                    <p><strong>Directed by:</strong> ${movie.director}</p>
+                    <p><strong>Release Date:</strong> ${movie.release_date}</p>
                 `;
                 movieCard.addEventListener('click', () => openModal(movie));
                 movieGrid.appendChild(movieCard);
             });
         }
 
+        // Function to open the modal and display detailed movie information
         async function openModal(movie) {
-            const modalTitle = document.getElementById('modalTitle');
-            const modalContent = document.getElementById('modalContent');
-            
-            modalTitle.textContent = movie.title;
-            modalContent.innerHTML = `
-                <p><strong class="star-wars-yellow">Episode:</strong> ${movie.episode_id}</p>
-                <p><strong class="star-wars-yellow">Release Date:</strong> ${formatDate(movie.release_date)}</p>
-                <p><strong class="star-wars-yellow">Director:</strong> ${movie.director}</p>
-                <p><strong class="star-wars-yellow">Producer:</strong> ${movie.producer}</p>
-                <p><strong class="star-wars-yellow">Synopsis:</strong> ${movie.opening_crawl}</p>
-                <h3 class="text-xl font-bold mt-4 mb-2 star-wars-yellow">Characters</h3>
-                <div class="relative">
-                    <button id="prevCharacters" class="absolute left-0 top-1/2 transform -translate-y-1/2 bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-2 px-4 rounded-full">
-                        &#10094;
-                    </button>
-                    <div id="characters" class="flex overflow-x-auto hide-scrollbar p-4">
-                        ${createLoadingUI('characters')}
+            const modal = document.getElementById('modal');
+            const modalBody = document.getElementById('modal-body');
+            modalBody.innerHTML = `
+                <h2>${movie.title}</h2>
+                <p><strong>Episode:</strong> ${movie.episode_id}</p>
+                <p><strong>Release Date:</strong> ${movie.release_date}</p>
+                <p><strong>Director:</strong> ${movie.director}</p>
+                <p><strong>Producer:</strong> ${movie.producer}</p>
+                <h3>Synopsis:</h3>
+                <p>${movie.opening_crawl}</p>
+                <h3>Characters:</h3>
+                <div id="characters" class="horizontal-scroll">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading characters...
                     </div>
-                    <button id="nextCharacters" class="absolute right-0 top-1/2 transform -translate-y-1/2 bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-2 px-4 rounded-full">
-                        &#10095;
-                    </button>
                 </div>
-                <h3 class="text-xl font-bold mt-4 mb-2 star-wars-yellow">Species</h3>
-                <div class="relative">
-                    <button id="prevSpecies" class="absolute left-0 top-1/2 transform -translate-y-1/2 bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-2 px-4 rounded-full">
-                        &#10094;
-                    </button>
-                    <div id="species" class="flex overflow-x-auto hide-scrollbar p-4">
-                        ${createLoadingUI('species')}
+                <h3>Species:</h3>
+                <div id="species" class="horizontal-scroll">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading species...
                     </div>
-                    <button id="nextSpecies" class="absolute right-0 top-1/2 transform -translate-y-1/2 bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-2 px-4 rounded-full">
-                        &#10095;
-                    </button>
+                </div>
+                <h3>Charts:</h3>
+                <div id="charts">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading charts...
+                    </div>
                 </div>
             `;
 
-            document.getElementById('modal').classList.remove('hidden');
+            modal.style.display = 'block';
 
-            await fetchAndRenderDetails(movie.characters, 'characters');
-            await fetchAndRenderDetails(movie.species, 'species');
+            const charactersContainer = document.getElementById('characters');
+            const speciesContainer = document.getElementById('species');
+            const chartsContainer = document.getElementById('charts');
 
-            setupNavigation('characters');
-            setupNavigation('species');
+            try {
+                // Fetch character and species data
+                const [characterData, speciesData] = await Promise.all([
+                    Promise.all(movie.characters.map(url => fetch(url).then(res => res.json()))),
+                    Promise.all(movie.species.map(url => fetch(url).then(res => res.json())))
+                ]);
+
+                // Render characters
+                charactersContainer.innerHTML = '';
+                characterData.forEach(character => {
+                    const characterCard = document.createElement('div');
+                    characterCard.className = 'character-card';
+                    characterCard.innerHTML = `
+                        <h4>${character.name}</h4>
+                        <p><strong>Birth Year:</strong> ${character.birth_year}</p>
+                        <p><strong>Height:</strong> ${character.height}</p>
+                        <p><strong>Skin Color:</strong> ${character.skin_color}</p>
+                        <p><strong>Hair Color:</strong> ${character.hair_color}</p>
+                        <p><strong>Gender:</strong> ${character.gender}</p>
+                    `;
+                    charactersContainer.appendChild(characterCard);
+                });
+
+                // Render species
+                speciesContainer.innerHTML = '';
+                speciesData.forEach(species => {
+                    const speciesCard = document.createElement('div');
+                    speciesCard.className = 'species-card';
+                    speciesCard.innerHTML = `
+                        <h4>${species.name}</h4>
+                        <p><strong>Classification:</strong> ${species.classification}</p>
+                        <p><strong>Designation:</strong> ${species.designation}</p>
+                        <p><strong>Height:</strong> ${species.average_height}</p>
+                        <p><strong>Lifespan:</strong> ${species.average_lifespan}</p>
+                        <p><strong>Language:</strong> ${species.language}</p>
+                    `;
+                    speciesContainer.appendChild(speciesCard);
+                });
+
+                // Render charts
+                chartsContainer.innerHTML = `
+                    <h4>Character Birth Years</h4>
+                    <div class="chart-container">
+                        <canvas id="birthYearChart"></canvas>
+                    </div>
+                    <h4>Species Classification</h4>
+                    <div class="chart-container">
+                        <canvas id="speciesChart"></canvas>
+                    </div>
+                `;
+
+                // Clear previous charts if they exist
+                if (birthYearChart) birthYearChart.destroy();
+                if (speciesChart) speciesChart.destroy();
+
+                // Create new charts
+                createBirthYearChart(characterData);
+                createSpeciesChart(speciesData);
+
+            } catch (error) {
+                console.error('Error fetching character or species data:', error);
+                charactersContainer.innerHTML = '<p>Error loading characters. Please try again.</p>';
+                speciesContainer.innerHTML = '<p>Error loading species. Please try again.</p>';
+                chartsContainer.innerHTML = '<p>Error loading charts. Please try again.</p>';
+            }
         }
 
-        function createLoadingUI(type) {
-            return `
-                <div class="flex flex-col items-center justify-center w-full p-4">
-                    <div class="loading-spinner mb-4"></div>
-                    <div class="loading-text">Loading ${type}...</div>
-                </div>
-            `;
-        }
-
-        async function fetchAndRenderDetails(urls, containerId) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = '';
-
-            for (const url of urls) {
-                try {
-                    const response = await axios.get(url);
-                    const data = response.data;
-                    const card = document.createElement('div');
-                    card.className = 'detail-card flex-shrink-0 w-64 p-4 m-2 rounded';
-
-                    if (containerId === 'characters') {
-                        card.innerHTML = `
-                            <h4 class="font-bold star-wars-yellow">${data.name}</h4>
-                            <p><span class="star-wars-yellow">Birth Year:</span> ${data.birth_year}</p>
-                            <p><span class="star-wars-yellow">Height:</span> ${data.height}</p>
-                            <p><span class="star-wars-yellow">Skin Color:</span> ${data.skin_color}</p>
-                            <p><span class="star-wars-yellow">Hair Color:</span> ${data.hair_color}</p>
-                            <p><span class="star-wars-yellow">Gender:</span> ${data.gender}</p>
-                        `;
-                    } else if (containerId === 'species') {
-                        card.innerHTML = `
-                            <h4 class="font-bold star-wars-yellow">${data.name}</h4>
-                            <p><span class="star-wars-yellow">Classification:</span> ${data.classification}</p>
-                            <p><span class="star-wars-yellow">Designation:</span> ${data.designation}</p>
-                            <p><span class="star-wars-yellow">Height:</span> ${data.average_height}</p>
-                            <p><span class="star-wars-yellow">Lifespan:</span> ${data.average_lifespan}</p>
-                            <p><span class="star-wars-yellow">Language:</span> ${data.language}</p>
-                        `;
+        // Function to create the birth year chart
+        function createBirthYearChart(characterData) {
+            const birthYears = characterData
+                .filter(character => character.birth_year !== 'unknown')
+                .map(character => ({
+                    name: character.name,
+                    birthYear: parseInt(character.birth_year) || 0
+                }));
+    
+            const ctx = document.getElementById('birthYearChart').getContext('2d');
+            birthYearChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: birthYears.map(char => char.name),
+                    datasets: [{
+                        label: 'Birth Year',
+                        data: birthYears.map(char => char.birthYear),
+                        borderColor: 'rgb(255, 215, 0)',
+                        backgroundColor: 'rgba(255, 215, 0, 0.2)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: false
+                        },
+                        legend: {
+                            labels: {
+                                color: '#ffffff'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#ffffff'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#ffffff'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
                     }
-
-                    container.appendChild(card);
-                } catch (error) {
-                    console.error(`Error fetching details for ${url}:`, error);
-                    const errorCard = document.createElement('div');
-                    errorCard.className = 'flex-shrink-0 w-64 p-4 m-2 bg-red-900 rounded';
-                    errorCard.textContent = 'Failed to load data';
-                    container.appendChild(errorCard);
                 }
-            }
-
-            if (container.children.length === 0) {
-                container.innerHTML = '<div class="p-4 star-wars-yellow">No data available</div>';
-            }
+            });
+        }
+    
+        function createSpeciesChart(speciesData) {
+            const speciesCount = speciesData.reduce((acc, species) => {
+                acc[species.classification] = (acc[species.classification] || 0) + 1;
+                return acc;
+            }, {});
+    
+            const ctx = document.getElementById('speciesChart').getContext('2d');
+            speciesChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(speciesCount),
+                    datasets: [{
+                        data: Object.values(speciesCount),
+                        backgroundColor: [
+                            'rgb(255, 99, 132)',
+                            'rgb(54, 162, 235)',
+                            'rgb(255, 205, 86)',
+                            'rgb(75, 192, 192)',
+                            'rgb(153, 102, 255)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: false
+                        },
+                        legend: {
+                            labels: {
+                                color: '#ffffff'
+                            }
+                        }
+                    }
+                }
+            });
         }
 
-        function setupNavigation(containerId) {
-            const container = document.getElementById(containerId);
-            const prevButton = document.getElementById(`prev${containerId.charAt(0).toUpperCase() + containerId.slice(1)}`);
-            const nextButton = document.getElementById(`next${containerId.charAt(0).toUpperCase() + containerId.slice(1)}`);
 
-            prevButton.addEventListener('click', () => {
-                container.scrollBy({ left: -300, behavior: 'smooth' });
-            });
-
-            nextButton.addEventListener('click', () => {
-                container.scrollBy({ left: 300, behavior: 'smooth' });
-            });
-
-            container.addEventListener('scroll', () => {
-                prevButton.style.display = container.scrollLeft > 0 ? 'block' : 'none';
-                nextButton.style.display = container.scrollLeft < container.scrollWidth - container.clientWidth ? 'block' : 'none';
-            });
-
-            prevButton.style.display = 'none';
-            nextButton.style.display = container.scrollWidth > container.clientWidth ? 'block' : 'none';
-        }
-
-        function sortMovies(criterion) {
-            const [field, order] = criterion.split('_');
+        document.querySelector('.close').addEventListener('click', () => {
+            document.getElementById('modal').style.display = 'none';
+        });
+    
+        document.getElementById('sort-by').addEventListener('change', sortMovies);
+        document.getElementById('sort-order').addEventListener('change', sortMovies);
+    
+        function sortMovies() {
+            const sortBy = document.getElementById('sort-by').value;
+            const sortOrder = document.getElementById('sort-order').value;
+    
             movies.sort((a, b) => {
-                let comparison = 0;
-                if (field === 'episode') {
-                    comparison = a.episode_id - b.episode_id;
-                } else if (field === 'release') {
-                    comparison = new Date(a.release_date) - new Date(b.release_date);
+                let valueA = sortBy === 'episode' ? a.episode_id : a.release_date;
+                let valueB = sortBy === 'episode' ? b.episode_id : b.release_date;
+    
+                if (sortOrder === 'asc') {
+                    return valueA > valueB ? 1 : -1;
+                } else {
+                    return valueA < valueB ? 1 : -1;
                 }
-                return order === 'asc' ? comparison : -comparison;
             });
-        }
-
-        document.getElementById('closeModal').addEventListener('click', () => {
-            document.getElementById('modal').classList.add('hidden');
-        });
-
-        document.getElementById('sort').addEventListener('change', (e) => {
-            sortMovies(e.target.value);
+    
             renderMovies();
-        });
-
+        }
+    
+        // Initial fetch and render
         fetchMovies();
     </script>
 </body>
