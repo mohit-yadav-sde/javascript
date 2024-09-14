@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Knife Throwing Game</title>
+  <title>Improved Knife Throwing Game</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Basic styles for canvas */
     canvas {
       border: 5px solid #2f4f4f;
       border-radius: 10px;
@@ -16,21 +15,24 @@
 </head>
 <body class="bg-gray-900 text-white h-screen flex flex-col justify-center items-center">
 
+  <!-- Game container with start screen, canvas, score display, and game over screen -->
   <div id="game-container" class="w-full max-w-md mx-auto text-center">
-    <!-- Start Screen -->
+    <!-- Start screen -->
     <div id="start-screen" class="start-screen flex flex-col items-center p-6 space-y-6">
       <h1 class="text-4xl font-bold text-yellow-400">Knife Throwing Game</h1>
       <p class="text-lg text-gray-300">Press the spacebar to throw knives. Don't hit another knife!</p>
       <button id="startGameBtn" class="bg-green-500 text-white py-2 px-4 rounded-lg text-xl hover:bg-green-600">Start Game</button>
     </div>
 
-    <!-- Game Screen -->
+    <!-- Game canvas (hidden initially) -->
     <canvas id="gameCanvas" width="400" height="600" class="hidden mx-auto"></canvas>
+    
+    <!-- Score display (hidden initially) -->
     <div id="score-display" class="hidden mt-4">
       <p class="text-2xl font-semibold">Score: <span id="score" class="text-yellow-400">0</span></p>
     </div>
 
-    <!-- Game Over Screen -->
+    <!-- Game over screen (hidden initially) -->
     <div id="game-over-screen" class="game-over-screen hidden flex flex-col items-center space-y-6">
       <p id="finalScore" class="text-3xl font-bold text-red-500">Game Over! Your Score: 0</p>
       <button id="tryAgainBtn" class="bg-blue-500 text-white py-2 px-4 rounded-lg text-xl hover:bg-blue-600">Try Again</button>
@@ -38,7 +40,7 @@
   </div>
 
   <script>
-    // Get necessary DOM elements
+    // Get DOM elements
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const scoreDisplay = document.getElementById('score');
@@ -47,21 +49,47 @@
     const finalScoreDisplay = document.getElementById('finalScore');
     const scoreSection = document.getElementById('score-display');
 
-    // Game state variables
-    let knives = [];  // Array to store thrown knives
-    let wheelRotation = 0;  // Current rotation of the wheel
-    let score = 0;  // Player's score
-    let gameOver = false;  // Flag to check if the game is over
+    // Game variables
+    let knives = [];
+    let wheelRotation = 0;
+    let score = 0;
+    let gameOver = false;
+    let throwingKnife = null;
+    let collisionAngle = null;
+    let warningOpacity = 0;
 
-    // Function to draw the rotating board (target)
+    // Function to draw the wooden board
     function drawBoard() {
       ctx.save();
-      ctx.translate(canvas.width / 2, canvas.height * 2/3);  // Position the board
-      ctx.rotate(wheelRotation);  // Rotate the board
+      ctx.translate(canvas.width / 2, canvas.height * 2/3);
+      ctx.rotate(wheelRotation);
+      
+      // Draw main circle
       ctx.beginPath();
-      ctx.arc(0, 0, 50, 0, Math.PI * 2);  // Draw a circle for the board
-      ctx.fillStyle = "brown";
+      ctx.arc(0, 0, 100, 0, Math.PI * 2);
+      ctx.fillStyle = "#8B4513";
       ctx.fill();
+      
+      // Draw wood grain circles
+      for (let i = 1; i <= 5; i++) {
+        ctx.beginPath();
+        ctx.arc(0, 0, 20 * i, 0, Math.PI * 2);
+        ctx.strokeStyle = i % 2 === 0 ? "#A0522D" : "#D2691E";
+        ctx.lineWidth = 10;
+        ctx.stroke();
+      }
+      
+      // Draw radial lines
+      for (let i = 0; i < 8; i++) {
+        ctx.rotate(Math.PI / 4);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(100, 0);
+        ctx.strokeStyle = "#FFA500";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      
       ctx.restore();
     }
 
@@ -69,98 +97,180 @@
     function drawKnife(knife) {
       ctx.save();
       if (knife.thrown) {
-        // For knives stuck in the board
-        ctx.translate(canvas.width / 2, canvas.height * 2/3);  // Move to board center
-        ctx.rotate(wheelRotation + knife.angle);  // Rotate with the board
-        ctx.translate(0, -70);  // Move the knife to the edge of the board
-        ctx.rotate(Math.PI);  // Rotate 180 degrees to make it upside down
+        // Position for thrown knives
+        ctx.translate(canvas.width / 2, canvas.height * 2/3);
+        ctx.rotate(wheelRotation + knife.angle);
+        ctx.translate(0, -110);
+      } else if (knife === throwingKnife) {
+        // Position for the currently throwing knife
+        ctx.translate(knife.x, knife.y);
       } else {
-        // For the knife at the top (ready to throw)
-        ctx.translate(canvas.width / 2, 50);  // Position at the top
-        ctx.rotate(Math.PI);  // Rotate 180 degrees to flip the top knife
+        // Position for the next knife to be thrown
+        ctx.translate(canvas.width / 2, 50);
       }
-      // Draw the knife
+      
+      // Flip the knife so the blade points downward
+      ctx.scale(1, -1);
+      
+      // Draw the knife handle
       ctx.fillStyle = "gray";
-      ctx.fillRect(-5, 0, 10, 50);  // Handle
+      ctx.fillRect(-5, 0, 10, 50);
+      
+      // Draw the knife blade
       ctx.fillStyle = "silver";
-      ctx.fillRect(-2, -50, 4, 50);  // Blade
+      ctx.fillRect(-2, -50, 4, 50);
+      
       ctx.restore();
     }
 
     // Function to draw all knives
     function drawKnives() {
-      knives.forEach(knife => drawKnife(knife));  // Draw thrown knives
-      drawKnife({thrown: false});  // Always draw the knife at the top
+      knives.forEach(knife => drawKnife(knife));
+      if (throwingKnife) {
+        drawKnife(throwingKnife);
+      } else {
+        drawKnife({thrown: false});
+      }
+    }
+
+    // Function to draw warning effect
+    function drawWarning() {
+      if (warningOpacity > 0) {
+        ctx.save();
+        ctx.globalAlpha = warningOpacity;
+        ctx.fillStyle = "red";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+
+        warningOpacity -= 0.05;
+        if (warningOpacity < 0) warningOpacity = 0;
+      }
     }
 
     // Function to detect collision between knives
     function detectCollision(newKnife) {
       for (let knife of knives) {
         if (knife.thrown) {
-          let angleDifference = Math.abs(newKnife.angle - knife.angle);
-          // Check if the angles are too close (collision)
-          if (angleDifference < 0.1 || angleDifference > (2 * Math.PI - 0.1)) {
+          let angleDifference = Math.abs((newKnife.angle - knife.angle + Math.PI) % (2 * Math.PI) - Math.PI);
+          if (angleDifference < 0.2) {
+            collisionAngle = knife.angle;
             return true;
+          }
+          if (angleDifference < 0.4) {
+            warningOpacity = 0.3;
           }
         }
       }
       return false;
     }
 
-    // Main game loop
-    function updateGame() {
-      if (gameOver) return;
-      wheelRotation += 0.02;  // Rotate the wheel
-      ctx.clearRect(0, 0, canvas.width, canvas.height);  // Clear the canvas
-      drawBoard();  // Draw the rotating board
-      drawKnives();  // Draw all knives
-      requestAnimationFrame(updateGame);  // Continue the game loop
+    // Function to animate the throwing knife
+    function animateKnife() {
+      if (!throwingKnife) return;
+
+      throwingKnife.y += throwingKnife.speed;
+
+      if (throwingKnife.y >= canvas.height * 2/3 - 110) {
+        let newKnifeAngle = -wheelRotation % (2 * Math.PI);
+        if (detectCollision({angle: newKnifeAngle, thrown: true})) {
+          gameOver = true;
+          animateGameOver();
+        } else {
+          knives.push({angle: newKnifeAngle, thrown: true});
+          throwingKnife = null;
+          score++;
+          scoreDisplay.textContent = score;
+        }
+      }
     }
 
-    // Event listener for throwing knives
-    document.addEventListener('keydown', (e) => {
-      if (e.code === 'Space' && !gameOver) {
-        let newKnife = { angle: -wheelRotation, thrown: true };
-        if (detectCollision(newKnife)) {
-          // Game over if collision detected
-          gameOver = true;
+    // Main game update function
+    function updateGame() {
+      if (gameOver) return;
+      wheelRotation += 0.02;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBoard();
+      drawKnives();
+      drawWarning();
+      
+      animateKnife();
+      
+      requestAnimationFrame(updateGame);
+    }
+
+    // Function to animate game over sequence
+    function animateGameOver() {
+      let frames = 0;
+      const maxFrames = 60;
+      
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawBoard();
+        
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height * 2/3);
+        ctx.rotate(wheelRotation + collisionAngle);
+        ctx.translate(0, -110);
+        
+        // Draw explosion effect
+        ctx.beginPath();
+        ctx.arc(0, 0, frames, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 0, 0, ${1 - frames / maxFrames})`;
+        ctx.fill();
+        
+        ctx.restore();
+        
+        drawKnives();
+        
+        frames++;
+        if (frames < maxFrames) {
+          requestAnimationFrame(animate);
+        } else {
           finalScoreDisplay.textContent = `Game Over! Your Score: ${score}`;
           gameOverScreen.classList.remove('hidden');
           canvas.classList.add('hidden');
           scoreSection.classList.add('hidden');
-          return;
         }
-        // Add new knife and update score
-        knives.push(newKnife);
-        score++;
-        scoreDisplay.textContent = score;
+      }
+      
+      animate();
+    }
+
+    // Event listener for spacebar to throw knife
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !gameOver && !throwingKnife) {
+        throwingKnife = {
+          x: canvas.width / 2,
+          y: 50,
+          speed: 15
+        };
       }
     });
 
-    // Start Game Button Event Listener
+    // Event listener for start game button
     document.getElementById('startGameBtn').addEventListener('click', () => {
       startScreen.classList.add('hidden');
       canvas.classList.remove('hidden');
       scoreSection.classList.remove('hidden');
-      // Reset game state
       score = 0;
       knives = [];
       gameOver = false;
+      throwingKnife = null;
       scoreDisplay.textContent = score;
-      updateGame();  // Start the game loop
+      updateGame();
     });
 
-    // Try Again Button Event Listener
+    // Event listener for try again button
     document.getElementById('tryAgainBtn').addEventListener('click', () => {
       gameOverScreen.classList.add('hidden');
       canvas.classList.remove('hidden');
       scoreSection.classList.remove('hidden');
-      // Reset game state
       score = 0;
       knives = [];
       gameOver = false;
+      throwingKnife = null;
       scoreDisplay.textContent = score;
-      updateGame();  // Restart the game loop
+      updateGame();
     });
   </script>
 </body>

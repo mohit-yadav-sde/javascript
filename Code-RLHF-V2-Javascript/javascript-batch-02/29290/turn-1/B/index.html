@@ -1,112 +1,149 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Knife Thrower</title>
-    <style>
-        body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f0f0; }
-        canvas { background: #fff; border: 2px solid #000; }
-        #gameOver, #startScreen { position: absolute; text-align: center; }
-    </style>
+<meta charset="UTF-8">
+<title>Knife Thrower</title>
+<style>
+    body { 
+        margin: 0; 
+        overflow: hidden; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        height: 100vh; 
+        background: #f0f0f0; 
+    }
+    canvas { 
+        display: block; 
+        background: #fff; 
+        border: 2px solid #000; 
+    }
+    #startScreen, #gameOverScreen {
+        position: absolute;
+        width: 600px;
+        height: 400px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        text-align: center;
+        padding-top: 50px;
+        display: none;
+    }
+    button {
+        padding: 10px 20px;
+        font-size: 1em;
+        cursor: pointer;
+    }
+</style>
 </head>
 <body>
-    <div id="startScreen">
-        <h1>Knife Thrower</h1>
-        <p>Throw all 10 knives without hitting any!</p>
-        <button onclick="startGame()">Start Game</button>
-    </div>
-    <div id="gameOver" style="display:none;">
-        <h2>Game Over!</h2>
-        <p>Your score: <span id="score"></span></p>
-        <button onclick="location.reload()">Try Again</button>
-    </div>
-    <canvas id="gameCanvas" width="400" height="600"></canvas>
+<div id="startScreen">
+    <h2>Knife Thrower</h2>
+    <p>Press Space to throw the knife. Avoid hitting other knives!</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+<div id="gameOverScreen">
+    <h2>Game Over</h2>
+    <p>Your Score: <span id="score"></span></p>
+    <button onclick="restartGame()">Retry</button>
+</div>
+<canvas id="gameCanvas" width="600" height="400"></canvas>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const startScreen = document.getElementById('startScreen');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const scoreDisplay = document.getElementById('score');
 
-    <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const wheelRadius = 150;
-    const wheelSpeed = 0.03;
-    const knifeSpeed = 5;
-    let wheelAngle = 0;
-    let knives = [];
-    let currentKnife = {x: canvas.width / 2 - 10, y: 50, width: 20, height: 50, thrown: false};
-    let gameActive = false;
-    let score = 0;
+let wheelRadius = 150;
+let knives = [];
+let angle = 0;
+let gameState = 'start';
+let score = 0;
 
-    function startGame() {
-        document.getElementById('startScreen').style.display = 'none';
-        gameActive = true;
-        animate();
-    }
+function startGame() {
+    startScreen.style.display = 'none';
+    gameState = 'playing';
+    knives = [];
+    score = 0;
+    animate();
+}
 
-    function drawWheel() {
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate(wheelAngle);
-        ctx.beginPath();
-        ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-    }
+function restartGame() {
+    gameOverScreen.style.display = 'none';
+    startGame();
+}
 
-    function drawKnife(knife) {
-        ctx.fillRect(knife.x, knife.y, knife.width, knife.height);
-    }
+function drawWheel() {
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height / 2, wheelRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'brown';
+    ctx.lineWidth = 10;
+    ctx.stroke();
+}
 
-    function throwKnife() {
-        if (!currentKnife.thrown) {
-            currentKnife.thrown = true;
-            score++;
-        }
-    }
+function drawKnife(x, y, angle) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(-5, 0);
+    ctx.lineTo(5, 0);
+    ctx.lineTo(5, -50);
+    ctx.lineTo(-5, -50);
+    ctx.closePath();
+    ctx.fillStyle = 'grey';
+    ctx.fill();
+    ctx.restore();
+}
 
-    function checkCollision() {
-        for (let knife of knives) {
-            if (currentKnife.thrown && 
-                currentKnife.x < knife.x + knife.width &&
-                currentKnife.x + currentKnife.width > knife.x &&
-                currentKnife.y < knife.y + knife.height &&
-                currentKnife.y + currentKnife.height > knife.y) {
-                gameActive = false;
-                document.getElementById('gameOver').style.display = 'block';
-                document.getElementById('score').textContent = score - 1; // Subtract the current knife
+function animate() {
+    if (gameState === 'playing') {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawWheel();
+        angle += 0.02;
+        
+        // Draw and move knives
+        knives.forEach((knife, index) => {
+            knife.y += 5; // Knife speed
+            if (knife.y > canvas.height) {
+                gameOver();
                 return;
             }
-        }
-    }
-
-    function animate() {
-        if (!gameActive) return;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        wheelAngle += wheelSpeed;
-        drawWheel();
-
-        if (currentKnife.thrown) {
-            currentKnife.y += knifeSpeed;
-            if (currentKnife.y > canvas.height) {
-                knives.push(currentKnife);
-                currentKnife = {x: canvas.width / 2 - 10, y: 50, width: 20, height: 50, thrown: false};
-                if (knives.length >= 10) {
-                    gameActive = false; // Game won, all knives thrown successfully
-                    document.getElementById('gameOver').style.display = 'block';
-                    document.getElementById('score').textContent = 10;
+            drawKnife(knife.x, knife.y, knife.angle);
+            
+            // Check for collision with other knives
+            for (let i = 0; i < index; i++) {
+                let distance = Math.hypot(knife.x - knives[i].x, knife.y - knives[i].y);
+                if (distance < 10) { // Collision if knives are too close
+                    gameOver();
+                    return;
                 }
             }
-        }
-
-        drawKnife(currentKnife);
-        knives.forEach(drawKnife);
-        checkCollision();
+        });
 
         requestAnimationFrame(animate);
     }
+}
 
-    window.addEventListener('keydown', function(e) {
-        if (e.code === 'Space') throwKnife();
-    });
+function throwKnife(event) {
+    if (event.code === 'Space' && gameState === 'playing') {
+        let newKnife = {
+            x: canvas.width / 2,
+            y: 0,
+            angle: angle
+        };
+        knives.push(newKnife);
+        score++;
+    }
+}
 
-    </script>
+function gameOver() {
+    gameState = 'over';
+    scoreDisplay.textContent = score;
+    gameOverScreen.style.display = 'block';
+}
+
+document.addEventListener('keydown', throwKnife);
+</script>
 </body>
 </html>

@@ -4,125 +4,121 @@
 <meta charset="UTF-8">
 <title>Knife Thrower</title>
 <style>
-    canvas { background: #f0f0f0; display: block; margin: 0 auto; }
-    #gameOver, #startScreen {
+    canvas { background: #eee; display: block; margin: 0 auto; }
+    #gameOver, #startScreen { 
+        display: none; 
         position: absolute; 
         top: 50%; 
         left: 50%; 
         transform: translate(-50%, -50%);
-        text-align: center;
         background: white;
         padding: 20px;
         border: 2px solid black;
-        display: none;
+        text-align: center;
     }
 </style>
 </head>
 <body>
-<canvas id="gameCanvas" width="400" height="600"></canvas>
 <div id="startScreen">
-    <h1>Knife Thrower</h1>
-    <p>Throw 10 knives at the spinning wheel without hitting any!</p>
-    <p>Press <b>Space</b> to throw. <b>Good Luck!</b></p>
+    <h2>Knife Thrower Game</h2>
+    <p>Press SPACE to throw knives. Avoid hitting other knives!</p>
     <button onclick="startGame()">Start Game</button>
 </div>
+<canvas id="gameCanvas" width="400" height="600"></canvas>
 <div id="gameOver">
-    <h1>Game Over</h1>
-    <p>Score: <span id="score">0</span></p>
-    <button onclick="location.reload()">Retry</button>
+    <h2>Game Over!</h2>
+    <p>Your Score: <span id="score"></span></p>
+    <button onclick="location.reload()">Try Again</button>
 </div>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const startScreen = document.getElementById('startScreen');
-const gameOverScreen = document.getElementById('gameOver');
-const scoreDisplay = document.getElementById('score');
-
-let wheelRadius = 150;
-let wheelSpeed = 0.01;
+const radius = 150;
+let wheelAngle = 0;
 let knives = [];
-let angle = 0;
-let gameState = 'start';
+let gameActive = false;
 let score = 0;
 
 function startGame() {
-    startScreen.style.display = 'none';
-    gameState = 'playing';
+    document.getElementById('startScreen').style.display = 'none';
+    gameActive = true;
     knives = [];
     score = 0;
-    requestAnimationFrame(gameLoop);
+    animate();
 }
 
 function drawWheel() {
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate(angle);
+    ctx.rotate(wheelAngle);
     ctx.beginPath();
-    ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
-    ctx.stroke();
-    for(let i = 0; i < 10; i++) {
-        ctx.moveTo(0, 0);
-        ctx.lineTo(0, -wheelRadius);
-        ctx.rotate(Math.PI * 2 / 10);
-    }
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
 }
 
-function drawKnife(knife) {
-    ctx.fillRect(canvas.width / 2 - 5, knife.y, 10, 20);
+function throwKnife() {
+    if (!gameActive) return;
+    knives.push({y: 0, angle: wheelAngle});
+    score++;
 }
 
-function throwKnife() {
-    if(gameState === 'playing') {
-        knives.push({y: 0, angle: angle});
-        score++;
-    }
+function drawKnife(y, angle) {
+    ctx.save();
+    ctx.translate(canvas.width / 2, y);
+    ctx.rotate(angle);
+    ctx.fillRect(-5, -50, 10, 50); // Simplified knife shape
+    ctx.restore();
 }
 
 function checkCollision() {
-    for(let i = 0; i < knives.length; i++) {
-        for(let j = i + 1; j < knives.length; j++) {
-            if(Math.abs(knives[i].angle - knives[j].angle) < 0.1) {  // Simple angle collision
-                gameState = 'gameover';
-                return true;
+    for (let knife of knives) {
+        for (let otherKnife of knives) {
+            if (knife !== otherKnife && Math.abs(knife.angle - otherKnife.angle) < 0.1 && Math.abs(knife.y - otherKnife.y) < 50) {
+                gameOver();
+                return;
             }
         }
     }
-    return false;
 }
 
-function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+function gameOver() {
+    gameActive = false;
+    document.getElementById('score').innerText = score;
+    document.getElementById('gameOver').style.display = 'block';
+}
+
+function animate() {
+    if (!gameActive) return;
     
-    if(gameState === 'playing') {
-        angle += wheelSpeed;
-        drawWheel();
-        
-        for(let knife of knives) {
-            knife.y += 5; // Knife speed
-            drawKnife(knife);
-            if(knife.y > canvas.height + 20) {
-                gameState = 'gameover'; // Knife went out of bounds
-            }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    wheelAngle += 0.02; // Speed of rotation
+    
+    drawWheel();
+    
+    knives.forEach((knife, index) => {
+        if (knife.y < canvas.height) {
+            knife.y += 3; // Speed of knife throw
+            drawKnife(knife.y, knife.angle);
+        } else {
+            knives.splice(index, 1); // Remove knife if out of canvas
         }
-        
-        if(checkCollision()) {
-            scoreDisplay.textContent = score - 1; // -1 because we incremented before checking
-            gameOverScreen.style.display = 'block';
-        }
-    }
+    });
 
-    if(gameState !== 'gameover') requestAnimationFrame(gameLoop);
+    checkCollision();
+    
+    requestAnimationFrame(animate);
 }
 
-document.addEventListener('keydown', function(event) {
-    if(event.code === 'Space') {
+document.addEventListener('keydown', function(e) {
+    if (e.code === 'Space') {
         throwKnife();
     }
 });
 
+// Initial state
+document.getElementById('startScreen').style.display = 'block';
 </script>
 </body>
 </html>
