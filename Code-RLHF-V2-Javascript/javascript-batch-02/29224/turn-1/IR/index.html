@@ -152,7 +152,7 @@
                     const query = `${region}, ${country}`||"";
                     if (!query) continue; // Skip empty locations
                     
-                    const result = await opencage.geocode({q: query, key: openCageApiKey});
+                    const result = await opencage.geocode({q: query === undefined ? query: "USA", key: openCageApiKey});
                     
                     if (result.results.length > 0) {
                         const { lat, lng } = result.results[0].geometry;
@@ -161,7 +161,7 @@
                         console.warn(`No results found for location: ${location}`);
                     }
                 } catch (error) {
-                    console.error(`Error geocoding location ${location}:`, error);
+                    console.warn(`Error geocoding location ${location}:`, error);
                 }
             }
 
