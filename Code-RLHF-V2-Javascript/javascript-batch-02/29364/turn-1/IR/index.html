@@ -146,6 +146,7 @@
             // Reset game state
             traffic = [];
             player.reset();
+            player.setDirection(0, 0);
         }
 
         function gameOver() {
@@ -153,6 +154,8 @@
             gameState = 'gameOver';
             document.getElementById('final-score').textContent = `Score: ${score}`;
             document.getElementById('game-over-screen').classList.remove('hidden');
+            // Add this line to reset player direction
+            player.setDirection(0, 0);
         }
 
         class Player {
@@ -169,6 +172,8 @@
                 // Reset player position
                 this.x = 280;
                 this.y = height - this.h - 10;
+                // Add this line to reset direction
+                this.setDirection(0, 0);
             }
 
             update() {
