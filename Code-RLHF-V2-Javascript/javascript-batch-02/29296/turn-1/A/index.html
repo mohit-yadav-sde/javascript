@@ -3,185 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <title>Virtual Art Gallery</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
     <style>
         body { margin: 0; overflow: hidden; }
-        #galleryCanvas { width: 100%; height: 100vh; display: block; }
-        #overlay {
-            position: fixed; 
-            top: 20px; 
-            left: 20px; 
-            background: rgba(0,0,0,0.7); 
-            color: white; 
-            padding: 10px; 
-            display: none;
-        }
-        #startScreen {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: #000;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-        }
-        .theme-button {
-            margin: 5px;
-            padding: 10px;
-        }
+        #info { position: absolute; top: 10px; width: 100%; text-align: center; color: white; }
+        #overlay { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 10px; }
     </style>
 </head>
 <body>
-    <div id="startScreen">
-        <h1>Virtual Art Gallery</h1>
-        <p>Use WASD to move, mouse to look around. Click to teleport or view artwork details. Press 'E' for info overlay.</p>
-        <button onclick="startGallery()">Enter Gallery</button>
-        <div id="themeSelector">
-            <button class="theme-button" onclick="setTheme('modern')">Modern</button>
-            <button class="theme-button" onclick="setTheme('classic')">Classic</button>
-            <button class="theme-button" onclick="setTheme('abstract')">Abstract</button>
-        </div>
-    </div>
-    <canvas id="galleryCanvas"></canvas>
-    <div id="overlay"></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tween.js@16.3.5"></script>
-    <script>
-        let scene, camera, renderer, controls, raycaster, mouse, artworks = [], currentTheme = 'modern';
+<div id="info">Use WASD to move, mouse to look around, click to teleport or view art, 'E' to toggle info.</div>
+<div id="overlay">
+    <h2 id="artTitle"></h2>
+    <p>By <span id="artArtist"></span></p>
+    <p id="artDetails"></p>
+</div>
 
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({canvas: document.getElementById('galleryCanvas')});
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/16.3.5/Tween.min.js"></script>
 
-            // Setup controls, lighting, and room
-            setupControls();
-            setupLighting();
-            createGalleryRoom();
-            setupArtworks();
+<script>
+    let scene, camera, renderer, controls, raycaster, mouse = new THREE.Vector2(), INTERSECTED;
+    const artworks = [];
+    const themes = {
+        Modern: { color: 0xFFFFFF, floor: 'modern.jpg' },
+        Classic: { color: 0xDAA520, floor: 'classic.jpg' },
+        Abstract: { color: 0x808080, floor: 'abstract.jpg' }
+    };
 
-            // Event listeners
-            window.addEventListener('resize', onWindowResize, false);
-            document.addEventListener('click', onClick);
-            document.addEventListener('keydown', onKeyDown);
-        }
+    function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
 
-        function setupControls() {
-            controls = new THREE.PointerLockControls(camera, document.body);
-            scene.add(controls.getObject());
-        }
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0x404040, 4);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(0, 10, 5);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
 
-        function setupLighting() {
-            const ambientLight = new THREE.AmbientLight(0x404040);
-            scene.add(ambientLight);
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-            directionalLight.position.set(0, 10, 5);
-            directionalLight.castShadow = true;
-            scene.add(directionalLight);
-        }
+        // Room
+        const roomGeometry = new THREE.BoxGeometry(20, 10, 20);
+        const roomMaterial = new THREE.MeshStandardMaterial({ color: themes['Modern'].color });
+        const room = new THREE.Mesh(roomGeometry, roomMaterial);
+        scene.add(room);
 
-        function createGalleryRoom() {
-            // Basic room setup with textures based on theme
-            const geometry = new THREE.BoxGeometry(20, 10, 20);
-            const textures = {
-                modern: {wall: 'white.png', floor: 'marble.jpg'},
-                classic: {wall: 'wood.jpg', floor: 'carpet.jpg'},
-                abstract: {wall: 'colorful.jpg', floor: 'abstract.jpg'}
-            };
-            const materials = [
-                new THREE.MeshStandardMaterial({map: new THREE.TextureLoader().load(textures[currentTheme].wall)}),
-                new THREE.MeshStandardMaterial({map: new THREE.TextureLoader().load(textures[currentTheme].floor)})
-            ];
-            const room = new THREE.Mesh(geometry, materials);
-            scene.add(room);
-        }
+        // Add floor with texture
+        const loader = new THREE.TextureLoader();
+        loader.load(themes['Modern'].floor, function(texture) {
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(10, 10);
+            const floorMaterial = new THREE.MeshStandardMaterial({ map: texture });
+            const floorGeometry = new THREE.PlaneGeometry(20, 20, 10, 10);
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+        });
 
-        function setupArtworks() {
-            for(let i = 0; i < 3; i++) {
-                let artwork = createArtwork();
-                scene.add(artwork.mesh);
-                artworks.push(artwork);
-            }
-        }
+        // Artworks setup would go here, including placing them on walls
+        // and setting up interaction
 
-        function createArtwork() {
-            // Placeholder for artwork creation, loading textures, setting up mesh, etc.
-            let artwork = {mesh: new THREE.Mesh(), info: generateArtInfo()};
-            // Setup mesh with image texture, position it, etc.
-            return artwork;
-        }
+        // Controls
+        controls = new THREE.PointerLockControls(camera, document.body);
+        scene.add(controls.getObject());
 
-        function generateArtInfo() {
-            return {
-                title: `Art ${Math.floor(Math.random() * 100)}`,
-                artist: `Artist ${Math.floor(Math.random() * 100)}`,
-                medium: 'Oil on Canvas',
-                year: Math.floor(Math.random() * (2023 - 1800 + 1)) + 1800
-            };
-        }
+        // Event listeners for interaction
+        document.addEventListener('click', onClick, false);
+        document.addEventListener('keydown', onKeyDown, false);
 
-        function animate() {
-            requestAnimationFrame(animate);
-            TWEEN.update();
-            controls.update();
-            renderer.render(scene, camera);
-        }
+        animate();
+    }
 
-        function onClick(event) {
-            event.preventDefault();
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(scene.children);
+    function animate() {
+        requestAnimationFrame(animate);
+        TWEEN.update();
+        renderer.render(scene, camera);
+    }
 
-            if (intersects.length > 0) {
-                const object = intersects[0].object;
-                if (artworks.find(art => art.mesh === object)) {
-                    showOverlay(object.info);
-                } else {
-                    new TWEEN.Tween(controls.getObject().position)
-                        .to({x: intersects[0].point.x, y: 1, z: intersects[0].point.z}, 1000)
-                        .easing(TWEEN.Easing.Quadratic.InOut)
-                        .start();
-                }
-            }
-        }
-
-        function showOverlay(info) {
-            document.getElementById('overlay').innerHTML = `<h3>${info.title}</h3><p>By ${info.artist}</p><p>${info.medium}, ${info.year}</p>`;
-            document.getElementById('overlay').style.display = 'block';
-        }
-
-        function onKeyDown(event) {
-            if (event.key === 'e') {
-                const overlay = document.getElementById('overlay');
-                overlay.style.display = overlay.style.display === 'none' ? 'block' : 'none';
-            }
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        function setTheme(theme) {
-            currentTheme = theme;
-            // Here you would change textures or apply CSS classes
-        }
-
-        function startGallery() {
-            document.getElementById('startScreen').style.display = 'none';
-            init();
-            animate();
-        }
-
+    function onClick(event) {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         raycaster = new THREE.Raycaster();
-        mouse = new THREE.Vector2();
-    </script>
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(scene.children);
+
+        if (intersects.length > 0) {
+            const tween = new TWEEN.Tween(controls.getObject().position)
+                .to({x: intersects[0].point.x, y: 1.5, z: intersects[0].point.z}, 1000)
+                .easing(TWEEN.Easing.Quadratic.InOut)
+                .start();
+        }
+    }
+
+    function onKeyDown(event) {
+        if (event.key === 'e') {
+            document.getElementById('overlay').style.display = 
+                document.getElementById('overlay').style.display === 'block' ? 'none' : 'block';
+        }
+    }
+
+    // Theme change function would be called here to update textures and colors
+    // Function to generate art details would also be implemented
+
+    init();
+</script>
+
 </body>
 </html>
