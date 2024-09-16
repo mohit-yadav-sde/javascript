@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zip Code Demographic Viewer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        #widget { max-width: 800px; margin: auto; }
+        #map { height: 300px; margin-top: 20px; }
+        .chart-container { width: 100%; display: flex; justify-content: space-around; flex-wrap: wrap; }
+        .pie-chart { width: 300px; height: 300px; margin: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="widget">
+    <input type="text" id="zipCode" placeholder="Enter Zip Code">
+    <button onclick="searchZipCode()">Search</button>
+    <div id="details"></div>
+    <div id="charts"></div>
+    <div id="map"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+<script>
+    async function searchZipCode() {
+        const zipCode = document.getElementById('zipCode').value;
+        if (!zipCode) return;
+
+        // Fetch city data
+        let response = await fetch(`https://api.zippopotam.us/us/${zipCode}`);
+        if (!response.ok) {
+            alert('Zip code not found.');
+            return;
+        }
+        const place = (await response.json()).places[0];
+        
+        // Fetch demographic data
+        response = await fetch(`https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/us-cities-demographics/records?where=city="${place['place name']}"`);
+        const demos = await response.json();
+        const demoData = demos.results[0];
+
+        // Update UI
+        document.getElementById('details').innerHTML = `
+            <h2>${place['place name']}, ${place.state}</h2>
+            <p>Country: ${place.country}</p>
+            <p>Coordinates: ${place.latitude}, ${place.longitude}</p>
+        `;
+
+        // Prepare data for charts
+        const races = ['White', 'Black or African-American', 'Asian', 'Hispanic', 'Other'];
+        const chartData = races.map(race => ({
+            label: race,
+            male: demoData[`count_male_${race.toLowerCase().replace(' ', '_')}`] || 0,
+            female: demoData[`count_female_${race.toLowerCase().replace(' ', '_')}`] || 0
+        }));
+
+        // Display charts
+        const chartsDiv = document.getElementById('charts');
+        chartsDiv.innerHTML = ''; // Clear previous charts
+        chartData.forEach(data => {
+            const ctx = document.createElement('canvas');
+            ctx.className = 'pie-chart';
+            chartsDiv.appendChild(ctx);
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Male', 'Female'],
+                    datasets: [{
+                        data: [data.male, data.female],
+                        backgroundColor: ['#36A2EB', '#FF6384']
+                    }]
+                }
+            });
+        });
+
+        // Initialize map
+        const map = L.map('map').setView([place.latitude, place.longitude], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        L.marker([place.latitude, place.longitude]).addTo(map);
+    }
+</script>
+
+</body>
+</html>

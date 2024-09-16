@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>US Zip Code Lookup with Population Pie Charts</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map { 
+            width: 100%; 
+            height: 400px; 
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen flex flex-col items-center justify-center py-12 px-4">
+        <div class="w-full max-w-4xl bg-white shadow-lg rounded-lg p-6">
+            <h1 class="text-2xl font-bold text-gray-800 mb-4 text-center">US Zip Code Lookup</h1>
+
+            <!-- Input Section -->
+            <div class="mb-4">
+                <input id="zipInput" type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring focus:border-blue-300" placeholder="Enter Zip Code">
+            </div>
+            <button id="searchBtn" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition">Search</button>
+
+            <!-- Error Message -->
+            <p id="error" class="text-red-500 mt-3 hidden"></p>
+
+            <!-- Details Section -->
+            <div id="details" class="mt-6 hidden bg-gray-50 p-4 rounded-lg shadow-lg">
+                <h2 class="text-lg font-semibold text-gray-700 mb-2">Details:</h2>
+                <p id="cityName"></p>
+                <p id="stateName"></p>
+                <p id="countryName"></p>
+                <p id="latitude"></p>
+                <p id="longitude"></p>
+            </div>
+
+            <!-- Map Container -->
+            <div id="mapContainer" class="mt-6 hidden">
+                <div id="map"></div>
+            </div>
+
+            <!-- Population Pie Charts -->
+            <div id="chartContainer" class="mt-6 hidden">
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">Population Distribution by Race</h3>
+                <div id="charts" class="space-y-6"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+    <script>
+        let map;
+        let mapInitialized = false;
+
+        document.getElementById('searchBtn').addEventListener('click', performSearch);
+
+        function performSearch() {
+            const zipcode = document.getElementById('zipInput').value.trim();
+            const errorElem = document.getElementById('error');
+            const detailsElem = document.getElementById('details');
+            const mapContainer = document.getElementById('mapContainer');
+            const chartContainer = document.getElementById('chartContainer');
+
+            errorElem.classList.add('hidden');
+            detailsElem.classList.add('hidden');
+            mapContainer.classList.add('hidden');
+            chartContainer.classList.add('hidden');
+
+            if (!validateZipcode(zipcode)) {
+                showError('Please enter a valid 5-digit US Zipcode.');
+                return;
+            }
+
+            fetch(`https://api.zippopotam.us/us/${zipcode}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Zip code not found');
+                    return response.json();
+                })
+                .then(data => {
+                    const { latitude, longitude, 'place name': placeName, state } = data.places[0];
+                    const { country } = data
+                    updateDetails(placeName, state, country, latitude, longitude);
+                    updateMap(latitude, longitude, placeName);
+
+                    return fetch(`https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/us-cities-demographics/records?where=city="${placeName}"`);
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.results && data.results.length > 0) {
+                        const raceData = data.results.map(record => ({
+                            race: record.race,
+                            male: record.male_population,
+                            female: record.female_population
+                        }));
+
+                        displayPieCharts(raceData);
+
+                        detailsElem.classList.remove('hidden');
+                        mapContainer.classList.remove('hidden');
+                        chartContainer.classList.remove('hidden');
+                        
+                        // Force map resize after displaying
+                        setTimeout(() => {
+                            if (map) map.invalidateSize();
+                        }, 100);
+                    } else {
+                        showError('No demographic data found for this city.');
+                    }
+                })
+                .catch(error => {
+                    showError(error.message);
+                });
+        }
+
+        function validateZipcode(zipcode) {
+            return /^\d{5}$/.test(zipcode);
+        }
+
+        function showError(message) {
+            const errorElem = document.getElementById('error');
+            errorElem.textContent = message;
+            errorElem.classList.remove('hidden');
+        }
+
+        function updateDetails(city, state, country, latitude, longitude) {
+            document.getElementById('cityName').textContent = `City: ${city}`;
+            document.getElementById('stateName').textContent = `State: ${state}`;
+            document.getElementById('countryName').textContent = `Country: ${country}`;
+            document.getElementById('latitude').textContent = `Latitude: ${latitude}`;
+            document.getElementById('longitude').textContent = `Longitude: ${longitude}`;
+        }
+
+        function updateMap(lat, lon, placeName) {
+            // Convert lat and lon to numbers
+            const latitude = parseFloat(lat);
+            const longitude = parseFloat(lon);
+
+            if (!mapInitialized) {
+                map = L.map('map').setView([latitude, longitude], 12);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+                mapInitialized = true;
+            } else {
+                map.setView([latitude, longitude], 12);
+            }
+
+            // Clear existing markers
+            map.eachLayer((layer) => {
+                if (layer instanceof L.Marker) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            // Add new marker
+            L.marker([latitude, longitude]).addTo(map);
+
+            // Force a resize of the map
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 100);
+        }
+
+        function displayPieCharts(raceData) {
+            const chartsElem = document.getElementById('charts');
+            chartsElem.innerHTML = ''; // Clear previous charts
+
+            raceData.forEach((race, index) => {
+                const chartId = `chart-${index}`;
+                const chartDiv = document.createElement('div');
+                chartDiv.classList.add('bg-white', 'p-4', 'rounded-md', 'shadow-lg');
+
+                const titleElem = document.createElement('h4');
+                titleElem.textContent = `${race.race}: Male vs Female Population`;
+                titleElem.classList.add('font-semibold', 'mb-2', 'text-gray-700');
+                chartDiv.appendChild(titleElem);
+
+                const canvas = document.createElement('canvas');
+                canvas.id = chartId;
+                chartDiv.appendChild(canvas);
+
+                chartsElem.appendChild(chartDiv);
+
+                const ctx = document.getElementById(chartId).getContext('2d');
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Male', 'Female'],
+                        datasets: [{
+                            data: [race.male, race.female],
+                            backgroundColor: ['#36A2EB', '#FF6384'],
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(tooltipItem) {
+                                        return `${tooltipItem.label}: ${tooltipItem.raw}`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+        }
+    </script>
+</body>
+</html>
