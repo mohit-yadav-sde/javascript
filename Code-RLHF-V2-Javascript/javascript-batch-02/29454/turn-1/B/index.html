@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Stock Price Analyzer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .chart-container { width: 100%; height: 300px; }
+        input, button { padding: 10px; margin: 5px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Stock Price Analyzer</h1>
+    <input type="text" id="stockSymbol" placeholder="Enter stock symbol">
+    <button onclick="fetchStockData()">Search</button>
+    <div>
+        <input type="number" id="buyPrice" placeholder="Buy Price">
+        <input type="number" id="quantity" placeholder="Quantity">
+        <button onclick="calculateInvestment()">View Summary</button>
+    </div>
+    <div class="chart-container">
+        <canvas id="openChart"></canvas>
+        <canvas id="highChart"></canvas>
+        <canvas id="lowChart"></canvas>
+        <canvas id="closeChart"></canvas>
+    </div>
+    <div id="investmentSummary"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.bundle.min.js"></script>
+<script>
+function fetchStockData() {
+    const symbol = document.getElementById('stockSymbol').value;
+    const apiUrl = `https://api.marketstack.com/v1/eod?access_key=750acc67496df44549f74e903ed7d969&symbols=${symbol}&limit=30`;
+
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            if (data.data && data.data.length > 0) {
+                plotCharts(data.data);
+            } else {
+                alert('No data available or invalid symbol.');
+            }
+        });
+}
+
+function plotCharts(stockData) {
+    const labels = stockData.map(d => d.date.slice(0, 10));
+    const datasets = ['open', 'high', 'low', 'close'].map(type => ({
+        label: type.charAt(0).toUpperCase() + type.slice(1),
+        data: stockData.map(d => d[type]),
+        borderColor: 'rgba(75, 192, 192, 1)',
+        fill: false
+    }));
+
+    ['open', 'high', 'low', 'close'].forEach((type, index) => {
+        new Chart(document.getElementById(`${type}Chart`).getContext('2d'), {
+            type: 'line',
+            data: { labels, datasets: [datasets[index]] },
+            options: {
+                scales: { xAxes: [{ type: 'time', time: { unit: 'day' } }] },
+                pan: { enabled: true, mode: 'x' },
+                zoom: { enabled: true, mode: 'x' }
+            }
+        });
+    });
+}
+
+function calculateInvestment() {
+    const buyPrice = parseFloat(document.getElementById('buyPrice').value);
+    const quantity = parseFloat(document.getElementById('quantity').value);
+    const lastClose = stockData[0].close; // Assuming stockData is in scope or global
+    
+    const currentValue = lastClose * quantity;
+    const investmentValue = buyPrice * quantity;
+    const profitLoss = currentValue - investmentValue;
+    
+    document.getElementById('investmentSummary').innerHTML = `
+        <h3>Investment Summary</h3>
+        <p>Current Stock Price: $${lastClose.toFixed(2)}</p>
+        <p>Investment Value: $${investmentValue.toFixed(2)}</p>
+        <p>Current Value: $${currentValue.toFixed(2)}</p>
+        <p>Profit/Loss: $${profitLoss.toFixed(2)}</p>
+    `;
+}
+
+// This would typically be in your fetchStockData function, but for this example, it's assumed to be available
+let stockData = []; // Placeholder for fetched data
+</script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Stock Chart Widget with Zoom</title>
+    <!-- Include Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include Chart.js for creating charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Include Chart.js Zoom plugin for zoom functionality -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <!-- Include Axios for making HTTP requests -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-md p-6">
+        <h1 class="text-2xl font-bold mb-4">Enhanced Stock Chart Widget with Zoom</h1>
+        <!-- Input for stock symbol and search button -->
+        <div class="mb-4">
+            <input type="text" id="symbolInput" placeholder="Enter stock symbol" class="border rounded px-2 py-1 mr-2">
+            <button id="searchBtn" class="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600">Search</button>
+        </div>
+        <!-- Container for the four stock charts -->
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+                <h2 class="text-lg font-semibold mb-2">Open Prices</h2>
+                <canvas id="openChart"></canvas>
+            </div>
+            <div>
+                <h2 class="text-lg font-semibold mb-2">High Prices</h2>
+                <canvas id="highChart"></canvas>
+            </div>
+            <div>
+                <h2 class="text-lg font-semibold mb-2">Low Prices</h2>
+                <canvas id="lowChart"></canvas>
+            </div>
+            <div>
+                <h2 class="text-lg font-semibold mb-2">Close Prices</h2>
+                <canvas id="closeChart"></canvas>
+            </div>
+        </div>
+        <!-- Inputs for buy price, quantity, and view summary button -->
+        <div class="mb-4 flex items-center">
+            <input type="number" id="buyPriceInput" placeholder="Enter buy price" class="border rounded px-2 py-1 mr-2">
+            <input type="number" id="quantityInput" placeholder="Enter quantity" class="border rounded px-2 py-1 mr-2">
+            <button id="summaryBtn" class="bg-green-500 text-white px-4 py-1 rounded hover:bg-green-600">View Summary</button>
+        </div>
+        <!-- Container for the summary information -->
+        <div id="summary" class="hidden bg-gray-200 p-4 rounded"></div>
+    </div>
+
+    <script>
+        // Get references to DOM elements
+        const symbolInput = document.getElementById('symbolInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const buyPriceInput = document.getElementById('buyPriceInput');
+        const quantityInput = document.getElementById('quantityInput');
+        const summaryBtn = document.getElementById('summaryBtn');
+        const summaryDiv = document.getElementById('summary');
+        
+        // Variables to store the stock data and chart instances
+        let stockData = [];
+        let charts = {};
+
+        // Add event listeners to buttons
+        searchBtn.addEventListener('click', fetchStockData);
+        summaryBtn.addEventListener('click', showSummary);
+
+        /**
+         * Fetches stock data from the Marketstack API
+         */
+        async function fetchStockData() {
+            const symbol = symbolInput.value.toUpperCase();
+            try {
+                const response = await axios.get(`https://api.marketstack.com/v1/eod?access_key=750acc67496df44549f74e903ed7d969&symbols=${symbol}&limit=30`);
+                stockData = response.data.data.reverse(); // Reverse to get chronological order
+                updateCharts();
+            } catch (error) {
+                console.error('Error fetching stock data:', error);
+                alert('Error fetching stock data. Please try again.');
+            }
+        }
+
+        /**
+         * Updates all four charts with the fetched stock data
+         */
+        function updateCharts() {
+            const dates = stockData.map(data => formatDate(new Date(data.date)));
+            updateChart('open', dates);
+            updateChart('high', dates);
+            updateChart('low', dates);
+            updateChart('close', dates);
+        }
+
+        /**
+         * Updates a specific chart with the given data
+         * @param {string} type - The type of chart (open, high, low, close)
+         * @param {string[]} dates - Array of formatted dates for x-axis
+         */
+        function updateChart(type, dates) {
+            const ctx = document.getElementById(`${type}Chart`).getContext('2d');
+            const data = stockData.map(data => data[type]);
+            
+            // Destroy existing chart if it exists
+            if (charts[type]) {
+                charts[type].destroy();
+            }
+
+            // Create new chart
+            charts[type] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: `${type.charAt(0).toUpperCase() + type.slice(1)} Price`,
+                        data: data,
+                        borderColor: getChartColor(type),
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        zoom: {
+                            zoom: {
+                                wheel: {
+                                    enabled: true,
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: 'xy',
+                            },
+                            pan: {
+                                enabled: true,
+                                mode: 'xy',
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Returns a color for each chart type
+         * @param {string} type - The type of chart (open, high, low, close)
+         * @returns {string} The color for the chart
+         */
+        function getChartColor(type) {
+            const colors = {
+                open: 'rgb(75, 192, 192)',
+                high: 'rgb(255, 99, 132)',
+                low: 'rgb(54, 162, 235)',
+                close: 'rgb(255, 206, 86)'
+            };
+            return colors[type];
+        }
+
+        /**
+         * Calculates and displays the investment summary
+         */
+        function showSummary() {
+            const buyPrice = parseFloat(buyPriceInput.value);
+            const quantity = parseInt(quantityInput.value);
+            if (isNaN(buyPrice) || isNaN(quantity) || stockData.length === 0) {
+                alert('Please enter valid buy price and quantity, and fetch stock data first.');
+                return;
+            }
+
+            const latestData = stockData[stockData.length - 1];
+            const closePrice = latestData.close;
+            const initialInvestment = buyPrice * quantity;
+            const currentValue = closePrice * quantity;
+            const priceDifference = closePrice - buyPrice;
+            const totalProfitLoss = currentValue - initialInvestment;
+            const percentageDifference = (priceDifference / buyPrice) * 100;
+            const isProfitable = priceDifference > 0;
+
+            // Update the summary div with calculated information
+            summaryDiv.innerHTML = `
+                <p>Date: ${formatDate(new Date(latestData.date))}</p>
+                <p>Latest close price: $${closePrice.toFixed(2)}</p>
+                <p>Your buy price: $${buyPrice.toFixed(2)}</p>
+                <p>Quantity: ${quantity}</p>
+                <p>Initial investment: $${initialInvestment.toFixed(2)}</p>
+                <p>Current value: $${currentValue.toFixed(2)}</p>
+                <p>${isProfitable ? 'Profit' : 'Loss'} per share: $${Math.abs(priceDifference).toFixed(2)}</p>
+                <p>Total ${isProfitable ? 'Profit' : 'Loss'}: $${Math.abs(totalProfitLoss).toFixed(2)}</p>
+                <p>Percentage change: <span class="${isProfitable ? 'text-green-600' : 'text-red-600'} font-bold">${percentageDifference.toFixed(2)}%</span></p>
+            `;
+            summaryDiv.classList.remove('hidden');
+        }
+
+        /**
+         * Formats a date object to a readable string
+         * @param {Date} date - The date to format
+         * @returns {string} Formatted date string
+         */
+        function formatDate(date) {
+            const options = { year: 'numeric', month: 'short', day: 'numeric' };
+            return date.toLocaleDateString('en-US', options);
+        }
+    </script>
+</body>
+</html>
