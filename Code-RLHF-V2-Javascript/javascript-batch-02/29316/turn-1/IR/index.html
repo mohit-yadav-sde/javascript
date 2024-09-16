@@ -83,10 +83,11 @@
     let gravity = 0.4;
     let gameStarted = false;
     let girlImg, bearImg;
+    let cors = 'https://cors-anywhere.herokuapp.com/'
 
     function preload() {
-        girlImg = loadImage('https://static.vecteezy.com/system/resources/thumbnails/001/206/117/small_2x/girl.png');
-        bearImg = loadImage('https://r2.erweima.ai/imgcompressed/compressed_c2733321479d42dc37aa4ee8abd23671.webp');
+        girlImg = loadImage(`${cors}https://static.vecteezy.com/system/resources/thumbnails/001/206/117/small_2x/girl.png`);
+        bearImg = loadImage(`${cors}https://r2.erweima.ai/imgcompressed/compressed_c2733321479d42dc37aa4ee8abd23671.webp`);
     }
 
     function setup() {
