@@ -89,7 +89,7 @@
         }
 
         async function fetchData(symbol, region) {
-            showLoading(); // Show loading overlay
+            showLoading();
             allData = [];
 
             const options = {
@@ -97,7 +97,7 @@
                 url: 'https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v3/get-historical-data',
                 params: { symbol, region },
                 headers: {
-                    'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c', // Replace with your actual API key
+                    'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c',
                     'x-rapidapi-host': 'apidojo-yahoo-finance-v1.p.rapidapi.com'
                 }
             };
@@ -116,11 +116,12 @@
 
                     createCharts();
                     updateStats();
+                    showToast('Data loaded successfully', 'success');
                 } else {
                     showToast('No data available for the specified stock and region.');
                 }
             } catch (error) {
-                console.error('Error fetching data:', error);
+                //console.error('Error fetching data:', error);
                 if (error.response) {
                     showToast(`Error: ${error.response.data.message || 'Failed to fetch data. Please try again.'}`);
                 } else if (error.request) {
@@ -129,7 +130,7 @@
                     showToast('An unexpected error occurred. Please try again.');
                 }
             } finally {
-                hideLoading(); // Hide loading overlay
+                hideLoading();
             }
         }
 
