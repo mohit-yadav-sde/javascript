@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>US Demographics Widget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 p-4">
+    <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6">
+        <h1 class="text-2xl font-bold mb-4">US Demographics Widget</h1>
+        <div class="flex space-x-4 mb-4">
+            <select id="stateSelect" class="w-1/2 p-2 border rounded">
+                <option value="">Select State</option>
+            </select>
+            <select id="citySelect" class="w-1/2 p-2 border rounded" disabled>
+                <option value="">Select City</option>
+            </select>
+        </div>
+        <button id="submitBtn" class="w-full bg-blue-500 text-white p-2 rounded disabled:bg-gray-300" disabled>Submit</button>
+        
+        <div id="results" class="mt-8 hidden">
+            <div id="topStats" class="grid grid-cols-3 gap-4 mb-8">
+                <div class="bg-blue-100 p-4 rounded">
+                    <h2 class="font-bold">Total Population</h2>
+                    <p id="totalPopulation" class="text-2xl"></p>
+                </div>
+                <div class="bg-green-100 p-4 rounded">
+                    <h2 class="font-bold">Median Age</h2>
+                    <p id="medianAge" class="text-2xl"></p>
+                </div>
+                <div class="bg-yellow-100 p-4 rounded">
+                    <h2 class="font-bold">Avg Household Size</h2>
+                    <p id="avgHouseholdSize" class="text-2xl"></p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <div>
+                    <h2 class="font-bold mb-2">Racial Breakdown</h2>
+                    <canvas id="racialChart"></canvas>
+                </div>
+                <div>
+                    <h2 class="font-bold mb-2">Gender Breakdown</h2>
+                    <canvas id="genderChart"></canvas>
+                </div>
+            </div>
+            
+            <div id="additionalInfo" class="grid grid-cols-2 gap-4">
+                <div class="bg-purple-100 p-4 rounded">
+                    <h2 class="font-bold">Veterans</h2>
+                    <p id="veterans" class="text-2xl"></p>
+                </div>
+                <div class="bg-pink-100 p-4 rounded">
+                    <h2 class="font-bold">Foreign-born</h2>
+                    <p id="foreignBorn" class="text-2xl"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // DOM element references
+const stateSelect = document.getElementById('stateSelect');
+const citySelect = document.getElementById('citySelect');
+const submitBtn = document.getElementById('submitBtn');
+const results = document.getElementById('results');
+
+// Chart instances
+let racialChart, genderChart;
+
+// Predefined lists of states and cities (abbreviated for brevity)
+const states = ['Alabama', 'Alaska', 'Arizona', /* ... other states ... */];
+const citiesByState = {
+    'Alabama': ['Birmingham', 'Montgomery', /* ... other cities ... */],
+    // ... other states and their cities ...
+};
+
+// Populates the state dropdown with all states
+function populateStates() {
+    stateSelect.innerHTML = '<option value="">Select State</option>';
+    states.forEach(state => {
+        const option = document.createElement('option');
+        option.value = state;
+        option.textContent = state;
+        stateSelect.appendChild(option);
+    });
+}
+
+// Populates the city dropdown based on the selected state
+function populateCities(state) {
+    citySelect.innerHTML = '<option value="">Select City</option>';
+    citiesByState[state].forEach(city => {
+        const option = document.createElement('option');
+        option.value = city;
+        option.textContent = city;
+        citySelect.appendChild(option);
+    });
+    citySelect.disabled = false;
+}
+
+// Event listener for state selection
+stateSelect.addEventListener('change', () => {
+    citySelect.innerHTML = '<option value="">Select City</option>';
+    citySelect.disabled = true;
+    submitBtn.disabled = true;
+    
+    if (stateSelect.value) {
+        populateCities(stateSelect.value);
+    }
+});
+
+// Event listener for city selection
+citySelect.addEventListener('change', () => {
+    submitBtn.disabled = !citySelect.value;
+});
+
+// Event listener for submit button
+submitBtn.addEventListener('click', fetchDemographics);
+
+// Fetches demographic data from the API
+function fetchDemographics() {
+    const state = stateSelect.value;
+    const city = citySelect.value;
+    
+    fetch(`https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/us-cities-demographics/records?where=state%20%3D%20%22${state}%22%20and%20city%20%3D%20%22${city}%22`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.results.length > 0) {
+                displayData(data.results);
+            } else {
+                alert('No data found for the selected city.');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching data:', error);
+            alert('An error occurred while fetching data.');
+        });
+}
+
+// Processes and displays the demographic data
+function displayData(data) {
+    // Aggregate data across all records
+    const aggregatedData = data.reduce((acc, record) => {
+        acc.total_population = (acc.total_population || 0) + record.total_population;
+        acc.male_population = (acc.male_population || 0) + record.male_population;
+        acc.female_population = (acc.female_population || 0) + record.female_population;
+        acc.number_of_veterans = (acc.number_of_veterans || 0) + record.number_of_veterans;
+        acc.foreign_born = (acc.foreign_born || 0) + record.foreign_born;
+        acc.median_age = (acc.median_age || 0) + record.median_age;
+        acc.average_household_size = (acc.average_household_size || 0) + record.average_household_size;
+        acc.racial_data = acc.racial_data || {};
+        acc.racial_data[record.race] = record.total_population;
+        return acc;
+    }, {});
+
+    // Calculate averages for median age and average household size
+    aggregatedData.median_age /= data.length;
+    aggregatedData.average_household_size /= data.length;
+
+    // Update DOM with aggregated data
+    document.getElementById('totalPopulation').textContent = aggregatedData.total_population.toLocaleString();
+    document.getElementById('medianAge').textContent = aggregatedData.median_age.toFixed(1);
+    document.getElementById('avgHouseholdSize').textContent = aggregatedData.average_household_size.toFixed(2);
+    document.getElementById('veterans').textContent = aggregatedData.number_of_veterans.toLocaleString();
+    document.getElementById('foreignBorn').textContent = aggregatedData.foreign_born.toLocaleString();
+    
+    // Create charts
+    createRacialChart(aggregatedData.racial_data);
+    createGenderChart(aggregatedData);
+    
+    // Show results
+    results.classList.remove('hidden');
+}
+
+// Creates the racial demographics pie chart
+function createRacialChart(racialData) {
+    const ctx = document.getElementById('racialChart').getContext('2d');
+    
+    // Destroy existing chart if it exists
+    if (racialChart) {
+        racialChart.destroy();
+    }
+
+    const labels = Object.keys(racialData);
+    const values = Object.values(racialData);
+    
+    // Create new chart
+    racialChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#FFCD56']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'right',
+                }
+            }
+        }
+    });
+}
+
+// Creates the gender distribution bar chart
+function createGenderChart(data) {
+    const ctx = document.getElementById('genderChart').getContext('2d');
+    
+    // Destroy existing chart if it exists
+    if (genderChart) {
+        genderChart.destroy();
+    }
+    
+    // Create new chart
+    genderChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Male', 'Female'],
+            datasets: [{
+                data: [data.male_population, data.female_population],
+                backgroundColor: ['#36A2EB', '#FF6384']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// Initialize the application
+document.addEventListener('DOMContentLoaded', populateStates);
+    </script>
+</body>
+</html>

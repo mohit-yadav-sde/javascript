@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Demographic Data Visualizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { width: 80%; margin: auto; }
+        select, button { margin: 10px 0; padding: 5px; }
+        .charts-container { display: flex; justify-content: space-around; }
+        .chart { width: 45%; }
+        #stats { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>U.S. City Demographics</h1>
+        <select id="stateSelect">
+            <option value="">Select State</option>
+        </select>
+        <select id="citySelect" disabled>
+            <option value="">Select City</option>
+        </select>
+        <button id="submitBtn" disabled>Show Demographics</button>
+        <div id="stats"></div>
+        <div class="charts-container">
+            <canvas id="raceChart" class="chart"></canvas>
+            <canvas id="genderChart" class="chart"></canvas>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const stateSelect = document.getElementById('stateSelect');
+            const citySelect = document.getElementById('citySelect');
+            const submitBtn = document.getElementById('submitBtn');
+            const statsDiv = document.getElementById('stats');
+
+            // Fetch states
+            fetch('https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/us-cities-demographics/records')
+                .then(response => response.json())
+                .then(data => {
+                    const states = [...new Set(data.results.map(item => item.state))].sort();
+                    states.forEach(state => {
+                        stateSelect.innerHTML += `<option value="${state}">${state}</option>`;
+                    });
+                });
+
+            stateSelect.onchange = () => {
+                citySelect.disabled = false;
+                fetch(`https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/us-cities-demographics/records?where=state="${stateSelect.value}"`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const cities = [...new Set(data.results.map(item => item.city))].sort();
+                        citySelect.innerHTML = '<option value="">Select City</option>';
+                        cities.forEach(city => {
+                            citySelect.innerHTML += `<option value="${city}">${city}</option>`;
+                        });
+                        submitBtn.disabled = true;
+                    });
+            };
+
+            citySelect.onchange = () => {
+                submitBtn.disabled = false;
+            };
+
+            submitBtn.onclick = (e) => {
+                e.preventDefault();
+                const state = stateSelect.value;
+                const city = citySelect.value;
+                fetch(`https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/us-cities-demographics/records?where=state="${state}" and city="${city}"`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // Data processing
+                        const totalPopulation = data.results.reduce((sum, item) => sum + item.total_population, 0);
+                        const medianAge = data.results.reduce((sum, item) => sum + item.median_age * item.total_population, 0) / totalPopulation;
+                        const avgHouseholdSize = data.results.reduce((sum, item) => sum + item.average_household_size * item.total_population, 0) / totalPopulation;
+                        const veterans = data.results.reduce((sum, item) => sum + item.number_of_veterans, 0);
+                        const foreignBorn = data.results.reduce((sum, item) => sum + item.foreign_born, 0);
+                        
+                        // Race data for pie chart
+                        let raceData = {};
+                        data.results.forEach(item => {
+                            raceData[item.race] = (raceData[item.race] || 0) + item.count;
+                        });
+
+                        // Gender data for bar chart
+                        let male = data.results.reduce((sum, item) => sum + (item.male_population || 0), 0);
+                        let female = totalPopulation - male;
+
+                        // Display stats
+                        statsDiv.innerHTML = `
+                            <h2>${city}, ${state}</h2>
+                            <p>Total Population: ${totalPopulation}</p>
+                            <p>Median Age: ${medianAge.toFixed(2)}</p>
+                            <p>Average Household Size: ${avgHouseholdSize.toFixed(2)}</p>
+                            <p>Number of Veterans: ${veterans}</p>
+                            <p>Foreign-born Population: ${foreignBorn}</p>
+                        `;
+
+                        // Charts
+                        const raceChart = new Chart(document.getElementById('raceChart'), {
+                            type: 'pie',
+                            data: {
+                                labels: Object.keys(raceData),
+                                datasets: [{
+                                    data: Object.values(raceData),
+                                    backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff']
+                                }]
+                            }
+                        });
+
+                        const genderChart = new Chart(document.getElementById('genderChart'), {
+                            type: 'bar',
+                            data: {
+                                labels: ['Male', 'Female'],
+                                datasets: [{
+                                    label: 'Gender Distribution',
+                                    data: [male, female],
+                                    backgroundColor: ['#36a2eb', '#ff6384']
+                                }]
+                            },
+                            options: {
+                                scales: {
+                                    yAxes: [{
+                                        ticks: {
+                                            beginAtZero: true
+                                        }
+                                    }]
+                                }
+                            }
+                        });
+                    });
+            };
+        });
+    </script>
+</body>
+</html>

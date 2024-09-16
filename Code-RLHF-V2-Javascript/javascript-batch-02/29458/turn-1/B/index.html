@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>US City Demographics</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        .chart-container {
+            width: 400px;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <h2 class="text-center">US City Demographics</h2>
+    <form id="demoForm">
+        <div class="mb-3">
+            <select id="stateSelect" class="form-select" aria-label="Select State">
+                <option selected>Select State</option>
+                <!-- States will be populated here -->
+            </select>
+        </div>
+        <div class="mb-3">
+            <select id="citySelect" class="form-select" disabled aria-label="Select City">
+                <option selected>Select City</option>
+                <!-- Cities will be populated here -->
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary" disabled>Submit</button>
+    </form>
+    
+    <div id="stats" class="mt-5" style="display:none;">
+        <h3>City Statistics</h3>
+        <ul id="statList"></ul>
+    </div>
+    
+    <div class="chart-container">
+        <canvas id="racialPieChart"></canvas>
+    </div>
+    <div class="chart-container">
+        <canvas id="genderBarChart"></canvas>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+$(document).ready(function() {
+    const stateSelect = $('#stateSelect');
+    const citySelect = $('#citySelect');
+    const submitBtn = $('button[type="submit"]');
+    
+    // Assume we have a list or fetch states from an API
+    const states = ['California', 'Texas', 'Florida']; // List all states here
+    states.forEach(state => stateSelect.append(new Option(state, state)));
+
+    stateSelect.on('change', function() {
+        citySelect.prop('disabled', this.value === 'Select State');
+        citySelect.html('<option>Loading...</option>');
+        // Here you would fetch cities for the selected state
+        // For simplicity, let's assume a function getCitiesByState
+        const cities = getCitiesByState(this.value);
+        citySelect.html('<option selected>Select City</option>');
+        cities.forEach(city => citySelect.append(new Option(city, city)));
+        submitBtn.prop('disabled', true);
+    });
+
+    citySelect.on('change', function() {
+        submitBtn.prop('disabled', this.value === 'Select City');
+    });
+
+    $('#demoForm').on('submit', function(e) {
+        e.preventDefault();
+        const state = stateSelect.val();
+        const city = citySelect.val();
+        fetchDataAndDisplay(state, city);
+    });
+
+    function fetchDataAndDisplay(state, city) {
+        $.ajax({
+            url: `https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/us-cities-demographics/records?where=state="${state}" AND city="${city}"`,
+            method: 'GET',
+            success: function(data) {
+                const aggregatedData = aggregateData(data.results);
+                displayStats(aggregatedData);
+                displayCharts(aggregatedData);
+            }
+        });
+    }
+
+    function aggregateData(data) {
+        // Aggregate data here
+        // Example: sum, average, etc.
+        return {
+            totalPopulation: data.reduce((sum, item) => sum + item.population, 0),
+            medianAge: data.reduce((sum, item) => sum + item.median_age, 0) / data.length,
+            // Continue with other fields...
+        };
+    }
+
+    function displayStats(stats) {
+        $('#stats').show();
+        $('#statList').html(Object.entries(stats).map(([key, value]) => `<li><strong>${key.replace('_', ' ')}:</strong> ${value}</li>`).join(''));
+    }
+
+    function displayCharts(stats) {
+        // Implement Chart.js for racial demographics and gender distribution
+        // This is a placeholder for actual chart creation
+        new Chart(document.getElementById('racialPieChart'), {
+            type: 'pie',
+            data: {
+                // Data for racial demographics
+            }
+        });
+
+        new Chart(document.getElementById('genderBarChart'), {
+            type: 'bar',
+            data: {
+                // Data for gender distribution
+            }
+        });
+    }
+});
+
+// Mock function to get cities by state
+function getCitiesByState(state) {
+    // Return an array of cities for the state
+    return ['City1', 'City2', 'City3']; // Mock data
+}
+</script>
+</body>
+</html>
