@@ -1,216 +1,248 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sniper Game - Tailwind Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-900 flex items-center justify-center min-h-screen">
-    <div id="gameContainer" class="relative w-[800px] h-[600px] bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-        <div id="scope" class="absolute w-48 h-48 border-4 border-red-500 rounded-full shadow-inner pointer-events-none hidden">
-            <div class="absolute top-1/2 left-0 w-full h-0.5 bg-red-500"></div>
-            <div class="absolute top-0 left-1/2 w-0.5 h-full bg-red-500"></div>
+  </head>
+  <body class="bg-gray-900 flex items-center justify-center min-h-screen">
+    <div
+      id="gameContainer"
+      class="relative w-[800px] h-[600px] bg-gray-800 rounded-lg shadow-lg overflow-hidden"
+    >
+      <div
+        id="scope"
+        class="absolute w-48 h-48 border-4 border-red-500 rounded-full shadow-inner pointer-events-none hidden"
+      >
+        <div class="absolute top-1/2 left-0 w-full h-0.5 bg-red-500"></div>
+        <div class="absolute top-0 left-1/2 w-0.5 h-full bg-red-500"></div>
+      </div>
+      <div
+        id="startScreen"
+        class="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white p-8"
+      >
+        <h1 class="text-4xl font-bold mb-6 text-red-500">Sniper Game</h1>
+        <div class="space-y-2 text-center mb-6">
+          <p class="text-xl font-semibold">Instructions:</p>
+          <p>1. Move your mouse to aim the scope</p>
+          <p>2. Click to shoot when the target is visible</p>
+          <p>3. You have 2 shots to hit the target</p>
+          <p>4. The target hides behind hurdles</p>
         </div>
-        <div id="startScreen" class="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white p-8">
-            <h1 class="text-4xl font-bold mb-6 text-red-500">Sniper Game</h1>
-            <div class="space-y-2 text-center mb-6">
-                <p class="text-xl font-semibold">Instructions:</p>
-                <p>1. Move your mouse to aim the scope</p>
-                <p>2. Click to shoot when the target is visible</p>
-                <p>3. You have 2 shots to hit the target</p>
-                <p>4. The target hides behind hurdles</p>
-            </div>
-            <button onclick="startGame()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-200">
-                Start Game
-            </button>
-        </div>
-        <div id="gameOverScreen" class="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white p-8 hidden">
-            <h2 id="gameOverTitle" class="text-4xl font-bold mb-4 text-red-500"></h2>
-            <p id="gameOverMessage" class="text-xl mb-2"></p>
-            <p id="shotsLeft" class="text-xl mb-6"></p>
-            <button onclick="restartGame()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-200">
-                Try Again
-            </button>
-        </div>
-        <div id="hud" class="absolute top-4 left-4 text-white text-lg font-semibold hidden">
-            Shots left: <span id="shotsLeftHUD">2</span>
-        </div>
+        <button
+          onclick="startGame()"
+          class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-200"
+        >
+          Start Game
+        </button>
+      </div>
+      <div
+        id="gameOverScreen"
+        class="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white p-8 hidden"
+      >
+        <h2
+          id="gameOverTitle"
+          class="text-4xl font-bold mb-4 text-red-500"
+        ></h2>
+        <p id="gameOverMessage" class="text-xl mb-2"></p>
+        <p id="shotsLeft" class="text-xl mb-6"></p>
+        <button
+          onclick="restartGame()"
+          class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-200"
+        >
+          Try Again
+        </button>
+      </div>
+      <div
+        id="hud"
+        class="absolute top-4 left-4 text-white text-lg font-semibold hidden"
+      >
+        Shots left: <span id="shotsLeftHUD">2</span>
+      </div>
     </div>
 
     <script>
-        let target;
-        let hurdles = [];
-        let shots = 2;
-        let gameOver = false;
-        let message = '';
-        let scopeX, scopeY;
-        let worldWidth = 2000;
-        let worldHeight = 600;
-        let viewX = 0;
-        let gameStarted = false;
+      let target;
+      let targetImage;
+      let hurdles = [];
+      let shots = 2;
+      let gameOver = false;
+      let message = "";
+      let scopeX, scopeY;
+      let worldWidth = 2000;
+      let worldHeight = 600;
+      let viewX = 0;
+      let gameStarted = false;
 
-        function setup() {
-            let canvas = createCanvas(800, 600);
-            canvas.parent('gameContainer');
-            noLoop();
+      function setup() {
+        let canvas = createCanvas(800, 600);
+        canvas.parent("gameContainer");
+        targetImage = loadImage(
+          "https://cors-anywhere.herokuapp.com/https://www.kindpng.com/picc/m/318-3184047_terraria-character-png-transparent-png.png"
+        );
+        noLoop();
+      }
+
+      function draw() {
+        if (!gameStarted) return;
+
+        background(31, 41, 55); // Tailwind bg-gray-800
+
+        push();
+        translate(-viewX, 0);
+
+        // Draw ground
+        fill(16, 185, 129); // Tailwind bg-green-500
+        rect(0, worldHeight - 100, worldWidth, 100);
+
+        target.update();
+        target.show();
+
+        for (let hurdle of hurdles) {
+          hurdle.show();
         }
 
-        function draw() {
-            if (!gameStarted) return;
+        pop();
 
-            background(31, 41, 55); // Tailwind bg-gray-800
-            
-            push();
-            translate(-viewX, 0);
-            
-            // Draw ground
-            fill(16, 185, 129); // Tailwind bg-green-500
-            rect(0, worldHeight - 100, worldWidth, 100);
-            
-            target.update();
-            target.show();
-            
-            for (let hurdle of hurdles) {
-                hurdle.show();
-            }
-            
-            pop();
-            
-            // Update scope position
-            scopeX = constrain(mouseX, 100, width - 100);
-            scopeY = constrain(mouseY, 100, height - 100);
-            document.getElementById('scope').style.left = (scopeX - 96) + 'px';
-            document.getElementById('scope').style.top = (scopeY - 96) + 'px';
-            
-            // Update view based on scope position
-            viewX = map(scopeX, 0, width, 0, worldWidth - width);
+        // Update scope position
+        scopeX = constrain(mouseX, 100, width - 100);
+        scopeY = constrain(mouseY, 100, height - 100);
+        document.getElementById("scope").style.left = scopeX - 96 + "px";
+        document.getElementById("scope").style.top = scopeY - 96 + "px";
 
-            if (gameOver) {
-                showGameOverScreen();
-            }
+        // Update view based on scope position
+        viewX = map(scopeX, 0, width, 0, worldWidth - width);
+
+        if (gameOver) {
+          showGameOverScreen();
         }
+      }
 
-        function startGame() {
-            document.getElementById('startScreen').classList.add('hidden');
-            document.getElementById('scope').classList.remove('hidden');
-            document.getElementById('hud').classList.remove('hidden');
-            gameStarted = true;
-            gameOver = false;
-            shots = 2;
-            message = '';
-            target = new Target();
-            hurdles = [];
-            for (let i = 0; i < 5; i++) {
-                hurdles.push(new Hurdle(i * 400 + 200));
-            }
-            scopeX = width / 2;
-            scopeY = height / 2;
+      function startGame() {
+        document.getElementById("startScreen").classList.add("hidden");
+        document.getElementById("scope").classList.remove("hidden");
+        document.getElementById("hud").classList.remove("hidden");
+        gameStarted = true;
+        gameOver = false;
+        shots = 2;
+        message = "";
+        target = new Target();
+        hurdles = [];
+        for (let i = 0; i < 5; i++) {
+          hurdles.push(new Hurdle(i * 400 + 200));
+        }
+        scopeX = width / 2;
+        scopeY = height / 2;
+        updateHUD();
+        loop();
+      }
+
+      function restartGame() {
+        document.getElementById("gameOverScreen").classList.add("hidden");
+        startGame();
+      }
+
+      function mousePressed() {
+        if (!gameStarted || gameOver) return;
+
+        if (shots > 0) {
+          if (target.hit(mouseX + viewX, mouseY) && !isTargetBehindHurdle()) {
+            shots--;
             updateHUD();
-            loop();
-        }
-
-        function restartGame() {
-            document.getElementById('gameOverScreen').classList.add('hidden');
-            startGame();
-        }
-
-        function mousePressed() {
-            if (!gameStarted || gameOver) return;
-
-            if (shots > 0) {
-                if (target.hit(mouseX + viewX, mouseY) && !isTargetBehindHurdle()) {
-                    message = 'Hit! You win!';
-                    gameOver = true;
-                } else {
-                    shots--;
-                    updateHUD();
-                    if (shots === 0) {
-                        message = 'Game Over! You missed.';
-                        gameOver = true;
-                    } else {
-                        message = 'Miss! 1 shot left.';
-                    }
-                }
+            message = "Hit! You win!";
+            gameOver = true;
+          } else {
+            shots--;
+            updateHUD();
+            if (shots === 0) {
+              message = "Game Over! You missed.";
+              gameOver = true;
+            } else {
+              message = "Miss! 1 shot left.";
             }
+          }
+        }
+      }
+
+      function updateHUD() {
+        document.getElementById("shotsLeftHUD").innerText = shots;
+      }
+
+      function showGameOverScreen() {
+        document.getElementById("gameOverScreen").classList.remove("hidden");
+        document.getElementById("gameOverTitle").innerText =
+          shots === 0 ? "Game Over" : "You Win!";
+        document.getElementById("gameOverMessage").innerText = message;
+        document.getElementById("shotsLeft").innerText = `Shots left: ${shots}`;
+        noLoop();
+      }
+
+      function isTargetBehindHurdle() {
+        for (let hurdle of hurdles) {
+          if (target.x > hurdle.x && target.x < hurdle.x + hurdle.width) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      class Target {
+        constructor() {
+          this.x = worldWidth / 2;
+          this.y = worldHeight - 100; // Changed from worldHeight - 150 to touch the ground
+          this.speed = 2;
+          this.direction = 1;
+          this.changeDirectionInterval = random(1000, 3000); // Randomize interval between 1 and 3 seconds
+          this.lastDirectionChange = millis(); // Track last direction change
         }
 
-        function updateHUD() {
-            document.getElementById('shotsLeftHUD').innerText = shots;
-        }
-
-        function showGameOverScreen() {
-            document.getElementById('gameOverScreen').classList.remove('hidden');
-            document.getElementById('gameOverTitle').innerText = shots === 0 ? 'Game Over' : 'You Win!';
-            document.getElementById('gameOverMessage').innerText = message;
-            document.getElementById('shotsLeft').innerText = `Shots left: ${shots}`;
-            noLoop();
-        }
-
-        function isTargetBehindHurdle() {
-            for (let hurdle of hurdles) {
-                if (target.x > hurdle.x && target.x < hurdle.x + hurdle.width) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        class Target {
-    constructor() {
-        this.x = worldWidth / 2;
-        this.y = worldHeight - 150;
-        this.speed = 2;
-        this.direction = 1;
-        this.changeDirectionInterval = random(1000, 3000); // Randomize interval between 1 and 3 seconds
-        this.lastDirectionChange = millis(); // Track last direction change
-    }
-
-    update() {
-        this.x += this.speed * this.direction;
-        if (this.x > worldWidth - 20 || this.x < 20) {
+        update() {
+          this.x += this.speed * this.direction;
+          if (this.x > worldWidth - 20 || this.x < 20) {
             this.direction *= -1;
-        }
+          }
 
-        // Check if it's time to change direction
-        if (millis() - this.lastDirectionChange > this.changeDirectionInterval) {
+          // Check if it's time to change direction
+          if (
+            millis() - this.lastDirectionChange >
+            this.changeDirectionInterval
+          ) {
             this.changeDirection();
+          }
         }
-    }
 
-    changeDirection() {
-        this.direction *= -1; // Reverse direction
-        this.speed = random(2, 5); // Randomize speed between 2 and 5
-        this.changeDirectionInterval = random(1000, 3000); // Randomize next interval
-        this.lastDirectionChange = millis(); // Reset the timer
-    }
-
-    show() {
-        if (!isTargetBehindHurdle()) {
-            fill(239, 68, 68); // Tailwind bg-red-500
-            ellipse(this.x, this.y, 40, 60);
+        changeDirection() {
+          this.direction *= -1; // Reverse direction
+          this.speed = random(2, 5); // Randomize speed between 2 and 5
+          this.changeDirectionInterval = random(1000, 3000); // Randomize next interval
+          this.lastDirectionChange = millis(); // Reset the timer
         }
-    }
 
-    hit(px, py) {
-        return dist(px, py, this.x, this.y) < 30;
-    }
-}
-
-
-        class Hurdle {
-            constructor(x) {
-                this.x = x;
-                this.width = 60;
-                this.height = random(200, 400);
-            }
-            
-            show() {
-                fill(75, 85, 99); // Tailwind bg-gray-600
-                rect(this.x, worldHeight - this.height, this.width, this.height);
-            }
+        show() {
+          if (!isTargetBehindHurdle()) {
+            image(targetImage, this.x - 20, this.y - 30, 40, 60);
+          }
         }
+
+        hit(px, py) {
+          return dist(px, py, this.x, this.y) < 30;
+        }
+      }
+
+      class Hurdle {
+        constructor(x) {
+          this.x = x;
+          this.width = 60;
+          this.height = random(200, 400);
+        }
+
+        show() {
+          fill(75, 85, 99); // Tailwind bg-gray-600
+          rect(this.x, worldHeight - this.height, this.width, this.height);
+        }
+      }
     </script>
-</body>
+  </body>
 </html>
