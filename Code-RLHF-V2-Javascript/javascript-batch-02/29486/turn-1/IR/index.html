@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Player Stats and Pie Charts</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-sans">
+
+<div class="container mx-auto py-12">
+  <!-- Header Section -->
+  <h1 class="text-4xl font-extrabold text-center text-gray-800 mb-10">Team Players & Stats</h1>
+
+  <!-- Section for Player Grids -->
+  <div class="mb-12">
+    <h2 class="text-3xl font-bold text-gray-700 text-center mb-8">Playing XI</h2>
+    <div id="playingXiGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
+  </div>
+
+  <div class="mb-12">
+    <h2 class="text-3xl font-bold text-gray-700 text-center mb-8">Bench</h2>
+    <div id="benchGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
+  </div>
+
+  <!-- Section for Pie Charts -->
+  <div class="flex flex-col md:flex-row justify-around mt-10 space-y-10 md:space-y-0">
+    <div class="bg-white shadow-lg rounded-lg p-6">
+      <h3 class="text-2xl font-semibold text-gray-700 text-center mb-4">Batting Styles</h3>
+      <canvas id="battingPieChart" class="mx-auto"></canvas>
+    </div>
+    <div class="bg-white shadow-lg rounded-lg p-6">
+      <h3 class="text-2xl font-semibold text-gray-700 text-center mb-4">Bowling Styles</h3>
+      <canvas id="bowlingPieChart" class="mx-auto"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+// Fetching Player Data
+async function fetchPlayerData() {
+  const url = 'https://cricbuzz-cricket.p.rapidapi.com/mcenter/v1/35878/team/9';
+  const options = {
+    method: 'GET',
+    headers: {
+      'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c',
+      'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com'
+    }
+  };
+
+  try {
+    const response = await fetch(url, options);
+    const result = await response.json();
+    return result.players;
+  } catch (error) {
+    console.error('Error fetching player data:', error);
+  }
+}
+
+// Displaying Player Cards in Grid
+function displayPlayerGrid(players, gridId) {
+  const grid = document.getElementById(gridId);
+  grid.innerHTML = ''; // Clear existing content
+
+  players.forEach(player => {
+    const playerCard = document.createElement('div');
+    playerCard.classList.add('bg-white', 'shadow-md', 'rounded-lg', 'p-6', 'text-center', 'transition', 'transform', 'hover:scale-105', 'hover:shadow-xl');
+    
+    playerCard.innerHTML = `
+      <h4 class="text-xl font-bold text-gray-800 mb-2">${player.fullName}</h4>
+      <p class="text-sm text-gray-500">Role: ${player.role}</p>
+      <p class="text-sm text-gray-500">Batting: ${player.battingStyle || 'N/A'}</p>
+      <p class="text-sm text-gray-500">Bowling: ${player.bowlingStyle || 'N/A'}</p>
+    `;
+    grid.appendChild(playerCard);
+  });
+}
+
+// Counting Styles (Batting/Bowling)
+function countStyles(players, key) {
+  const styleCounts = {};
+  
+  players.forEach(player => {
+    const style = player[key] || 'N/A';
+    styleCounts[style] = (styleCounts[style] || 0) + 1;
+  });
+
+  return styleCounts;
+}
+
+// Creating Pie Chart with Chart.js
+function createPieChart(chartId, data, title) {
+  const ctx = document.getElementById(chartId).getContext('2d');
+  new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: Object.keys(data),
+      datasets: [{
+        data: Object.values(data),
+        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'bottom',
+        },
+        title: {
+          display: true,
+          text: title,
+          font: {
+            size: 18
+          }
+        }
+      }
+    }
+  });
+}
+
+// Initialize Function to Fetch and Display Data
+async function init() {
+  const playersData = await fetchPlayerData();
+  const playingXI = playersData['playing XI'];
+  const bench = playersData.bench;
+
+  // Display Player Grids
+  displayPlayerGrid(playingXI, 'playingXiGrid');
+  displayPlayerGrid(bench, 'benchGrid');
+
+  // Prepare Data for Pie Charts
+  const battingStyles = countStyles([...playingXI, ...bench], 'battingStyle');
+  const bowlingStyles = countStyles([...playingXI, ...bench], 'bowlingStyle');
+
+  // Create Pie Charts
+  createPieChart('battingPieChart', battingStyles, 'Batting Styles Distribution');
+  createPieChart('bowlingPieChart', bowlingStyles, 'Bowling Styles Distribution');
+}
+
+// Run the Initialization
+init();
+</script>
+
+</body>
+</html>

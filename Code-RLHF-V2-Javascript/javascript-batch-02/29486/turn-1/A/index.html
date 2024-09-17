@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Player Stats Dashboard</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .player-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .section-title {
+            margin-top: 20px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
+        }
+        #charts-container {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        .chart {
+            width: 45%;
+            min-width: 250px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+</head>
+<body>
+
+<h1>Team Player Stats</h1>
+
+<div id="playingXI" class="grid-container"></div>
+<h2 class="section-title">Playing XI</h2>
+
+<div id="bench" class="grid-container"></div>
+<h2 class="section-title">Bench</h2>
+
+<div id="charts-container">
+    <div class="chart"><canvas id="battingStyleChart"></canvas></div>
+    <div class="chart"><canvas id="bowlingStyleChart"></canvas></div>
+</div>
+
+<script>
+    const url = 'https://cricbuzz-cricket.p.rapidapi.com/mcenter/v1/35878/team/9';
+    const options = {
+        method: 'GET',
+        headers: {
+            'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c',
+            'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com'
+        }
+    };
+
+    async function fetchAndDisplayData() {
+        try {
+            const response = await fetch(url, options);
+            const data = await response.json();
+            
+            // Display Players
+            const displayPlayers = (players, containerId) => {
+                const container = document.getElementById(containerId);
+                players.forEach(player => {
+                    const card = document.createElement('div');
+                    card.className = 'player-card';
+                    card.innerHTML = `<h3>${player.name}</h3>
+                                      <p>Role: ${player.role}</p>
+                                      <p>Batting Style: ${player.battingStyle}</p>
+                                      <p>Bowling Style: ${player.bowlingStyle || 'N/A'}</p>`;
+                    container.appendChild(card);
+                });
+            };
+
+            displayPlayers(data.players['playing XI'], 'playingXI');
+            displayPlayers(data.players.bench, 'bench');
+
+            // Prepare data for charts
+            const battingStyles = data.players['playing XI'].filter(p => p.role.includes('Batsman')).map(p => p.battingStyle);
+            const bowlingStyles = data.players['playing XI'].filter(p => p.bowlingStyle).map(p => p.bowlingStyle);
+
+            const countStyles = (styles) => {
+                return styles.reduce((acc, style) => {
+                    acc[style] = (acc[style] || 0) + 1;
+                    return acc;
+                }, {});
+            };
+
+            const battingStyleCount = countStyles(battingStyles);
+            const bowlingStyleCount = countStyles(bowlingStyles);
+
+            // Create Charts
+            const createPieChart = (canvasId, data, title) => {
+                new Chart(document.getElementById(canvasId), {
+                    type: 'pie',
+                    data: {
+                        labels: Object.keys(data),
+                        datasets: [{
+                            data: Object.values(data),
+                            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'],
+                        }]
+                    },
+                    options: {
+                        title: {
+                            display: true,
+                            text: title
+                        }
+                    }
+                });
+            };
+
+            createPieChart('battingStyleChart', battingStyleCount, 'Batting Styles of Batsmen');
+            createPieChart('bowlingStyleChart', bowlingStyleCount, 'Bowling Styles of Bowlers');
+
+        } catch (error) {
+            console.error("Failed to fetch data:", error);
+        }
+    }
+
+    fetchAndDisplayData();
+</script>
+
+</body>
+</html>

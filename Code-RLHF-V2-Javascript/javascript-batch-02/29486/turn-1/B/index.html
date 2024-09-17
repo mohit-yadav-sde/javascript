@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Stats</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/3.1.0/gridstack.min.css" />
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .grid-stack-item-content { 
+            background: white; 
+            border: 1px solid #ccc; 
+            padding: 10px; 
+            text-align: center; 
+        }
+        .chart-container {
+            width: 100%;
+            max-width: 400px;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="grid-playing"></div>
+    <div id="grid-bench"></div>
+    <div class="chart-container">
+        <canvas id="battingStyleChart"></canvas>
+    </div>
+    <div class="chart-container">
+        <canvas id="bowlingStyleChart"></canvas>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/3.1.0/gridstack.all.js"></script>
+    <script>
+    async function fetchData() {
+        const url = 'https://cricbuzz-cricket.p.rapidapi.com/mcenter/v1/35878/team/9';
+        const options = {
+            method: 'GET',
+            headers: {
+                'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c', // Replace with your actual API key
+                'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com'
+            }
+        };
+
+        try {
+            const response = await fetch(url, options);
+            const data = await response.json();
+            setupGrids(data.players);
+            setupCharts(data.players);
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    function setupGrids(players) {
+        GridStack.init();
+        const gridPlaying = GridStack.init({cellHeight: 'auto'}, '#grid-playing');
+        const gridBench = GridStack.init({cellHeight: 'auto'}, '#grid-bench');
+
+        ['playing XI', 'bench'].forEach(section => {
+            (section === 'playing XI' ? gridPlaying : gridBench).addWidget({content: `<h2>${section}</h2>`});
+            players[section].forEach(player => {
+                const el = `<div><img src="https://www.cricbuzz.com/a/img/v1/50x50/i1/c${player.faceImageId}/i.jpg" alt="${player.name}" onerror="this.onerror=null;this.src='default.jpg';">
+                            <p>${player.name}</p><p>Role: ${player.role}</p></div>`;
+                (section === 'playing XI' ? gridPlaying : gridBench).addWidget({content: el});
+            });
+        });
+    }
+
+    function setupCharts(players) {
+        let battingStyles = {}, bowlingStyles = {};
+        
+        players['playing XI'].concat(players.bench).forEach(player => {
+            if (player.role.includes('Batsman')) {
+                battingStyles[player.battingStyle] = (battingStyles[player.battingStyle] || 0) + 1;
+            }
+            if (player.bowlingStyle) {
+                bowlingStyles[player.bowlingStyle] = (bowlingStyles[player.bowlingStyle] || 0) + 1;
+            }
+        });
+
+        new Chart(document.getElementById('battingStyleChart'), {
+            type: 'pie',
+            data: {
+                labels: Object.keys(battingStyles),
+                datasets: [{data: Object.values(battingStyles), backgroundColor: ['#FF6384','#36A2EB','#FFCE56']}]
+            }
+        });
+
+        new Chart(document.getElementById('bowlingStyleChart'), {
+            type: 'pie',
+            data: {
+                labels: Object.keys(bowlingStyles),
+                datasets: [{data: Object.values(bowlingStyles), backgroundColor: ['#84FF63','#EB36A2','#56FFCE']}]
+            }
+        });
+    }
+
+    fetchData();
+    </script>
+</body>
+</html>
