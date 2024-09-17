@@ -62,17 +62,22 @@
 
                 // Update and display traffic
                 for (let i = traffic.length - 1; i >= 0; i--) {
-                    traffic[i].update();
-                    traffic[i].display();
+                    if (traffic[i]) {  // Add this check
+                        traffic[i].update();
+                        traffic[i].display();
 
-                    // Remove off-screen cars
-                    if (traffic[i].offscreen()) {
+                        // Remove off-screen cars
+                        if (traffic[i].offscreen()) {
+                            traffic.splice(i, 1);
+                        }
+
+                        // Check for collisions
+                        if (player.hits(traffic[i])) {
+                            gameOver();
+                        }
+                    } else {
+                        // Remove undefined elements
                         traffic.splice(i, 1);
-                    }
-
-                    // Check for collisions
-                    if (player.hits(traffic[i])) {
-                        gameOver();
                     }
                 }
 
@@ -206,7 +211,11 @@
 
             hits(car) {
                 // Check collision with other cars
-                return collideRectRect(this.x, this.y, this.w, this.h, car.x, car.y, car.w, car.h);
+                if (car && typeof car.x !== 'undefined' && typeof car.y !== 'undefined' &&
+                    typeof car.w !== 'undefined' && typeof car.h !== 'undefined') {
+                    return collideRectRect(this.x, this.y, this.w, this.h, car.x, car.y, car.w, car.h);
+                }
+                return false;
             }
 
             hasWon() {
