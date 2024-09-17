@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geocode and Reverse Geocode Widget</title>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css"/>
+    <style>
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 4px;
+            color: white;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .toast-success { background-color: #48bb78; }
+        .toast-error { background-color: #f56565; }
+    </style>
+</head>
+<body class="bg-gray-100 p-6">
+
+<div class="max-w-lg mx-auto bg-white shadow-lg rounded-lg p-6">
+    <h2 class="text-2xl font-bold mb-4">Geocode & Reverse Geocode Widget</h2>
+    <button id="locationPermission" class="mb-4 bg-green-500 text-white font-semibold px-4 py-2 rounded">Check Location Access</button>
+    <form id="geoForm" class="mb-4">
+        <div>
+            <label class="block font-semibold">Enter Address:</label>
+            <input type="text" id="addressInput" class="w-full border rounded p-2 mb-4" placeholder="e.g., 505 Howard St, San Francisco">
+        </div>
+        <div>
+            <label class="block font-semibold">OR Enter Latitude and Longitude:</label>
+            <div class="grid grid-cols-2 gap-4">
+                <input type="text" id="latInput" class="border rounded p-2" placeholder="Latitude">
+                <input type="text" id="lonInput" class="border rounded p-2" placeholder="Longitude">
+            </div>
+        </div>
+        <button type="submit" class="mt-4 bg-blue-500 text-white font-semibold px-4 py-2 rounded">Submit</button>
+    </form>
+
+    <div id="result" class="hidden">
+        <h3 class="text-xl font-semibold mb-2">Location Details:</h3>
+        <p><strong>Address:</strong> <span id="address"></span></p>
+        <p><strong>Postal Code:</strong> <span id="postalCode"></span></p>
+        <p><strong>Country:</strong> <span id="country"></span></p>
+        <p><strong>Location Type:</strong> <span id="locationType"></span></p>
+        <p><strong>Distance from Your Location:</strong> <span id="distance"></span></p>
+        <div id="map" class="h-64 mt-4"></div>
+    </div>
+</div>
+
+<script>
+let userLat, userLon;
+let hasLocationPermission = false;
+let map;
+
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = 1; }, 10);
+    setTimeout(() => {
+        toast.style.opacity = 0;
+        setTimeout(() => { document.body.removeChild(toast); }, 300);
+    }, 3000);
+}
+
+async function requestLocationPermission() {
+    try {
+        const result = await navigator.permissions.query({ name: 'geolocation' });
+        if (result.state === 'granted') {
+            hasLocationPermission = true;
+            showToast('Location access granted');
+        } else if (result.state === 'prompt') {
+            showToast('Please allow location access when prompted', 'error');
+        } else {
+            showToast('Location access denied. Please enable it in your browser settings.', 'error');
+        }
+    } catch (error) {
+        console.error('Error checking permission:', error);
+        showToast('Error checking location permission', 'error');
+    }
+}
+
+document.getElementById('locationPermission').addEventListener('click', requestLocationPermission);
+
+function getUserLocation() {
+    return new Promise((resolve, reject) => {
+        if (!hasLocationPermission) {
+            reject(new Error('Location permission not granted'));
+            return;
+        }
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                position => {
+                    userLat = position.coords.latitude;
+                    userLon = position.coords.longitude;
+                    resolve();
+                },
+                error => {
+                    console.error("Error getting location:", error);
+                    if (error.code === 1) {
+                        showToast('Location access denied. Please enable it in your browser settings.', 'error');
+                    } else {
+                        showToast('Error getting location. Please try again.', 'error');
+                    }
+                    reject(error);
+                }
+            );
+        } else {
+            showToast('Geolocation is not supported by this browser', 'error');
+            reject(new Error("Geolocation is not supported by this browser."));
+        }
+    });
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+    return distance.toFixed(2);
+}
+
+document.getElementById('geoForm').addEventListener('submit', async function(event) {
+    event.preventDefault();
+    
+    const address = document.getElementById('addressInput').value;
+    const lat = document.getElementById('latInput').value;
+    const lon = document.getElementById('lonInput').value;
+    const apiKey = '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c'; // Replace with your actual API key
+    let url = '';
+    
+    if (address) {
+        url = `https://trueway-geocoding.p.rapidapi.com/Geocode?address=${encodeURIComponent(address)}&language=en`;
+    } else if (lat && lon) {
+        url = `https://trueway-geocoding.p.rapidapi.com/ReverseGeocode?location=${lat},${lon}&language=en`;
+    } else {
+        showToast('Please provide either an address or latitude and longitude.', 'error');
+        return;
+    }
+
+    const options = {
+        method: 'GET',
+        headers: {
+            'x-rapidapi-key': apiKey,
+            'x-rapidapi-host': 'trueway-geocoding.p.rapidapi.com'
+        }
+    };
+
+    try {
+        // Get user's current location
+        await getUserLocation();
+
+        // Make API request
+        const response = await fetch(url, options);
+        const data = await response.json();
+        const location = data.results[0];
+
+        // Calculate distance
+        const distance = calculateDistance(userLat, userLon, location.location.lat, location.location.lng);
+
+        // Display results
+        document.getElementById('address').textContent = location.address;
+        document.getElementById('postalCode').textContent = location.postal_code || 'N/A';
+        document.getElementById('country').textContent = location.country;
+        document.getElementById('locationType').textContent = location.type;
+        document.getElementById('distance').textContent = `${distance} km`;
+        document.getElementById('result').classList.remove('hidden');
+
+        // Initialize map if it doesn't exist, otherwise update view
+        if (!map) {
+            map = L.map('map').setView([location.location.lat, location.location.lng], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        } else {
+            map.setView([location.location.lat, location.location.lng], 13);
+            map.eachLayer((layer) => {
+                if (layer instanceof L.Marker) {
+                    map.removeLayer(layer);
+                }
+            });
+        }
+
+        // Add marker for user's location
+        L.marker([userLat, userLon]).addTo(map)
+            .bindPopup('Your Location')
+            .openPopup();
+
+        // Add marker for searched location
+        L.marker([location.location.lat, location.location.lng]).addTo(map)
+            .bindPopup(`<b>${location.address}</b><br>Distance: ${distance} km`)
+            .openPopup();
+        
+        showToast('Location details retrieved successfully');
+    } catch (error) {
+        console.error(error);
+        showToast('An error occurred. Please try again.', 'error');
+    }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location Widget</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        #map { height: 400px; width: 100%; margin-top: 20px; }
+        form { margin-bottom: 20px; }
+        .info { margin-top: 10px; background: #f9f9f9; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<form id="locationForm">
+    <input type="radio" id="addressChoice" name="locationType" value="address" checked>
+    <label for="addressChoice">Address</label>
+    <input type="radio" id="coordChoice" name="locationType" value="coordinates">
+    <label for="coordChoice">Coordinates</label><br>
+    
+    <div id="addressInput">
+        <input type="text" id="address" placeholder="Enter Address">
+    </div>
+    <div id="coordInput" style="display:none;">
+        <input type="number" id="latitude" placeholder="Latitude" step="any">
+        <input type="number" id="longitude" placeholder="Longitude" step="any">
+    </div>
+    <button type="submit">Find Location</button>
+</form>
+
+<div class="info" id="locationInfo"></div>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script>
+document.getElementById('locationForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const locationInfo = document.getElementById('locationInfo');
+    locationInfo.innerHTML = 'Loading...';
+    let url, options;
+    const headers = {
+        'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c', // Replace with your actual API key
+        'x-rapidapi-host': 'trueway-geocoding.p.rapidapi.com'
+    };
+
+    if (document.getElementById('addressChoice').checked) {
+        const address = encodeURIComponent(document.getElementById('address').value);
+        url = `https://trueway-geocoding.p.rapidapi.com/Geocode?address=${address}&language=en`;
+    } else {
+        const lat = document.getElementById('latitude').value;
+        const lon = document.getElementById('longitude').value;
+        url = `https://trueway-geocoding.p.rapidapi.com/ReverseGeocode?location=${lat}%2C${lon}&language=en`;
+    }
+
+    options = { method: 'GET', headers: headers };
+
+    try {
+        const response = await fetch(url, options);
+        const result = await response.json();
+        if (result.results && result.results.length > 0) {
+            const data = result.results[0];
+            const infoHTML = `
+                <p><strong>Address:</strong> ${data.address}</p>
+                <p><strong>Postal Code:</strong> ${data.postal_code || 'N/A'}</p>
+                <p><strong>Country:</strong> ${data.country}</p>
+                <p><strong>Location Type:</strong> ${data.location_type}</p>
+                <!-- Distance calculation would require additional steps -->
+            `;
+            locationInfo.innerHTML = infoHTML;
+            
+            if (!window.map) {
+                window.map = L.map('map').setView([data.location.lat, data.location.lng], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(window.map);
+            } else {
+                window.map.setView([data.location.lat, data.location.lng], 13);
+            }
+            L.marker([data.location.lat, data.location.lng]).addTo(window.map);
+        } else {
+            locationInfo.innerHTML = 'No results found.';
+        }
+    } catch (error) {
+        console.error(error);
+        locationInfo.innerHTML = 'An error occurred. Please try again.';
+    }
+});
+
+document.querySelectorAll('input[name="locationType"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        document.getElementById('addressInput').style.display = this.value === 'address' ? 'block' : 'none';
+        document.getElementById('coordInput').style.display = this.value === 'coordinates' ? 'block' : 'none';
+    });
+});
+</script>
+
+</body>
+</html>

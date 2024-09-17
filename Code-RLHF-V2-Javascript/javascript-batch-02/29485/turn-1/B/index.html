@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location Widget</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        #map { height: 400px; margin-top: 20px; }
+        form { margin-bottom: 20px; }
+        .info { background: #f9f9f9; padding: 10px; border: 1px solid #ddd; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div>
+    <form id="addressForm">
+        <input type="text" id="address" placeholder="Enter your address" required>
+        <button type="submit">Find</button>
+    </form>
+    
+    <form id="coordForm">
+        <input type="text" id="latitude" placeholder="Latitude" required>
+        <input type="text" id="longitude" placeholder="Longitude" required>
+        <button type="submit">Find</button>
+    </form>
+    
+    <div id="locationInfo" class="info"></div>
+    <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script>
+    const apiKey = '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c';
+    const map = L.map('map').setView([0, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    function displayInfo(data) {
+        const infoDiv = document.getElementById('locationInfo');
+        infoDiv.innerHTML = `
+            Address: ${data.address || 'N/A'}<br>
+            Postal Code: ${data.postcode || 'N/A'}<br>
+            Country: ${data.country || 'N/A'}<br>
+            Location Type: ${data.location_type || 'N/A'}<br>
+            Distance: ${data.distance ? data.distance + ' km' : 'N/A'}
+        `;
+    }
+
+    async function geocode(address) {
+        const url = `https://trueway-geocoding.p.rapidapi.com/Geocode?address=${encodeURIComponent(address)}&language=en`;
+        return fetchData(url);
+    }
+
+    async function reverseGeocode(lat, lon) {
+        const url = `https://trueway-geocoding.p.rapidapi.com/ReverseGeocode?location=${lat},${lon}&language=en`;
+        return fetchData(url);
+    }
+
+    async function fetchData(url) {
+        const options = {
+            method: 'GET',
+            headers: {
+                'x-rapidapi-key': apiKey,
+                'x-rapidapi-host': 'trueway-geocoding.p.rapidapi.com'
+            }
+        };
+        try {
+            const response = await fetch(url, options);
+            return await response.json();
+        } catch (error) {
+            console.error('Error:', error);
+            return null;
+        }
+    }
+
+    document.getElementById('addressForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const address = document.getElementById('address').value;
+        const result = await geocode(address);
+        if(result && result.results.length) {
+            const location = result.results[0];
+            map.setView([location.location.lat, location.location.lng], 13);
+            L.marker([location.location.lat, location.location.lng]).addTo(map);
+            displayInfo(location);
+        }
+    });
+
+    document.getElementById('coordForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const lat = document.getElementById('latitude').value;
+        const lon = document.getElementById('longitude').value;
+        const result = await reverseGeocode(lat, lon);
+        if(result && result.results.length) {
+            const location = result.results[0];
+            map.setView([lat, lon], 13);
+            L.marker([lat, lon]).addTo(map);
+            displayInfo(location);
+        }
+    });
+</script>
+
+</body>
+</html>
