@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Local Business Search Widget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  </head>
+  <body class="bg-gray-100 p-4">
+    <div class="container mx-auto">
+      <h1 class="text-3xl font-bold mb-4">Local Business Search</h1>
+      <div class="flex space-x-2 mb-4">
+        <input
+          type="text"
+          id="service"
+          placeholder="Service"
+          class="border p-2 rounded"
+        />
+        <input
+          type="text"
+          id="city"
+          placeholder="City"
+          class="border p-2 rounded"
+        />
+        <input
+          type="text"
+          id="country"
+          placeholder="Country"
+          class="border p-2 rounded"
+        />
+        <button id="searchBtn" class="bg-blue-500 text-white px-4 py-2 rounded">
+          Search
+        </button>
+      </div>
+      <div
+        id="results"
+        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+      ></div>
+      <div
+        id="modal"
+        class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center"
+      >
+        <div
+          class="bg-white p-4 rounded-lg max-w-2xl w-full max-h-screen overflow-y-auto"
+        >
+          <div id="modalContent"></div>
+          <button
+            id="closeModal"
+            class="mt-4 bg-red-500 text-white px-4 py-2 rounded"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+      <div class="mt-8">
+        <h2 class="text-2xl font-bold mb-4">Rating Distribution</h2>
+        <canvas id="ratingChart"></canvas>
+      </div>
+      <div class="mt-8">
+        <h2 class="text-2xl font-bold mb-4">Hotel Stars Distribution</h2>
+        <canvas id="starsChart"></canvas>
+      </div>
+    </div>
+
+    <script>
+      const searchBtn = document.getElementById("searchBtn");
+      const resultsContainer = document.getElementById("results");
+      const modal = document.getElementById("modal");
+      const modalContent = document.getElementById("modalContent");
+      const closeModal = document.getElementById("closeModal");
+      let ratingChart, starsChart;
+      let allData = [];
+
+      searchBtn.addEventListener("click", performSearch);
+      closeModal.addEventListener("click", () => modal.classList.add("hidden"));
+
+      async function performSearch() {
+        const service = document.getElementById("service").value;
+        const city = document.getElementById("city").value;
+        const country = document.getElementById("country").value;
+
+        const url = `https://local-business-data.p.rapidapi.com/search?query=${encodeURIComponent(
+          service
+        )}%20in%20${encodeURIComponent(city)}%2C%20${encodeURIComponent(
+          country
+        )}&limit=20`;
+        const options = {
+          method: "GET",
+          headers: {
+            "x-rapidapi-key":
+              "614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c",
+            "x-rapidapi-host": "local-business-data.p.rapidapi.com",
+          },
+        };
+
+        try {
+          const response = await fetch(url, options);
+          const result = await response.json();
+          displayResults(result.data);
+          updateCharts(result.data);
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      function displayResults(data) {
+        allData = data;
+        resultsContainer.innerHTML = "";
+        data.forEach((item, index) => {
+          const card = document.createElement("div");
+          card.className = "bg-white p-4 rounded shadow";
+          card.innerHTML = `
+                    <h2 class="text-xl font-bold">${item.name}</h2>
+                    <p>Phone: ${item.phone_number || "N/A"}</p>
+                    <p>Stars: ${item.hotel_stars || "N/A"}</p>
+                    <p>Reviews: ${item.review_count}</p>
+                    <p>Rating: ${item.rating}</p>
+                    <button class="mt-2 bg-blue-500 text-white px-4 py-2 rounded" onclick="showModal(${index})">More Info</button>
+                `;
+          resultsContainer.appendChild(card);
+        });
+      }
+
+      function showModal(index) {
+        const item = allData[index];
+        const hasReviews =
+          item.reviews_per_rating &&
+          Object.keys(item.reviews_per_rating).length > 0;
+
+        modalContent.innerHTML = `
+        <h2 class="text-2xl font-bold mb-4">${item.name}</h2>
+        <p><strong>Summary:</strong> ${item.about?.summary || "N/A"}</p>
+        <p><strong>Address:</strong> ${item.full_address}</p>
+        <p><strong>Phone:</strong> ${item.phone_number || "N/A"}</p>
+        <p><strong>Website:</strong> <a href="${
+          item.website
+        }" target="_blank" class="text-blue-500">${
+          item.website || "N/A"
+        }</a></p>
+        <p><strong>Rating:</strong> ${item.rating}</p>
+        <p><strong>Verified:</strong> ${item.verified ? "Yes" : "No"}</p>
+        <p><strong>Hotel Stars:</strong> ${item.hotel_stars || "N/A"}</p>
+        <h3 class="text-xl font-bold mt-4 mb-2">Hotel Location Rating</h3>
+        <ul>
+            ${
+              item.hotel_location_rating
+                ? Object.entries(item.hotel_location_rating)
+                    .map(
+                      ([key, value]) =>
+                        `<li><strong>${key}:</strong> ${value}</li>`
+                    )
+                    .join("")
+                : "No location rating available"
+            }
+        </ul>
+        <h3 class="text-xl font-bold mt-4 mb-2">Hotel Amenities</h3>
+<ul class="list-disc pl-5">
+    ${
+      item.hotel_amenities
+        ? item.hotel_amenities.map((amenity) => `<li>${amenity}</li>`).join("")
+        : "No amenities information available"
+    }
+</ul>
+        <h3 class="text-xl font-bold mt-4 mb-2">Photos</h3>
+        <div class="grid grid-cols-2 gap-2">
+            ${
+              item.photos_sample
+                ?.map(
+                  (photo) =>
+                    `<img src="${photo.photo_url}" alt="Hotel Photo" class="w-full h-40 object-cover rounded">`
+                )
+                .join("") || "No photos available"
+            }
+        </div>
+        <h3 class="text-xl font-bold mt-4 mb-2">Location</h3>
+        <div id="map" class="h-64 mt-2"></div>
+        <h3 class="text-xl font-bold mt-4 mb-2">Reviews per Rating</h3>
+        <canvas id="reviewsChart"></canvas>
+    `;
+        modal.classList.remove("hidden");
+
+        // Initialize map
+        const map = L.map("map").setView([item.latitude, item.longitude], 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(
+          map
+        );
+        L.marker([item.latitude, item.longitude]).addTo(map);
+
+        // Initialize reviews chart
+        if (hasReviews) {
+          const ctx = document.getElementById("reviewsChart").getContext("2d");
+          new Chart(ctx, {
+            type: "pie",
+            data: {
+              labels: Object.keys(item.reviews_per_rating || {}),
+              datasets: [
+                {
+                  data: Object.values(item.reviews_per_rating || {}),
+                  backgroundColor: [
+                    "#FF6384",
+                    "#36A2EB",
+                    "#FFCE56",
+                    "#4BC0C0",
+                    "#9966FF",
+                  ],
+                },
+              ],
+            },
+          });
+        }
+      }
+
+      function updateCharts(data) {
+        updateRatingChart(data);
+        updateStarsChart(data);
+      }
+
+      function updateRatingChart(data) {
+        const ratingRanges = {
+          "1-2": 0,
+          "2-3": 0,
+          "3-4": 0,
+          "4-4.5": 0,
+          "4.5-5": 0,
+        };
+
+        data.forEach((item) => {
+          const rating = item.rating;
+          if (rating >= 1 && rating < 2) ratingRanges["1-2"]++;
+          else if (rating >= 2 && rating < 3) ratingRanges["2-3"]++;
+          else if (rating >= 3 && rating < 4) ratingRanges["3-4"]++;
+          else if (rating >= 4 && rating < 4.5) ratingRanges["4-4.5"]++;
+          else if (rating >= 4.5 && rating <= 5) ratingRanges["4.5-5"]++;
+        });
+
+        const ctx = document.getElementById("ratingChart").getContext("2d");
+        if (ratingChart) ratingChart.destroy();
+        ratingChart = new Chart(ctx, {
+          type: "pie",
+          data: {
+            labels: Object.keys(ratingRanges),
+            datasets: [
+              {
+                data: Object.values(ratingRanges),
+                backgroundColor: [
+                  "#FF6384",
+                  "#36A2EB",
+                  "#FFCE56",
+                  "#4BC0C0",
+                  "#9966FF",
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      function updateStarsChart(data) {
+        const starsData = {};
+        data.forEach((item) => {
+          if (item.hotel_stars) {
+            if (!starsData[item.hotel_stars]) {
+              starsData[item.hotel_stars] = [];
+            }
+            starsData[item.hotel_stars].push(item.name);
+          }
+        });
+
+        const ctx = document.getElementById("starsChart").getContext("2d");
+        if (starsChart) starsChart.destroy();
+        starsChart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: Object.keys(starsData),
+            datasets: [
+              {
+                label: "Number of Hotels",
+                data: Object.values(starsData).map((arr) => arr.length),
+                borderColor: "#4BC0C0",
+                tension: 0.1,
+              },
+            ],
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: "Number of Hotels",
+                },
+              },
+              x: {
+                title: {
+                  display: true,
+                  text: "Hotel Stars",
+                },
+              },
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  afterBody: function (context) {
+                    const starRating = context[0].label;
+                    return `Hotels: ${starsData[starRating].join(", ")}`;
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+    </script>
+  </body>
+</html>

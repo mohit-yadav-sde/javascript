@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Local Business Search</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+<style>
+  .grid-item { padding: 10px; margin: 10px; border: 1px solid #ddd; }
+  .modal-body { max-height: 80vh; overflow-y: auto; }
+</style>
+</head>
+<body>
+
+<div class="container mt-4">
+  <form id="searchForm">
+    <input type="text" id="service" placeholder="Service" class="form-control mb-2">
+    <input type="text" id="city" placeholder="City" class="form-control mb-2">
+    <input type="text" id="country" placeholder="Country" class="form-control mb-2">
+    <button type="submit" class="btn btn-primary">Search</button>
+  </form>
+
+  <div id="results" class="row mt-4"></div>
+
+  <!-- Modal -->
+  <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="infoModalLabel">Business Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="ratingPieChart" width="400" height="200"></canvas>
+  <canvas id="starLineChart" width="400" height="200"></canvas>
+</div>
+
+<script>
+document.getElementById('searchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const service = document.getElementById('service').value;
+    const city = document.getElementById('city').value;
+    const country = document.getElementById('country').value;
+    const url = `https://local-business-data.p.rapidapi.com/search?query=${encodeURIComponent(service + ' in ' + city + ', ' + country)}&limit=20`;
+
+    fetch(url, {
+        method: 'GET',
+        headers: {
+            'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c',
+            'x-rapidapi-host': 'local-business-data.p.rapidapi.com'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        displayResults(data.data);
+        generateCharts(data.data);
+    })
+    .catch(error => console.error('Error:', error));
+});
+
+function displayResults(data) {
+    let resultsDiv = document.getElementById('results');
+    resultsDiv.innerHTML = ''; // Clear previous results
+    data.forEach(item => {
+        let div = document.createElement('div');
+        div.className = 'col-md-4 grid-item';
+        div.innerHTML = `<h5>${item.name}</h5><p>Rating: ${item.rating}</p>`;
+        div.onclick = () => showModal(item);
+        resultsDiv.appendChild(div);
+    });
+}
+
+function showModal(item) {
+    const modalBody = document.querySelector('#infoModal .modal-body');
+    modalBody.innerHTML = `
+        <h2>${item.name}</h2>
+        <p>${item.full_address}</p>
+        <p>Rating: ${item.rating}</p>
+        <div id="map" style="height: 200px; width: 100%;"></div>
+        <!-- Add more details as needed -->
+    `;
+    // Initialize map
+    const map = new google.maps.Map(document.getElementById('map'), {
+        center: {lat: item.latitude, lng: item.longitude},
+        zoom: 15
+    });
+    new google.maps.Marker({
+        position: {lat: item.latitude, lng: item.longitude},
+        map: map,
+    });
+    new bootstrap.Modal(document.getElementById('infoModal')).show();
+}
+
+function generateCharts(data) {
+    // Logic for generating charts from data
+    // This would involve counting ratings, stars, etc.
+    // Use Chart.js to render these counts into charts
+}
+
+// Initialize charts
+generateCharts([]); // Initially empty data
+</script>
+
+</body>
+</html>

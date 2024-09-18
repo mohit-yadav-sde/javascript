@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Business Search</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <style>
+        #resultsGrid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .grid-item {
+            cursor: pointer;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .modal-body img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <div class="mb-3">
+        <input type="text" id="service" class="form-control mb-2" placeholder="Service">
+        <input type="text" id="city" class="form-control mb-2" placeholder="City">
+        <input type="text" id="country" class="form-control mb-2" placeholder="Country">
+        <button id="searchBtn" class="btn btn-primary">Search</button>
+    </div>
+
+    <div id="resultsGrid"></div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="infoModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Place Info</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="modalBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div id="charts" class="mt-5"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+<script>
+document.getElementById('searchBtn').addEventListener('click', function() {
+    const service = document.getElementById('service').value;
+    const city = document.getElementById('city').value;
+    const country = document.getElementById('country').value;
+    const url = `https://local-business-data.p.rapidapi.com/search?query=${encodeURIComponent(service + ' in ' + city + ', ' + country)}&limit=20`;
+    const options = {
+        method: 'GET',
+        headers: {
+            'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c', // Replace with your actual API key
+            'x-rapidapi-host': 'local-business-data.p.rapidapi.com'
+        }
+    };
+
+    fetch(url, options)
+    .then(response => response.json())
+    .then(data => {
+        displayResults(data.data);
+        createCharts(data.data);
+    })
+    .catch(error => console.error('Error:', error));
+});
+
+function displayResults(data) {
+    const grid = document.getElementById('resultsGrid');
+    grid.innerHTML = ''; // Clear previous results
+    data.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'grid-item';
+        div.innerHTML = `
+            <h5>${item.name}</h5>
+            <p>Rating: ${item.rating} (${item.review_count} reviews)</p>
+            <p>Stars: ${item.hotel_stars || 'N/A'}</p>
+        `;
+        div.onclick = () => showModal(item);
+        grid.appendChild(div);
+    });
+}
+
+function showModal(item) {
+    const modalBody = document.getElementById('modalBody');
+    modalBody.innerHTML = `
+        <h2>${item.name}</h2>
+        <p>${item.full_address}</p>
+        <p>Phone: ${item.phone_number}</p>
+        <p>Website: <a href="${item.website}" target="_blank">${item.website}</a></p>
+        <p>Rating: ${item.rating}</p>
+        <div id="map" style="height: 200px;"></div>
+        ${item.photos_sample && item.photos_sample.length > 0 ? `<img src="${item.photos_sample[0].photo_url}" alt="Place Photo">` : ''}
+        ${item.reviews_per_rating ? `<canvas id="reviewsPieChart" width="400" height="200"></canvas>` : ''}
+    `;
+    const myModal = new bootstrap.Modal(document.getElementById('infoModal'));
+    myModal.show();
+
+    // Initialize map
+    const map = L.map('map').setView([item.latitude, item.longitude], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.marker([item.latitude, item.longitude]).addTo(map);
+
+    // Draw pie chart if data exists
+    if (item.reviews_per_rating) {
+        new Chart(document.getElementById('reviewsPieChart'), {
+            type: 'pie',
+            data: {
+                labels: Object.keys(item.reviews_per_rating),
+                datasets: [{
+                    data: Object.values(item.reviews_per_rating),
+                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF']
+                }]
+            }
+        });
+    }
+}
+
+function createCharts(data) {
+    const chartsDiv = document.getElementById('charts');
+    let ratingsData = {'1-2': 0, '2-3': 0, '3-4': 0, '4-4.5': 0, '4.5-5': 0};
+    let starsData = {};
+
+    data.forEach(item => {
+        const rating = Math.floor(item.rating);
+        const key = rating < 2 ? '1-2' : rating < 3 ? '2-3' : rating < 4 ? '3-4' : rating < 4.5 ? '4-4.5' : '4.5-5';
+        ratingsData[key]++;
+
+        starsData[item.hotel_stars] = (starsData[item.hotel_stars] || 0) + 1;
+    });
+
+    // Pie Chart for ratings distribution
+    chartsDiv.innerHTML += '<canvas id="ratingsPieChart" width="400" height="200"></canvas>';
+    new Chart(document.getElementById('ratingsPieChart'), {
+        type: 'pie',
+        data: {
+            labels: Object.keys(ratingsData),
+            datasets: [{
+                data: Object.values(ratingsData),
+                backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF']
+            }]
+        }
+    });
+
+    // Line Chart for hotel stars
+    chartsDiv.innerHTML += '<canvas id="starsLineChart" width="400" height="200"></canvas>';
+    new Chart(document.getElementById('starsLineChart'), {
+        type: 'line',
+        data: {
+            labels: Object.keys(starsData),
+            datasets: [{
+                label: 'Hotels by Stars',
+                data: Object.values(starsData),
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Hotels: ${data.filter(d => d.hotel_stars == context.label).map(d => d.name).join(', ')}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+</script>
+
+</body>
+</html>
