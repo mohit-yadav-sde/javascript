@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>4 Lane Coin Collector</title>
+<style>
+    body { margin: 0; padding: 0; overflow: hidden; font-family: Arial, sans-serif; }
+    #gameCanvas { background: #666; display: block; margin: auto; }
+    #startScreen, #gameOverScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); color: white; text-align: center; padding-top: 20%; }
+    button { padding: 10px 20px; font-size: 18px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div id="startScreen">
+    <h1>4 Lane Coin Collector</h1>
+    <p>Move your car with arrow keys. Collect 10 coins to win!</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="gameOverScreen" style="display:none;">
+    <h1>Game Over</h1>
+    <p>Your Score: <span id="finalScore"></span></p>
+    <button onclick="location.reload()">Try Again</button>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 400;
+    canvas.height = 600;
+    
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScore = document.getElementById('finalScore');
+
+    let score = 0;
+    let gameLoop;
+
+    // Game objects
+    const car = {x: canvas.width / 2, y: canvas.height - 50, width: 40, height: 60, speed: 10};
+    const coins = [];
+    const traffic = [];
+
+    function startGame() {
+        startScreen.style.display = 'none';
+        score = 0;
+        gameLoop = setInterval(game, 1000/60);
+    }
+
+    function game() {
+        update();
+        render();
+        checkCollision();
+        if (score >= 10) winGame();
+    }
+
+    function update() {
+        // Update traffic and coins positions
+        for (let item of [...traffic, ...coins]) {
+            item.y += item.speed;
+            if (item.y > canvas.height) item.y = -item.height;
+        }
+        // Maybe spawn new traffic or coins
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Draw road, car, coins, traffic, and score
+        ctx.fillText('Score: ' + score, 10, 20);
+        ctx.fillRect(car.x, car.y, car.width, car.height);
+        coins.forEach(coin => ctx.fillRect(coin.x, coin.y, 10, 10));
+        traffic.forEach(t => ctx.fillRect(t.x, t.y, t.width, t.height));
+    }
+
+    function checkCollision() {
+        for (let t of traffic) {
+            if (car.x < t.x + t.width &&
+                car.x + car.width > t.x &&
+                car.y < t.y + t.height &&
+                car.y + car.height > t.y) {
+                gameOver();
+            }
+        }
+        // Check coin collection
+        coins.forEach((coin, index) => {
+            if (car.x < coin.x + 10 && car.x + car.width > coin.x && 
+                car.y < coin.y + 10 && car.y + car.height > coin.y) {
+                coins.splice(index, 1);
+                score++;
+            }
+        });
+    }
+
+    function gameOver() {
+        clearInterval(gameLoop);
+        finalScore.textContent = score;
+        gameOverScreen.style.display = 'block';
+    }
+
+    function winGame() {
+        gameOver(); // You might want to customize this for a win scenario
+        alert('You Win!'); // Simple alert for winning
+    }
+
+    // Key controls
+    window.addEventListener('keydown', function(e) {
+        switch(e.key) {
+            case 'ArrowLeft': if(car.x > 0) car.x -= car.speed; break;
+            case 'ArrowRight': if(car.x < canvas.width - car.width) car.x += car.speed; break;
+        }
+    });
+
+    // Initial spawn of traffic and coins would go here, with periodic spawning in the game loop
+</script>
+
+</body>
+</html>

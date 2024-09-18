@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Car Coin Collector</title>
+<style>
+body { margin: 0; font-family: Arial, sans-serif; overflow: hidden; }
+#game-container {
+    position: relative; 
+    width: 100vw; 
+    height: 100vh; 
+    background: #555;
+    overflow: hidden;
+}
+.road-lane {
+    position: absolute;
+    width: 25%; 
+    height: 100%;
+    border-right: 2px dashed white;
+    box-sizing: border-box;
+}
+#car {
+    position: absolute;
+    width: 50px;
+    height: 100px;
+    background: url('car.png') no-repeat center;
+    background-size: contain;
+    bottom: 10px;
+    transition: left 0.1s;
+}
+.coin, .traffic {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    background-size: contain;
+}
+.coin { background-image: url('coin.png'); }
+.traffic { background-image: url('traffic.png'); }
+#score { 
+    position: absolute; 
+    top: 10px; 
+    left: 10px; 
+    color: white; 
+    font-size: 24px; 
+}
+.screen {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    text-align: center;
+}
+button {
+    padding: 10px 20px;
+    font-size: 18px;
+    cursor: pointer;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+    <div id="start-screen" class="screen">
+        <h1>Car Coin Collector</h1>
+        <p>Use ← → arrows to move. Collect 10 coins to win. Avoid traffic!</p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <div id="game-screen" class="screen" style="display:none;">
+        <div id="score">Score: 0</div>
+        <div id="car"></div>
+        <div id="road">
+            <div class="road-lane" style="left:0;"></div>
+            <div class="road-lane" style="left:25%;"></div>
+            <div class="road-lane" style="left:50%;"></div>
+            <div class="road-lane" style="left:75%;"></div>
+        </div>
+    </div>
+    <div id="game-over-screen" class="screen" style="display:none;">
+        <h1>Game Over</h1>
+        <p>Your Score: <span id="final-score">0</span></p>
+        <button onclick="location.reload()">Try Again</button>
+    </div>
+</div>
+<script>
+let gameState = 'start';
+let score = 0;
+let carPosition = 2; // Starting from 0 to 3 for 4 lanes
+const lanes = document.querySelectorAll('.road-lane');
+
+function startGame() {
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('game-screen').style.display = 'flex';
+    gameState = 'play';
+    spawnTraffic();
+    spawnCoin();
+}
+
+document.addEventListener('keydown', function(e) {
+    if (gameState !== 'play') return;
+    let car = document.getElementById('car');
+    if (e.key === 'ArrowLeft' && carPosition > 0) {
+        carPosition--;
+    } else if (e.key === 'ArrowRight' && carPosition < 3) {
+        carPosition++;
+    }
+    car.style.left = (carPosition * 25) + '%';
+});
+
+function spawnTraffic() {
+    if (gameState !== 'play') return;
+    const lane = Math.floor(Math.random() * 4);
+    const traffic = document.createElement('div');
+    traffic.className = 'traffic';
+    traffic.style.top = '-30px';
+    traffic.style.left = (lane * 25 + (25 - 7.5)) + '%'; // centering in lane
+    document.getElementById('game-screen').appendChild(traffic);
+    
+    let speed = 5 + Math.random() * 5;
+    moveElement(traffic, speed);
+    
+    setTimeout(spawnTraffic, 2000 - (score * 100)); // Increase difficulty
+}
+
+function spawnCoin() {
+    if (gameState !== 'play') return;
+    const lane = Math.floor(Math.random() * 4);
+    const coin = document.createElement('div');
+    coin.className = 'coin';
+    coin.style.top = '-30px';
+    coin.style.left = (lane * 25 + (25 - 7.5)) + '%';
+    document.getElementById('game-screen').appendChild(coin);
+    
+    moveElement(coin, 3);
+    
+    setTimeout(spawnCoin, 5000);
+}
+
+function moveElement(element, speed) {
+    let pos = -30;
+    const moveInterval = setInterval(() => {
+        if (pos > window.innerHeight || gameState !== 'play') {
+            clearInterval(moveInterval);
+            element.remove();
+        } else {
+            pos += speed;
+            element.style.top = pos + 'px';
+            checkCollision(element);
+        }
+    }, 30);
+}
+
+function checkCollision(element) {
+    const carRect = document.getElementById('car').getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    
+    if (carRect.right > elementRect.left && 
+        carRect.left < elementRect.right && 
+        carRect.bottom > elementRect.top && 
+        carRect.top < elementRect.bottom) {
+        
+        if (element.classList.contains('traffic')) {
+            gameOver();
+        } else if (element.classList.contains('coin')) {
+            score++;
+            document.getElementById('score').textContent = `Score: ${score}`;
+            element.remove();
+            if (score >= 10) {
+                winGame();
+            }
+        }
+    }
+}
+
+function gameOver() {
+    gameState = 'over';
+    document.getElementById('game-over-screen').style.display = 'flex';
+    document.getElementById('final-score').textContent = score;
+}
+
+function winGame() {
+    alert('You Win!'); // Simple win alert for now
+    gameOver();
+}
+</script>
+</body>
+</html>

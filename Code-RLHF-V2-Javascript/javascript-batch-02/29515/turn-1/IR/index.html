@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coin Collector Car Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-800 flex items-center justify-center h-screen">
+    <div id="game-container" class="relative">
+        <div id="start-screen" class="absolute inset-0 bg-gray-900 p-8 text-center text-white rounded-lg shadow-lg">
+            <h1 class="text-5xl font-bold mb-6 text-yellow-400">Coin Collector Car Game</h1>
+            <p class="mb-4 text-lg">Collect 10 coins to win. Avoid oncoming traffic!</p>
+            <p class="mb-6 text-lg">Use arrow keys or WASD to move.</p>
+            <button id="start-button" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-full text-xl transition duration-300 ease-in-out transform hover:scale-105">Start Game</button>
+        </div>
+        <div id="game-over-screen" class="absolute inset-0 bg-gray-900 p-8 text-center text-white hidden rounded-lg shadow-lg">
+            <h2 class="text-4xl font-bold mb-6 text-red-500">Game Over</h2>
+            <p id="final-score" class="text-3xl mb-6"></p>
+            <button id="try-again-button" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full text-xl transition duration-300 ease-in-out transform hover:scale-105">Try Again</button>
+        </div>
+        <div id="score" class="absolute top-4 left-4 text-white text-3xl font-bold bg-gray-800 px-4 py-2 rounded-lg"></div>
+    </div>
+
+    <script>
+        let game;
+        let carImg, coinImg, trafficImg, roadImg;
+
+        // Preload assets
+        function preload() {
+    // Create a more visually appealing 4-lane road
+    roadImg = createGraphics(400, 1200);
+    roadImg.background(70); // Darker asphalt color
+    
+    // Add road texture
+    for (let i = 0; i < 1200; i += 5) {
+        for (let j = 0; j < 400; j += 5) {
+            roadImg.noStroke();
+            roadImg.fill(random(60, 80));
+            roadImg.rect(j, i, 5, 5);
+        }
+    }
+
+    // Lane markings
+    for (let i = 0; i < 5; i++) {
+        if (i === 0 || i === 4) {
+            roadImg.stroke(255); // Solid white for outer lanes
+            roadImg.strokeWeight(3);
+            roadImg.line(i * 100, 0, i * 100, 1200);
+        } else {
+            // Dashed white lines for inner lanes
+            for (let j = 0; j < 1200; j += 40) {
+                roadImg.stroke(255);
+                roadImg.strokeWeight(3);
+                roadImg.line(i * 100, j, i * 100, j + 20);
+            }
+        }
+    }
+
+    // Yellow center line
+    for (let i = 0; i < 1200; i += 40) {
+        roadImg.stroke(255, 204, 0);
+        roadImg.strokeWeight(4);
+        roadImg.line(200, i, 200, i + 30);
+    }
+
+    // Create a more detailed player car
+    carImg = createGraphics(60, 100);
+    carImg.fill(220, 0, 0); // Bright red
+    carImg.noStroke();
+    carImg.rect(5, 20, 50, 60, 10); // Car body
+    carImg.rect(10, 10, 40, 80, 5); // Car top
+    carImg.fill(30);
+    carImg.rect(10, 0, 40, 20, 5); // Windshield
+    carImg.fill(200);
+    carImg.rect(5, 75, 50, 25, 5); // Car bottom
+    carImg.fill(50);
+    carImg.ellipse(15, 90, 20, 20); // Left wheel
+    carImg.ellipse(45, 90, 20, 20); // Right wheel
+    carImg.fill(220);
+    carImg.ellipse(15, 90, 10, 10); // Wheel cap
+    carImg.ellipse(45, 90, 10, 10); // Wheel cap
+    carImg.fill(200, 220, 255);
+    carImg.rect(15, 25, 30, 15, 2); // Windows
+
+    // Create a shiny coin
+    coinImg = createGraphics(30, 30);
+    let gradient = coinImg.drawingContext.createRadialGradient(15, 15, 5, 15, 15, 15);
+    gradient.addColorStop(0, 'rgb(255, 223, 0)');
+    gradient.addColorStop(1, 'rgb(255, 195, 0)');
+    coinImg.drawingContext.fillStyle = gradient;
+    coinImg.circle(15, 15, 28);
+    coinImg.fill(230, 190, 0);
+    coinImg.textAlign(CENTER, CENTER);
+    coinImg.textSize(20);
+    coinImg.textStyle(BOLD);
+    coinImg.text('$', 15, 14);
+
+    // Create more detailed traffic car
+    trafficImg = createGraphics(60, 100);
+    trafficImg.fill(0, 100, 255); // Blue
+    trafficImg.noStroke();
+    trafficImg.rect(5, 20, 50, 60, 10); // Car body
+    trafficImg.rect(10, 10, 40, 80, 5); // Car top
+    trafficImg.fill(30);
+    trafficImg.rect(10, 0, 40, 20, 5); // Windshield
+    trafficImg.fill(200);
+    trafficImg.rect(5, 75, 50, 25, 5); // Car bottom
+    trafficImg.fill(50);
+    trafficImg.ellipse(15, 90, 20, 20); // Left wheel
+    trafficImg.ellipse(45, 90, 20, 20); // Right wheel
+    trafficImg.fill(220);
+    trafficImg.ellipse(15, 90, 10, 10); // Wheel cap
+    trafficImg.ellipse(45, 90, 10, 10); // Wheel cap
+    trafficImg.fill(200, 220, 255);
+    trafficImg.rect(15, 25, 30, 15, 2); // Windows
+}
+
+        class Game {
+            constructor() {
+                this.state = 'start';
+                this.car = new Car();
+                this.coins = [];
+                this.traffic = [];
+                this.score = 0;
+                this.maxCoins = 10;
+                this.lanes = [50, 150, 250, 350]; // Center of each lane
+                this.roadY = 0; // For scrolling road effect
+            }
+
+            start() {
+                this.state = 'play';
+                this.car = new Car();
+                this.coins = [];
+                this.traffic = [];
+                this.score = 0;
+                document.getElementById('score').classList.remove('hidden');
+            }
+
+            update() {
+                if (this.state !== 'play') return;
+
+                this.car.update();
+                this.updateCoins();
+                this.updateTraffic();
+                this.checkCollisions();
+                this.updateScore();
+                this.updateRoad();
+
+                if (this.score >= this.maxCoins) {
+                    this.gameOver(true);
+                }
+            }
+
+            updateCoins() {
+                // Spawn new coins
+                if (frameCount % 120 === 0 && this.coins.length < 3) {
+                    this.coins.push(new Coin(random(this.lanes)));
+                }
+                this.coins.forEach(coin => coin.update());
+                this.coins = this.coins.filter(coin => !coin.collected && coin.y < height);
+            }
+
+            updateTraffic() {
+                // Spawn new traffic
+                if (frameCount % 90 === 0) {
+                    this.traffic.push(new Traffic(random(this.lanes)));
+                }
+                this.traffic.forEach(car => car.update());
+                this.traffic = this.traffic.filter(car => car.y < height);
+            }
+
+            checkCollisions() {
+                // Check coin collisions
+                this.coins.forEach(coin => {
+                    if (this.car.collidesWith(coin)) {
+                        coin.collected = true;
+                        this.score++;
+                    }
+                });
+
+                // Check traffic collisions
+                this.traffic.forEach(car => {
+                    if (this.car.collidesWith(car)) {
+                        this.gameOver(false);
+                    }
+                });
+            }
+
+            updateScore() {
+                document.getElementById('score').innerText = `Score: ${this.score}`;
+            }
+
+            updateRoad() {
+                // Scroll the road
+                this.roadY += 5;
+                if (this.roadY >= height) {
+                    this.roadY = 0;
+                }
+            }
+
+            gameOver(win) {
+                this.state = 'gameOver';
+                const gameOverScreen = document.getElementById('game-over-screen');
+                const finalScore = document.getElementById('final-score');
+                gameOverScreen.classList.remove('hidden');
+                finalScore.innerText = win ? `You win! Final score: ${this.score}` : `Final score: ${this.score}`;
+                document.getElementById('score').classList.add('hidden'); // Hide score during game over screen
+            }
+
+            draw() {
+                // Draw scrolling road
+                image(roadImg, 0, this.roadY - height, width, height * 2);
+                
+                this.car.draw();
+                this.coins.forEach(coin => coin.draw());
+                this.traffic.forEach(car => car.draw());
+            }
+        }
+
+        class Car {
+            constructor() {
+                this.x = width / 2;
+                this.y = height - 100;
+                this.width = 60;
+                this.height = 100;
+                this.speed = 5;
+            }
+
+            update() {
+                // Handle user input
+                if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) this.x -= this.speed;
+                if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) this.x += this.speed;
+                if (keyIsDown(UP_ARROW) || keyIsDown(87)) this.y -= this.speed;
+                if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) this.y += this.speed;
+
+                // Keep car within game boundaries
+                this.x = constrain(this.x, 0, width - this.width);
+                this.y = constrain(this.y, 0, height - this.height);
+            }
+
+            draw() {
+                image(carImg, this.x, this.y, this.width, this.height);
+            }
+
+            collidesWith(other) {
+                // Simple collision detection
+                return (
+                    this.x < other.x + other.width &&
+                    this.x + this.width > other.x &&
+                    this.y < other.y + other.height &&
+                    this.y + this.height > other.y
+                );
+            }
+        }
+
+        class Coin {
+            constructor(x) {
+                this.x = x - 15; // Center in lane
+                this.y = -20;
+                this.width = 30;
+                this.height = 30;
+                this.speed = random(1, 3);
+                this.collected = false;
+                this.rotation = 0;
+            }
+
+            update() {
+                if (!this.collected) {
+                    this.y += this.speed;
+                    this.rotation += 0.1; // Rotate the coin
+                }
+            }
+
+            draw() {
+                if (!this.collected) {
+                    push();
+                    translate(this.x + this.width / 2, this.y + this.height / 2);
+                    rotate(this.rotation);
+                    image(coinImg, -this.width / 2, -this.height / 2, this.width, this.height);
+                    pop();
+                }
+            }
+        }
+
+        class Traffic {
+            constructor(x) {
+                this.x = x - 30; // Center in lane
+                this.y = -100;
+                this.width = 60;
+                this.height = 100;
+                this.speed = random(2, 5);
+            }
+
+            update() {
+                this.y += this.speed;
+            }
+
+            draw() {
+                image(trafficImg, this.x, this.y, this.width, this.height);
+            }
+        }
+
+        function setup() {
+            const canvas = createCanvas(400, 600);
+            canvas.parent('game-container');
+            game = new Game();
+
+            // Event listeners for buttons
+            document.getElementById('start-button').addEventListener('click', () => {
+                document.getElementById('start-screen').classList.add('hidden');
+                game.start();
+            });
+
+            document.getElementById('try-again-button').addEventListener('click', () => {
+                document.getElementById('game-over-screen').classList.add('hidden');
+                game.start();
+            });
+        }
+
+        function draw() {
+            game.update();
+            game.draw();
+        }
+    </script>
+</body>
+</html>
