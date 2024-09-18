@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escape Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center h-screen">
+    <div id="gameContainer" class="w-full max-w-3xl">
+        <div id="startScreen" class="bg-white bg-opacity-90 p-8 rounded-lg shadow-lg text-center">
+            <h1 class="text-5xl font-bold mb-6 text-blue-600">Escape Game</h1>
+            <p class="mb-4 text-lg">Jump over hurdles and wait till the escape timer runs out! You can move backward to avoid obstacles.</p>
+            <p class="mb-6 text-lg font-semibold">Controls: Space to jump, Left arrow to move backward</p>
+            <button id="startButton" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full text-xl transition duration-300 ease-in-out transform hover:scale-105">
+                Start Game
+            </button>
+        </div>
+        <div id="readyScreen" class="hidden bg-white bg-opacity-90 p-8 rounded-lg shadow-lg text-center">
+            <h2 class="text-4xl font-bold mb-6 text-blue-600">Ready?</h2>
+            <p class="mb-4 text-xl">Press Space to begin!</p>
+        </div>
+        <div id="gameScreen" class="hidden">
+            <div id="gameCanvas"></div>
+        </div>
+        <div id="gameOverScreen" class="hidden bg-white bg-opacity-90 p-8 rounded-lg shadow-lg text-center">
+            <h2 id="gameOverMessage" class="text-4xl font-bold mb-6 text-blue-600"></h2>
+            <button id="tryAgainButton" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full text-xl transition duration-300 ease-in-out transform hover:scale-105">
+                Try Again
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let player, officer, hurdles, gameState, backgroundX, finishLine, clouds, buildings, hills, gameStartTime, exitVisible;
+        const GROUND_Y = 350;
+        const PLAYER_SIZE = 40;
+        const OFFICER_SIZE = 45;
+        const HURDLE_WIDTH = 20;
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 400;
+        const SCROLL_SPEED = 5;
+        const JUMP_FORCE = -15;
+        const GRAVITY = 0.8;
+        const EXIT_APPEAR_TIME = 15000; // 15 seconds in milliseconds
+
+        function setup() {
+            const canvas = createCanvas(GAME_WIDTH, GAME_HEIGHT);
+            canvas.parent('gameCanvas');
+            resetGame();
+            noLoop();
+        }
+
+        function resetGame() {
+            player = {
+                x: 100,
+                y: GROUND_Y - PLAYER_SIZE,
+                vy: 0,
+                isJumping: false
+            };
+            officer = {
+                x: 50,
+                y: GROUND_Y - OFFICER_SIZE
+            };
+            hurdles = [];
+            generateHurdles();
+            backgroundX = 0;
+            finishLine = GAME_WIDTH * 5;
+            clouds = [];
+            for (let i = 0; i < 5; i++) {
+                clouds.push({
+                    x: random(GAME_WIDTH),
+                    y: random(50, 150),
+                    size: random(30, 70)
+                });
+            }
+            buildings = [];
+            for (let i = 0; i < 10; i++) {
+                buildings.push({
+                    x: i * 200,
+                    y: random(150, 250),
+                    width: random(80, 150),
+                    height: random(100, 200)
+                });
+            }
+            hills = [];
+            for (let i = 0; i < 5; i++) {
+                hills.push({
+                    x: i * 400,
+                    y: GROUND_Y,
+                    size: random(100, 200)
+                });
+            }
+            gameState = 'ready';
+            gameStartTime = 0;
+            exitVisible = false;
+        }
+
+        function generateHurdles() {
+            let nextHurdleX = GAME_WIDTH + 200;
+            while (nextHurdleX < finishLine) {
+                hurdles.push({
+                    x: nextHurdleX,
+                    y: GROUND_Y - random(40, 100),
+                    height: random(40, 100)
+                });
+                nextHurdleX += random(300, 500);
+            }
+        }
+
+        function draw() {
+            if (gameState === 'playing') {
+                updateGame();
+                drawGame();
+            }
+        }
+
+        function updateGame() {
+            // Handle backward movement
+            if (keyIsDown(LEFT_ARROW)) {
+                player.x = max(officer.x + OFFICER_SIZE, player.x - 3);
+            }
+
+            // Apply gravity and handle jumping
+            player.y += player.vy;
+            player.vy += GRAVITY;
+
+            if (player.y > GROUND_Y - PLAYER_SIZE) {
+                player.y = GROUND_Y - PLAYER_SIZE;
+                player.vy = 0;
+                player.isJumping = false;
+            }
+
+            // Scroll background and objects
+            backgroundX -= SCROLL_SPEED;
+            finishLine -= SCROLL_SPEED;
+            hurdles.forEach(hurdle => {
+                hurdle.x -= SCROLL_SPEED;
+            });
+            clouds.forEach(cloud => {
+                cloud.x -= SCROLL_SPEED * 0.5;
+                if (cloud.x + cloud.size < 0) {
+                    cloud.x = GAME_WIDTH + cloud.size;
+                    cloud.y = random(50, 150);
+                }
+            });
+            buildings.forEach(building => {
+                building.x -= SCROLL_SPEED * 0.8;
+                if (building.x + building.width < 0) {
+                    building.x = GAME_WIDTH;
+                    building.y = random(150, 250);
+                    building.width = random(80, 150);
+                    building.height = random(100, 200);
+                }
+            });
+            hills.forEach(hill => {
+                hill.x -= SCROLL_SPEED * 0.6;
+                if (hill.x + hill.size < 0) {
+                    hill.x = GAME_WIDTH;
+                    hill.size = random(100, 200);
+                }
+            });
+
+            // Check if exit should be visible
+            if (!exitVisible && millis() - gameStartTime > EXIT_APPEAR_TIME) {
+                exitVisible = true;
+            }
+
+            // Check collisions
+            hurdles.forEach(hurdle => {
+                if (
+                    player.x < hurdle.x + HURDLE_WIDTH &&
+                    player.x + PLAYER_SIZE > hurdle.x &&
+                    player.y + PLAYER_SIZE > hurdle.y
+                ) {
+                    gameState = 'over';
+                    showGameOverScreen('You hit a hurdle! Game Over!');
+                }
+            });
+
+            // Check if officer caught the player
+            if (player.x <= officer.x + OFFICER_SIZE) {
+                gameState = 'over';
+                showGameOverScreen('The officer caught you! Game Over!');
+            }
+
+            // Check if player reached the finish line (only if exit is visible)
+            if (exitVisible && finishLine < player.x) {
+                gameState = 'over';
+                showGameOverScreen('Congratulations! You escaped!');
+            }
+        }
+
+        function drawGame() {
+            background(135, 206, 235); // Sky blue background
+
+            // Draw hills
+            fill(34, 139, 34); // Forest green
+            noStroke();
+            hills.forEach(hill => {
+                arc(hill.x, hill.y, hill.size * 2, hill.size * 2, PI, 0);
+            });
+
+            // Draw buildings
+            fill(100);
+            stroke(80);
+            buildings.forEach(building => {
+                rect(building.x, building.y, building.width, GROUND_Y - building.y);
+                // Add windows
+                fill(200, 200, 100);
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 4; j++) {
+                        rect(building.x + 10 + i * 20, building.y + 10 + j * 30, 15, 20);
+                    }
+                }
+                fill(100);
+            });
+
+            // Draw clouds
+            fill(255);
+            noStroke();
+            clouds.forEach(cloud => {
+                ellipse(cloud.x, cloud.y, cloud.size, cloud.size * 0.6);
+                ellipse(cloud.x - cloud.size * 0.3, cloud.y + cloud.size * 0.1, cloud.size * 0.7, cloud.size * 0.5);
+                ellipse(cloud.x + cloud.size * 0.3, cloud.y + cloud.size * 0.1, cloud.size * 0.7, cloud.size * 0.5);
+            });
+
+            // Draw ground
+            fill(101, 67, 33); // Brown
+            rect(0, GROUND_Y, GAME_WIDTH, GAME_HEIGHT - GROUND_Y);
+
+            // Draw finish line (only if exit is visible)
+            if (exitVisible) {
+                fill(255, 0, 0);
+                rect(finishLine, 0, 20, GAME_HEIGHT);
+            }
+
+            // Draw player
+            fill(255, 140, 0); // Dark orange
+            rect(player.x, player.y, PLAYER_SIZE, PLAYER_SIZE);
+
+            // Draw officer
+            fill(0, 0, 255);
+            rect(officer.x, officer.y, OFFICER_SIZE, OFFICER_SIZE);
+
+            // Draw hurdles
+            fill(139, 69, 19); // Saddle brown
+            hurdles.forEach(hurdle => {
+                rect(hurdle.x, hurdle.y, HURDLE_WIDTH, GROUND_Y - hurdle.y);
+            });
+
+            // Draw timer until Escape
+            if (!exitVisible) {
+                fill(255);
+                textSize(24);
+                textAlign(CENTER);
+                text(`Escape in: ${Math.ceil((EXIT_APPEAR_TIME - (millis() - gameStartTime)) / 1000)}s`, GAME_WIDTH / 2, 30);
+            }
+        }
+
+        function keyPressed() {
+            if (gameState === 'ready' && keyCode === 32) { // Space bar
+                gameState = 'playing';
+                gameStartTime = millis();
+                document.getElementById('readyScreen').classList.add('hidden');
+                document.getElementById('gameScreen').classList.remove('hidden');
+                loop();
+            } else if (gameState === 'playing' && keyCode === 32 && !player.isJumping) { // Space bar
+                player.vy = JUMP_FORCE;
+                player.isJumping = true;
+            }
+        }
+
+        function showGameOverScreen(message) {
+            document.getElementById('gameScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+            document.getElementById('gameOverMessage').textContent = message;
+            noLoop();
+        }
+
+        // Event listeners
+        document.getElementById('startButton').addEventListener('click', () => {
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('readyScreen').classList.remove('hidden');
+            resetGame();
+        });
+
+        document.getElementById('tryAgainButton').addEventListener('click', () => {
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('readyScreen').classList.remove('hidden');
+            resetGame();
+        });
+    </script>
+</body>
+</html>

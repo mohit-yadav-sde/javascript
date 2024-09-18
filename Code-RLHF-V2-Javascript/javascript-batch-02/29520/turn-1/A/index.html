@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Escape the Officer</title>
+<style>
+    body { 
+        margin: 0; 
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #000;
+    }
+    canvas { 
+        border: 1px solid white; 
+    }
+    #startScreen, #gameOverScreen {
+        position: absolute;
+        width: 800px;
+        height: 400px;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-family: Arial, sans-serif;
+    }
+    button {
+        padding: 10px 20px;
+        font-size: 1em;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+<div id="startScreen">
+    <h1>Escape the Officer</h1>
+    <p>Use arrow keys to move left or right, and up to jump. Avoid obstacles!</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
+<div id="gameOverScreen" style="display:none;">
+    <h2 id="gameResult"></h2>
+    <button onclick="location.reload()">Try Again</button>
+</div>
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+<script>
+let canvas = document.getElementById('gameCanvas');
+let ctx = canvas.getContext('2d');
+let gameRunning = false;
+let gameInterval, officerPosition = 0;
+let player = {x: 50, y: 350, width: 30, height: 50, dy: 0, jumpPower: -10, gravity: 0.5};
+let obstacles = [];
+let timeLeft = 15;
+
+function startGame() {
+    document.getElementById('startScreen').style.display = 'none';
+    gameRunning = true;
+    obstacles = [{x: 800, y: 350, width: 30, height: 50}];
+    gameInterval = setInterval(updateGameArea, 20);
+    setTimeout(endGame, 15000);
+}
+
+function updateGameArea() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Update officer position (stays at left edge)
+    ctx.fillStyle = 'red';
+    ctx.fillRect(officerPosition, 350, 30, 50);
+
+    // Move obstacles
+    for(let i = 0; i < obstacles.length; i++) {
+        obstacles[i].x -= 5; // Move obstacles to the left
+        ctx.fillStyle = 'brown';
+        ctx.fillRect(obstacles[i].x, obstacles[i].y, obstacles[i].width, obstacles[i].height);
+        
+        // Check collision
+        if (player.x < obstacles[i].x + obstacles[i].width &&
+            player.x + player.width > obstacles[i].x &&
+            player.y < obstacles[i].y + obstacles[i].height &&
+            player.y + player.height > obstacles[i].y) {
+            endGame('You were caught!');
+        }
+    }
+
+    // Player physics
+    player.y += player.dy;
+    player.dy += player.gravity;
+    if(player.y + player.height > 400) {
+        player.y = 350;
+        player.dy = 0;
+    }
+
+    // Draw player
+    ctx.fillStyle = 'blue';
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+
+    // Add new obstacles
+    if(Math.random() < 0.02) { // 2% chance each frame
+        obstacles.push({x: 800, y: 350, width: 30, height: 50});
+    }
+
+    // Time left
+    ctx.fillStyle = 'white';
+    ctx.font = '20px Arial';
+    ctx.fillText(`Time: ${timeLeft}s`, 700, 30);
+}
+
+function endGame(message = 'Time Up!') {
+    clearInterval(gameInterval);
+    gameRunning = false;
+    document.getElementById('gameOverScreen').style.display = 'flex';
+    document.getElementById('gameResult').innerText = message === 'You were caught!' ? message : "You Escaped!";
+}
+
+document.onkeydown = function(e) {
+    if(!gameRunning) return;
+    switch(e.keyCode) {
+        case 38: // up arrow
+            if(player.y >= 350) player.dy = player.jumpPower;
+            break;
+        case 37: // left arrow
+            player.x = Math.max(0, player.x - 5);
+            break;
+        case 39: // right arrow
+            player.x = Math.min(770, player.x + 5);
+            break;
+    }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Officer Escape</title>
+<style>
+  body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+  #gameContainer {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    background: skyblue;
+  }
+  .screen {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+  }
+  #gameScreen { 
+    display: none; 
+    overflow: hidden;
+  }
+  #player, #officer, .obstacle {
+    position: absolute;
+    bottom: 100px;
+  }
+  #player {
+    width: 50px;
+    height: 50px;
+    background: green;
+  }
+  #officer {
+    width: 60px;
+    height: 60px;
+    background: red;
+    left: 0;
+  }
+  .obstacle {
+    width: 40px;
+    height: 40px;
+    background: brown;
+  }
+  button {
+    padding: 10px 20px;
+    font-size: 1em;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="startScreen" class="screen">
+    <h1>Officer Escape</h1>
+    <p>Jump and move backward to avoid obstacles. Don't let the officer catch you!</p>
+    <button onclick="startGame()">Start Game</button>
+  </div>
+  <div id="gameScreen" class="screen">
+    <div id="player"></div>
+    <div id="officer"></div>
+  </div>
+  <div id="gameOverScreen" class="screen" style="display: none;">
+    <h2 id="gameResult"></h2>
+    <button onclick="location.reload()">Try Again</button>
+  </div>
+</div>
+
+<script>
+// Game logic would go here, including initialization, controls, and game loop
+let gameLoop, player, officer, obstacles = [], gameRunning = false, gameTime = 0;
+
+function startGame() {
+  document.getElementById('startScreen').style.display = 'none';
+  document.getElementById('gameScreen').style.display = 'flex';
+  initGame();
+}
+
+function initGame() {
+  player = document.getElementById('player');
+  officer = document.getElementById('officer');
+  gameTime = 0;
+  gameRunning = true;
+  setupControls();
+  gameLoop = setInterval(updateGame, 1000/60);
+}
+
+function setupControls() {
+  document.addEventListener('keydown', function(e) {
+    if (e.code === 'Space' && !player.jumping) jump();
+    if (e.key === 'ArrowLeft') moveBackward();
+  });
+}
+
+function jump() {
+  // Jump logic here
+}
+
+function moveBackward() {
+  // Move player backward logic
+}
+
+function updateGame() {
+  if (!gameRunning) return;
+  gameTime += 1/60;
+  // Update environment, check for collisions, check win condition
+  if (gameTime > 15) winGame();
+  // Scrolling background, obstacle creation, etc.
+}
+
+function winGame() {
+  gameRunning = false;
+  clearInterval(gameLoop);
+  document.getElementById('gameResult').textContent = 'You Escaped!';
+  document.getElementById('gameOverScreen').style.display = 'flex';
+}
+
+function loseGame() {
+  // Similar to winGame but with a losing message
+}
+
+// Additional functions for collision detection, obstacle generation, etc. would follow here
+
+</script>
+</body>
+</html>
