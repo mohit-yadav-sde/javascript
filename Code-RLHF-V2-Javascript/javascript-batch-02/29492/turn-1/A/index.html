@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NASDAQ Financial Widget</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .widget {
+            width: 80%;
+            margin: 20px auto;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        input, button { 
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .year-buttons button {
+            margin: 5px;
+            cursor: pointer;
+        }
+        #chartContainer {
+            width: 100%;
+            height: 400px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="widget">
+    <input type="text" id="shareName" placeholder="Enter Share Name (e.g., AAPL)">
+    <div class="year-buttons">
+        <button onclick="loadDataForYear(2023)">2023</button>
+        <button onclick="loadDataForYear(2024)">2024</button>
+    </div>
+    <div id="chartContainer">
+        <canvas id="financialChart"></canvas>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const apiKey = '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c';
+    const baseURL = 'https://real-time-finance-data.p.rapidapi.com/company-cash-flow?symbol=';
+
+    async function fetchFinancialData(symbol, year) {
+        const url = `${baseURL}${encodeURIComponent(symbol)}%3ANASDAQ&period=QUARTERLY&language=en`;
+        const options = {
+            method: 'GET',
+            headers: {
+                'x-rapidapi-key': apiKey,
+                'x-rapidapi-host': 'real-time-finance-data.p.rapidapi.com'
+            }
+        };
+
+        try {
+            const response = await fetch(url, options);
+            const result = await response.json();
+            return result.data.cash_flow.filter(data => data.year === year);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            return [];
+        }
+    }
+
+    function loadDataForYear(year) {
+        const symbol = document.getElementById('shareName').value;
+        if (!symbol) {
+            alert('Please enter a share name.');
+            return;
+        }
+        fetchFinancialData(symbol, year).then(data => {
+            if (data.length === 0) {
+                alert('No data available for this year or symbol.');
+                return;
+            }
+            updateChart(data, year);
+        });
+    }
+
+    function updateChart(data, year) {
+        const ctx = document.getElementById('financialChart').getContext('2d');
+        const myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+                datasets: [{
+                    label: 'Net Income',
+                    data: data.map(d => d.net_income),
+                    borderColor: 'rgb(255, 99, 132)',
+                    fill: false
+                },
+                // Add more datasets for other metrics here similarly
+                {
+                    label: 'Cash from Operations',
+                    data: data.map(d => d.cash_from_operations),
+                    borderColor: 'rgb(54, 162, 235)',
+                    fill: false
+                },
+                {
+                    label: 'Cash from Investing',
+                    data: data.map(d => d.cash_from_investing),
+                    borderColor: 'rgb(75, 192, 192)',
+                    fill: false
+                },
+                {
+                    label: 'Cash from Financing',
+                    data: data.map(d => d.cash_from_financing),
+                    borderColor: 'rgb(255, 205, 86)',
+                    fill: false
+                },
+                {
+                    label: 'Net Change in Cash',
+                    data: data.map(d => d.net_change_in_cash),
+                    borderColor: 'rgb(153, 102, 255)',
+                    fill: false
+                },
+                {
+                    label: 'Free Cash Flow',
+                    data: data.map(d => d.free_cash_flow),
+                    borderColor: 'rgb(201, 203, 207)',
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                title: {
+                    display: true,
+                    text: `Financial Data for ${year}`
+                },
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }]
+                }
+            }
+        });
+    }
+</script>
+
+</body>
+</html>

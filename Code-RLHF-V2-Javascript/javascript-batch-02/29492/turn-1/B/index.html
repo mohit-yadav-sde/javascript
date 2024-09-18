@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NASDAQ Financial Data Widget</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .widget { max-width: 900px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .chart-container { width: 100%; height: 300px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="widget">
+    <h2>NASDAQ Financial Data</h2>
+    <input type="text" id="shareName" placeholder="Enter Share Name (e.g., AAPL)">
+    <button onclick="fetchFinancialData()">Fetch Data</button>
+    
+    <div id="charts"></div>
+</div>
+
+<script>
+    async function fetchFinancialData() {
+        const shareName = document.getElementById('shareName').value;
+        const url = `https://real-time-finance-data.p.rapidapi.com/company-cash-flow?symbol=${encodeURIComponent(shareName + ':NASDAQ')}&period=ANNUAL`;
+        const options = {
+            method: 'GET',
+            headers: {
+                'x-rapidapi-key': '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c', // Replace with your actual API key
+                'x-rapidapi-host': 'real-time-finance-data.p.rapidapi.com'
+            }
+        };
+
+        try {
+            const response = await fetch(url, options);
+            const result = await response.json();
+            
+            if (result.status === "OK") {
+                displayCharts(result.data.cash_flow);
+            } else {
+                alert('Failed to fetch data: ' + result.status);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred while fetching the data.');
+        }
+    }
+
+    function displayCharts(data) {
+        const chartsDiv = document.getElementById('charts');
+        chartsDiv.innerHTML = ''; // Clear previous charts
+        
+        // Group data by year
+        const dataByYear = data.reduce((acc, item) => {
+            if (!acc[item.year]) acc[item.year] = [];
+            acc[item.year].push(item);
+            return acc;
+        }, {});
+
+        for (let year in dataByYear) {
+            let div = document.createElement('div');
+            div.innerHTML = `<h3>Year: ${year}</h3><canvas id="chart-${year}"></canvas>`;
+            chartsDiv.appendChild(div);
+
+            const ctx = document.getElementById(`chart-${year}`).getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Q1', 'Q2', 'Q3', 'Q4'].slice(0, dataByYear[year].length),
+                    datasets: [{
+                        label: 'Net Income',
+                        data: dataByYear[year].map(q => q.net_income),
+                        borderColor: 'blue',
+                        fill: false
+                    }, {
+                        label: 'Cash from Operations',
+                        data: dataByYear[year].map(q => q.cash_from_operations),
+                        borderColor: 'green',
+                        fill: false
+                    },
+                    // Add other data sets similarly
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+    }
+</script>
+
+</body>
+</html>

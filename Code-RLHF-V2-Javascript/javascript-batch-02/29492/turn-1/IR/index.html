@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NASDAQ Financial Widget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-100 font-['Roboto',sans-serif] text-gray-800">
+    <div class="max-w-7xl mx-auto my-8 p-6 bg-white rounded-xl shadow-lg">
+        <h1 class="text-3xl font-bold mb-6 text-center text-blue-600">NASDAQ Financial Widget</h1>
+        <div class="mb-6">
+            <div class="flex items-center justify-center space-x-4">
+                <input type="text" id="shareInput" placeholder="Enter share name (e.g., AAPL)" 
+                       class="w-64 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="fetchData()" 
+                        class="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                    Fetch Data
+                </button>
+            </div>
+        </div>
+        <div id="loadingIndicator" class="hidden text-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+            <p class="mt-2 text-blue-500">Loading data...</p>
+        </div>
+        <div id="chartsContainer" class="grid grid-cols-1 gap-8"></div>
+    </div>
+
+    <script>
+        // API configuration
+        const API_KEY = '614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c';
+        const API_HOST = 'real-time-finance-data.p.rapidapi.com';
+        let charts = {};
+
+        // Register Chart.js plugins
+        Chart.register(ChartDataLabels);
+
+        // Function to fetch financial data from the API
+        async function fetchData() {
+            const shareName = document.getElementById('shareInput').value;
+            if (!shareName) {
+                alert('Please enter a share name');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                const response = await axios.get(`https://${API_HOST}/company-cash-flow`, {
+                    params: {
+                        symbol: `${shareName}:NASDAQ`,
+                        period: 'QUARTERLY',
+                        language: 'en'
+                    },
+                    headers: {
+                        'x-rapidapi-key': API_KEY,
+                        'x-rapidapi-host': API_HOST
+                    }
+                });
+
+                const data = response.data;
+                if (data.status === 'OK' && data.data && data.data.cash_flow) {
+                    processData(data.data.cash_flow, data.data.symbol);
+                } else {
+                    alert('Failed to fetch data or data structure is unexpected.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while fetching data.');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Function to process the fetched data and prepare it for charting
+        function processData(cashFlowData, symbol) {
+            const metrics = ['net_income', 'cash_from_operations', 'cash_from_investing', 'cash_from_financing', 'net_change_in_cash', 'free_cash_flow'];
+            const yearlyData = {};
+
+            cashFlowData.forEach(item => {
+                const year = item.year;
+                if (!yearlyData[year]) {
+                    yearlyData[year] = {
+                        labels: [],
+                        datasets: metrics.map(metric => ({ 
+                            label: formatMetricName(metric), 
+                            data: [], 
+                            borderColor: getRandomColor(),
+                            backgroundColor: getRandomColor(0.1),
+                            fill: false,
+                            tension: 0.4,
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        }))
+                    };
+                }
+
+                const label = `Q${item.quarter}`;
+                yearlyData[year].labels.push(label);
+                metrics.forEach((metric, index) => {
+                    yearlyData[year].datasets[index].data.push(item[metric]);
+                });
+            });
+
+            displayCharts(yearlyData, symbol);
+        }
+
+        // Function to display charts for each year's data
+        function displayCharts(yearlyData, symbol) {
+            const container = document.getElementById('chartsContainer');
+            container.innerHTML = '';
+
+            Object.entries(yearlyData).forEach(([year, data]) => {
+                const yearContainer = document.createElement('div');
+                yearContainer.className = 'bg-white p-6 rounded-lg shadow-md';
+                yearContainer.innerHTML = `<h2 class="text-2xl font-semibold mb-4 text-blue-600">${symbol} - ${year} Financial Data</h2>`;
+
+                const canvas = document.createElement('canvas');
+                yearContainer.appendChild(canvas);
+                container.appendChild(yearContainer);
+
+                if (charts[year]) {
+                    charts[year].destroy();
+                }
+
+                charts[year] = new Chart(canvas, {
+                    type: 'line',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    usePointStyle: true,
+                                    padding: 20
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: `${year} Quarterly Financial Metrics`,
+                                font: {
+                                    size: 18
+                                }
+                            },
+                            tooltip: {
+                                enabled: true,
+                                mode: 'point',
+                                intersect: true,
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed.y !== null) {
+                                            label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', compactDisplay: 'short' }).format(context.parsed.y);
+                                        }
+                                        return label;
+                                    }
+                                }
+                            },
+                            datalabels: {
+                                display: false // Disable data labels to reduce clutter
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Quarter'
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Value (USD)'
+                                },
+                                ticks: {
+                                    callback: function(value, index, values) {
+                                        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', compactDisplay: 'short' }).format(value);
+                                    }
+                                }
+                            }
+                        },
+                        interaction: {
+                            intersect: true,
+                            mode: 'point'
+                        },
+                    }
+                });
+            });
+        }
+
+        // Function to generate a random color
+        function getRandomColor(alpha = 1) {
+            const r = Math.floor(Math.random() * 256);
+            const g = Math.floor(Math.random() * 256);
+            const b = Math.floor(Math.random() * 256);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        // Function to format metric names for display
+        function formatMetricName(metric) {
+            return metric.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        }
+
+        // Function to show/hide loading indicator
+        function showLoading(show) {
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            loadingIndicator.classList.toggle('hidden', !show);
+        }
+    </script>
+</body>
+</html>
