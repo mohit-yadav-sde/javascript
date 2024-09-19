@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brewery Widget</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body { font-family: 'Arial', sans-serif; margin: 0; padding: 20px; background: #f4f4f4; }
+        .widget-container { max-width: 1200px; margin: auto; background: white; padding: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .filters, .brewery-list, .modal-content { margin-bottom: 20px; }
+        .brewery-item { border: 1px solid #ddd; padding: 10px; margin: 5px; cursor: pointer; }
+        .brewery-item:hover { background: #f9f9f9; }
+        .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+        .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
+        #map { height: 200px; margin-top: 10px; }
+        .pagination { text-align: center; }
+        .pagination button { margin: 0 5px; }
+        .chart-container { height: 300px; }
+    </style>
+</head>
+<body>
+
+<div class="widget-container">
+    <div class="filters">
+        <select id="cityFilter">
+            <option value="">Select City</option>
+        </select>
+        <select id="stateFilter">
+            <option value="">Select State</option>
+        </select>
+    </div>
+    
+    <div class="brewery-list" id="breweryList"></div>
+    
+    <div class="pagination" id="pagination"></div>
+
+    <div id="breweryModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="breweryName"></h2>
+            <p><strong>Type:</strong> <span id="breweryType"></span></p>
+            <p><strong>Address:</strong> <span id="breweryAddress"></span></p>
+            <p><strong>Postal Code:</strong> <span id="breweryPostalCode"></span></p>
+            <p><strong>Country:</strong> <span id="breweryCountry"></span></p>
+            <p><strong>Phone:</strong> <span id="breweryPhone"></span></p>
+            <p><strong>Website:</strong> <a id="breweryWebsite" href=""></a></p>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <select id="chartFilter">
+            <option value="state">By State</option>
+            <option value="city">By City</option>
+        </select>
+        <canvas id="breweryChart"></canvas>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+$(document).ready(function() {
+    let breweries = [];
+    const itemsPerPage = 9;
+    let currentPage = 1;
+    let currentFilters = {city: '', state: ''};
+
+    // Fetch breweries
+    $.getJSON('https://api.openbrewerydb.org/breweries', function(data) {
+        breweries = data.map(brewery => ({
+            ...brewery, 
+            address: `${brewery.street || 'Not Available'}, ${brewery.city || 'Not Available'}, ${brewery.state || 'Not Available'}`
+        }));
+        populateFilters();
+        displayBreweries();
+        setupChart();
+    });
+
+    function populateFilters() {
+        const cities = [...new Set(breweries.map(b => b.city))].sort();
+        const states = [...new Set(breweries.map(b => b.state))].sort();
+        cities.forEach(city => $('#cityFilter').append(`<option>${city || 'Not Available'}</option>`));
+        states.forEach(state => $('#stateFilter').append(`<option>${state || 'Not Available'}</option>`));
+    }
+
+    function displayBreweries() {
+        const filteredBreweries = breweries.filter(brewery => 
+            (currentFilters.city === '' || brewery.city === currentFilters.city) &&
+            (currentFilters.state === '' || brewery.state === currentFilters.state)
+        );
+
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const pageBreweries = filteredBreweries.slice(startIndex, endIndex);
+
+        $('#breweryList').empty();
+        pageBreweries.forEach(brewery => {
+            $('#breweryList').append(`
+                <div class="brewery-item" data-id="${brewery.id}">
+                    <h3>${brewery.name}</h3>
+                    <p>Type: ${brewery.brewery_type || 'Not Available'}</p>
+                    <p>Location: ${brewery.city || 'Not Available'}, ${brewery.state || 'Not Available'}</p>
+                </div>
+            `);
+        });
+
+        setupPagination(filteredBreweries.length);
+    }
+
+    function setupPagination(totalItems) {
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        $('#pagination').html('');
+        for(let i = 1; i <= totalPages; i++) {
+            $('#pagination').append(`<button ${i === currentPage ? 'disabled' : ''} onclick="changePage(${i})">${i}</button>`);
+        }
+    }
+
+    function changePage(page) {
+        currentPage = page;
+        displayBreweries();
+    }
+
+    // Event listeners for filters
+    $('#cityFilter, #stateFilter').on('change', function() {
+        currentFilters[this.id === 'cityFilter' ? 'city' : 'state'] = this.value;
+        currentPage = 1;
+        displayBreweries();
+    });
+
+    // Modal functionality
+    $(document).on('click', '.brewery-item', function() {
+        const breweryId = $(this).data('id');
+        const brewery = breweries.find(b => b.id === breweryId);
+        if(brewery) {
+            $('#breweryName').text(brewery.name);
+            $('#breweryType').text(brewery.brewery_type || 'Not Available');
+            $('#breweryAddress').text(brewery.address);
+            $('#breweryPostalCode').text(brewery.postal_code || 'Not Available');
+            $('#breweryCountry').text(brewery.country || 'Not Available');
+            $('#breweryPhone').text(brewery.phone || 'Not Available');
+            $('#breweryWebsite').text(brewery.website_url || 'Not Available').attr('href', brewery.website_url || '#');
+
+            $('#breweryModal').css('display', 'block');
+
+            // Setup Map
+            if (!$('#map').data('map')) {
+                const map = L.map('map').setView([brewery.latitude || 0, brewery.longitude || 0], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+                $('#map').data('map', map);
+            }
+            const map = $('#map').data('map');
+            map.setView([brewery.latitude || 0, brewery.longitude || 0], 13);
+            L.marker([brewery.latitude || 0, brewery.longitude || 0]).addTo(map)
+                .bindPopup(brewery.name).openPopup();
+        }
+    });
+
+    $('.close').on('click', function() {
+        $('#breweryModal').css('display', 'none');
+    });
+
+    window.onclick = function(event) {
+        if (event.target == document.getElementById('breweryModal')) {
+            $('#breweryModal').css('display', 'none');
+        }
+    };
+
+    function setupChart() {
+        let chart = new Chart(document.getElementById('breweryChart'), {
+            type: 'line',
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        $('#chartFilter').on('change', function() {
+            const by = this.value;
+            const data = breweries.reduce((acc, brewery) => {
+                const key = brewery[by] || 'Not Available';
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
+
+            chart.data = {
+                labels: Object.keys(data),
+                datasets: [{
+                    label: `Breweries by ${by}`,
+                    data: Object.values(data),
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            };
+            chart.update();
+        });
+    }
+});
+</script>
+
+</body>
+</html>

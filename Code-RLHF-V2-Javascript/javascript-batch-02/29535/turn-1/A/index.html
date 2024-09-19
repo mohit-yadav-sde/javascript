@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brewery Explorer</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body { padding: 20px; font-family: Arial, sans-serif; }
+        .brewery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px; }
+        .brewery-item { border: 1px solid #ddd; padding: 10px; cursor: pointer; }
+        .modal-body { height: 400px; }
+        #map { height: 200px; }
+        .chart-section { margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Brewery Explorer</h2>
+    <select id="filterState" class="form-control mb-3"></select>
+    <select id="filterCity" class="form-control mb-3"></select>
+    
+    <div class="brewery-grid" id="breweryGrid"></div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="breweryModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="breweryModalLabel">Brewery Details</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="modalContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-section">
+        <select id="chartFilter" class="form-control">
+            <option value="state">State</option>
+            <option value="city">City</option>
+        </select>
+        <canvas id="breweryChart" width="400" height="200"></canvas>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const apiUrl = 'https://api.openbrewerydb.org/breweries';
+    let breweries = [];
+    let map;
+
+    // Fetch data and initialize
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            breweries = data;
+            populateFilters();
+            updateGrid();
+            setupMap();
+        });
+
+    function populateFilters() {
+        let states = [...new Set(breweries.map(b => b.state))].sort();
+        let cities = [...new Set(breweries.map(b => b.city))].sort();
+        states.forEach(state => $('#filterState').append(new Option(state, state)));
+        cities.forEach(city => $('#filterCity').append(new Option(city, city)));
+    }
+
+    function updateGrid() {
+        let state = $('#filterState').val();
+        let city = $('#filterCity').val();
+        let filteredBreweries = breweries.filter(b => 
+            (state === '' || b.state === state) && 
+            (city === '' || b.city === city)
+        );
+
+        $('#breweryGrid').html('');
+        filteredBreweries.slice(0, 9).forEach(brewery => {
+            console.log(brewery)
+            $('#breweryGrid').append(`
+                <div class="brewery-item" onclick="showDetails(${brewery.id})">
+                    <h5>${brewery.name || 'Not Available'}</h5>
+                    <p>Type: ${brewery.brewery_type || 'Not Available'}</p>
+                    <p>Location: ${brewery.city || 'Not Available'}, ${brewery.state || 'Not Available'}</p>
+                </div>
+            `);
+        });
+    }
+
+    function showDetails(id) {
+        const brewery = breweries.find(b => b.id === id);
+        if (!brewery) return;
+        $('#breweryModalLabel').text(brewery.name);
+        $('#modalContent').html(`
+            <p><strong>Type:</strong> ${brewery.brewery_type || 'Not Available'}</p>
+            <p><strong>Address:</strong> ${brewery.street || 'Not Available'}, ${brewery.city || 'Not Available'}, ${brewery.state || 'Not Available'} ${brewery.postal_code || 'Not Available'}</p>
+            <p><strong>Phone:</strong> ${brewery.phone || 'Not Available'}</p>
+            <p><strong>Website:</strong> <a href="${brewery.website_url || '#'}" target="_blank">${brewery.website_url || 'Not Available'}</a></p>
+            <div id="map"></div>
+        `);
+        if (map) map.remove();
+        map = L.map('map').setView([brewery.latitude || 0, brewery.longitude || 0], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        L.marker([brewery.latitude || 0, brewery.longitude || 0]).addTo(map).bindPopup(brewery.name).openPopup();
+        $('#breweryModal').modal('show');
+    }
+
+    function setupMap() {
+        // Initialize map setup here if needed, though it's handled in showDetails for specific brewery
+    }
+
+    function updateChart() {
+        const filter = $('#chartFilter').val();
+        let data = {};
+        breweries.forEach(b => {
+            let key = filter === 'state' ? b.state : b.city;
+            data[key] = (data[key] || 0) + 1;
+        });
+
+        new Chart(document.getElementById('breweryChart'), {
+            type: 'line',
+            data: {
+                labels: Object.keys(data),
+                datasets: [{
+                    label: `Number of Breweries by ${filter}`,
+                    data: Object.values(data),
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    fill: false
+                }]
+            }
+        });
+    }
+
+    $('#filterState, #filterCity').on('change', updateGrid);
+    $('#chartFilter').on('change', updateChart);
+
+    // Initial chart setup
+    updateChart();
+</script>
+
+</body>
+</html>

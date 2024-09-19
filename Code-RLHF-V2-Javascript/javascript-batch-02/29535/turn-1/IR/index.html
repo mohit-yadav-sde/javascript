@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brewery Widget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  </head>
+  <body class="bg-gray-100 p-4">
+    <div
+      id="brewery-widget"
+      class="max-w-6xl mx-auto bg-white rounded-lg shadow-lg p-6"
+    >
+      <h1 class="text-3xl font-bold mb-6">Brewery Explorer</h1>
+
+      <!-- Filter Dropdowns -->
+      <div class="mb-6 flex space-x-4">
+        <div>
+          <label
+            for="state-filter"
+            class="block text-sm font-medium text-gray-700"
+            >State</label
+          >
+          <select
+            id="state-filter"
+            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+          >
+            <option value="">All States</option>
+          </select>
+        </div>
+        <div>
+          <label
+            for="city-filter"
+            class="block text-sm font-medium text-gray-700"
+            >City</label
+          >
+          <select
+            id="city-filter"
+            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+          >
+            <option value="">All Cities</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Grid Section -->
+      <div
+        id="brewery-grid"
+        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"
+      ></div>
+
+      <!-- Pagination -->
+      <div id="pagination" class="flex justify-center space-x-2 mb-6"></div>
+
+      <!-- Modal -->
+      <div
+        id="brewery-modal"
+        class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center"
+      >
+        <div
+          class="bg-white p-6 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        >
+          <h2 id="modal-title" class="text-2xl font-bold mb-4"></h2>
+          <div id="modal-content"></div>
+          <div id="map" class="h-64 mt-4"></div>
+          <button
+            id="close-modal"
+            class="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+
+      <!-- Chart Section -->
+      <div class="mt-8">
+        <h2 class="text-2xl font-bold mb-4">Brewery Statistics</h2>
+        <div class="mb-4">
+          <label for="chart-option" class="mr-2">Select option:</label>
+          <select id="chart-option" class="border rounded px-2 py-1">
+            <option value="state">State</option>
+            <option value="city">City</option>
+          </select>
+        </div>
+        <canvas id="brewery-chart"></canvas>
+      </div>
+    </div>
+
+    <script>
+      const apiUrl = "https://api.openbrewerydb.org/breweries";
+      let breweries = [];
+      let currentPage = 1;
+      const itemsPerPage = 9;
+      let activeStateFilter = "";
+      let activeCityFilter = "";
+      let map;
+      let chart;
+
+      // Fetch breweries from API
+      async function fetchBreweries() {
+        try {
+          const response = await fetch(`${apiUrl}?per_page=50`);
+          breweries = await response.json();
+          populateFilters();
+          renderGrid();
+          renderPagination();
+          renderChart();
+        } catch (error) {
+          console.error("Error fetching breweries:", error);
+        }
+      }
+
+      // Populate filter dropdowns
+      function populateFilters() {
+        const stateFilter = document.getElementById("state-filter");
+        const cityFilter = document.getElementById("city-filter");
+
+        const states = [
+          ...new Set(breweries.map((b) => b.state || "Not Available")),
+        ].sort();
+        const cities = [
+          ...new Set(breweries.map((b) => b.city || "Not Available")),
+        ].sort();
+
+        states.forEach((state) => {
+          const option = document.createElement("option");
+          option.value = state;
+          option.textContent = state;
+          stateFilter.appendChild(option);
+        });
+
+        cities.forEach((city) => {
+          const option = document.createElement("option");
+          option.value = city;
+          option.textContent = city;
+          cityFilter.appendChild(option);
+        });
+
+        stateFilter.addEventListener("change", handleFilterChange);
+        cityFilter.addEventListener("change", handleFilterChange);
+      }
+
+      // Handle filter change
+      function handleFilterChange(event) {
+        if (event.target.id === "state-filter") {
+          activeStateFilter = event.target.value;
+          document.getElementById("city-filter").value = "";
+          activeCityFilter = "";
+        } else if (event.target.id === "city-filter") {
+          activeCityFilter = event.target.value;
+          document.getElementById("state-filter").value = "";
+          activeStateFilter = "";
+        }
+        currentPage = 1;
+        renderGrid();
+        renderPagination();
+      }
+
+      // Render brewery grid
+      function renderGrid() {
+        const grid = document.getElementById("brewery-grid");
+        grid.innerHTML = "";
+
+        const filteredBreweries = breweries.filter(
+          (brewery) =>
+            (activeStateFilter === "" || brewery.state === activeStateFilter) &&
+            (activeCityFilter === "" || brewery.city === activeCityFilter)
+        );
+
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const pageBreweries = filteredBreweries.slice(startIndex, endIndex);
+
+        pageBreweries.forEach((brewery) => {
+          const card = document.createElement("div");
+          card.className =
+            "bg-gray-100 p-4 rounded shadow cursor-pointer hover:bg-gray-200 transition duration-300";
+          card.innerHTML = `
+                    <h3 class="font-bold text-lg mb-2">${brewery.name}</h3>
+                    <p><span class="font-semibold">Type:</span> ${
+                      brewery.brewery_type || "Not Available"
+                    }</p>
+                    <p><span class="font-semibold">Location:</span> ${
+                      brewery.city || "Not Available"
+                    }, ${brewery.state || "Not Available"}</p>
+                `;
+          card.addEventListener("click", () => openModal(brewery));
+          grid.appendChild(card);
+        });
+      }
+
+      // Render pagination
+      function renderPagination() {
+        const pagination = document.getElementById("pagination");
+        pagination.innerHTML = "";
+
+        const filteredBreweries = breweries.filter(
+          (brewery) =>
+            (activeStateFilter === "" || brewery.state === activeStateFilter) &&
+            (activeCityFilter === "" || brewery.city === activeCityFilter)
+        );
+
+        const pageCount = Math.ceil(filteredBreweries.length / itemsPerPage);
+
+        for (let i = 1; i <= pageCount; i++) {
+          const button = document.createElement("button");
+          button.textContent = i;
+          button.className = `px-3 py-1 rounded ${
+            currentPage === i
+              ? "bg-blue-500 text-white"
+              : "bg-gray-200 text-gray-700"
+          }`;
+          button.addEventListener("click", () => {
+            currentPage = i;
+            renderGrid();
+            renderPagination();
+          });
+          pagination.appendChild(button);
+        }
+      }
+
+      // Open modal with brewery details
+      function openModal(brewery) {
+        const modal = document.getElementById("brewery-modal");
+        const title = document.getElementById("modal-title");
+        const content = document.getElementById("modal-content");
+
+        title.textContent = brewery.name;
+        content.innerHTML = `
+                <p><strong>Type:</strong> ${
+                  brewery.brewery_type || "Not Available"
+                }</p>
+                <p><strong>Address:</strong> ${
+                  brewery.street || "Not Available"
+                }, ${brewery.city || "Not Available"}, ${
+          brewery.state || "Not Available"
+        }</p>
+                <p><strong>Postal Code:</strong> ${
+                  brewery.postal_code || "Not Available"
+                }</p>
+                <p><strong>Country:</strong> ${
+                  brewery.country || "Not Available"
+                }</p>
+                <p><strong>Phone:</strong> ${
+                  brewery.phone || "Not Available"
+                }</p>
+                <p><strong>Website:</strong> ${
+                  brewery.website_url
+                    ? `<a href="${brewery.website_url}" target="_blank" class="text-blue-500">${brewery.website_url}</a>`
+                    : "Not Available"
+                }</p>
+            `;
+
+        modal.classList.remove("hidden");
+        modal.classList.add("flex");
+
+        if (brewery.latitude && brewery.longitude) {
+          if (map) {
+            map.remove();
+          }
+          map = L.map("map").setView([brewery.latitude, brewery.longitude], 13);
+          L.tileLayer(
+            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          ).addTo(map);
+          L.marker([brewery.latitude, brewery.longitude])
+            .addTo(map)
+            .bindPopup(brewery.name)
+            .openPopup();
+        } else {
+          document.getElementById("map").innerHTML =
+            '<p class="text-center">Map not available</p>';
+        }
+      }
+
+      // Close modal
+      document.getElementById("close-modal").addEventListener("click", () => {
+        document.getElementById("brewery-modal").classList.add("hidden");
+        document.getElementById("brewery-modal").classList.remove("flex");
+      });
+
+      // Render chart
+      function renderChart() {
+        const ctx = document.getElementById("brewery-chart").getContext("2d");
+        const option = document.getElementById("chart-option").value;
+
+        const data = breweries.reduce((acc, brewery) => {
+          const key = brewery[option] || "Not Available";
+          if (!acc[key]) {
+            acc[key] = 0;
+          }
+          acc[key]++;
+          return acc;
+        }, {});
+
+        const sortedData = Object.entries(data)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .reduce((acc, [key, value]) => {
+            acc[key] = value;
+            return acc;
+          }, {});
+
+        const chartData = {
+          labels: Object.keys(sortedData),
+          datasets: [
+            {
+              label: `Breweries by ${option}`,
+              data: Object.values(sortedData),
+              borderColor: "rgb(75, 192, 192)",
+              backgroundColor: "rgba(75, 192, 192, 0.2)",
+              tension: 0.1,
+              fill: false,
+            },
+          ],
+        };
+
+        if (chart) {
+          chart.destroy();
+        }
+
+        chart = new Chart(ctx, {
+          type: "line",
+          data: chartData,
+          options: {
+            responsive: true,
+            scales: {
+              x: {
+                ticks: {
+                  autoSkip: false,
+                  maxRotation: 90,
+                  minRotation: 90,
+                },
+              },
+              y: {
+                beginAtZero: true,
+              },
+            },
+            plugins: {
+              legend: {
+                display: true,
+              },
+            },
+          },
+        });
+      }
+
+      // Handle chart option change
+      document
+        .getElementById("chart-option")
+        .addEventListener("change", renderChart);
+
+      // Initialize the widget
+      fetchBreweries();
+    </script>
+  </body>
+</html>
