@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Bike Widget</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1"></script>
+    <style>
+        body { font-family: 'Arial', sans-serif; margin: 0; padding: 20px; background: #f4f4f4; }
+        .container { max-width: 1200px; margin: auto; }
+        #bikeGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .bike-item { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; }
+        #map, #countryMap { height: 300px; }
+        #chartContainer { width: 100%; height: 400px; margin-top: 20px; }
+        .search-pagination { margin: 20px 0; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>City Bike Networks</h1>
+    <div class="search-pagination">
+        <input type="text" id="searchBox" placeholder="Search by city or country...">
+        <div id="pagination"></div>
+    </div>
+    <div id="bikeGrid"></div>
+
+    <div id="chartContainer">
+        <canvas id="bikeChart"></canvas>
+    </div>
+
+    <div id="bikeModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <div id="countryModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="countryMap"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let networks = [];
+    const itemsPerPage = 10;
+    let currentPage = 1;
+
+    // Fetch data from API
+    fetch('https://api.citybik.es/v2/networks')
+    .then(response => response.json())
+    .then(data => {
+        networks = data.networks;
+        updateGrid();
+        setupChart();
+    });
+
+    // Update grid with search and pagination
+    function updateGrid() {
+        let filteredNetworks = networks.filter(network => 
+            network.name.toLowerCase().includes(document.getElementById('searchBox').value.toLowerCase()) || 
+            network.location.city.toLowerCase().includes(document.getElementById('searchBox').value.toLowerCase()) || 
+            network.location.country.toLowerCase().includes(document.getElementById('searchBox').value.toLowerCase())
+        );
+        let paginatedNetworks = filteredNetworks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+        let grid = document.getElementById('bikeGrid');
+        grid.innerHTML = '';
+        paginatedNetworks.forEach(network => {
+            let item = document.createElement('div');
+            item.className = 'bike-item';
+            item.innerHTML = `<h3>${network.name}</h3><p>${network.location.city}, ${network.location.country}</p><button onclick="showLocation('${network.id}')">See Location</button>`;
+            grid.appendChild(item);
+        });
+        setupPagination(filteredNetworks.length);
+    }
+
+    // Setup pagination
+    function setupPagination(totalItems) {
+        let pagination = document.getElementById('pagination');
+        pagination.innerHTML = '';
+        let pageCount = Math.ceil(totalItems / itemsPerPage);
+        for (let i = 1; i <= pageCount; i++) {
+            let btn = document.createElement('button');
+            btn.innerText = i;
+            btn.onclick = function() { currentPage = i; updateGrid(); };
+            pagination.appendChild(btn);
+        }
+    }
+
+    // Show location on map
+    function showLocation(id) {
+        let network = networks.find(net => net.id === id);
+        let modal = document.getElementById('bikeModal');
+        modal.style.display = "block";
+        if (!window.map) {
+            window.map = L.map('map').setView([network.location.latitude, network.location.longitude], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(window.map);
+        } else {
+            window.map.setView([network.location.latitude, network.location.longitude], 13);
+        }
+        L.marker([network.location.latitude, network.location.longitude]).addTo(window.map)
+            .bindPopup(network.name).openPopup();
+    }
+
+    // Setup Chart
+    function setupChart() {
+        let ctx = document.getElementById('bikeChart').getContext('2d');
+        let countries = [...new Set(networks.map(net => net.location.country))];
+        let chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: countries,
+                datasets: [{
+                    label: 'Number of Bike Networks',
+                    data: countries.map(country => networks.filter(net => net.location.country === country).length),
+                    borderColor: 'blue',
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: { title: { display: true, text: 'Country' } },
+                    y: { beginAtZero: true }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                label += context.parsed.y;
+                                return label;
+                            },
+                            afterBody: function(tooltipItems, data) {
+                                let country = countries[tooltipItems[0].dataIndex];
+                                let cities = networks.filter(net => net.location.country === country).map(net => net.location.city).join(', ');
+                                return 'Cities: ' + cities;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Event listeners
+    document.getElementById('searchBox').addEventListener('input', updateGrid);
+    document.querySelectorAll('.close').forEach(item => {
+        item.addEventListener('click', function() {
+            this.closest('.modal').style.display = "none";
+        });
+    });
+});
+</script>
+
+</body>
+</html>
