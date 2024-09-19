@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Widget</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .weather-widget {
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            width: 350px;
+            text-align: center;
+        }
+        .current-weather {
+            margin-bottom: 20px;
+        }
+        .current-weather h2 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .current-weather p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .charts-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .chart {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="weather-widget">
+    <div class="current-weather" id="currentWeather">
+        <h2>Loading Weather...</h2>
+    </div>
+    <div class="charts-container">
+        <div class="chart" id="temperatureChart"></div>
+        <div class="chart" id="humidityChart"></div>
+        <div class="chart" id="windSpeedChart"></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(position => {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
+                const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=temperature_2m,relativehumidity_2m,windspeed_10m`;
+                
+                fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    const current = data.current_weather;
+                    const hourly = data.hourly;
+
+                    document.getElementById('currentWeather').innerHTML = `
+                        <h2>${current.temperature} ${data.hourly_units.temperature_2m}</h2>
+                        <p>Wind: ${current.windspeed} ${data.hourly_units.windspeed_10m}</p>
+                        <p>Time: ${new Date(current.time).toLocaleTimeString()}</p>
+                        <p>Elevation: ${data.elevation}m</p>
+                        <p>Lat: ${latitude}, Long: ${longitude}</p>
+                    `;
+
+                    const createChart = (elementId, label, dataKey, yLabel) => {
+                        new Chart(document.getElementById(elementId), {
+                            type: 'line',
+                            data: {
+                                labels: hourly.time.map(t => new Date(t).toLocaleTimeString('en', {hour: '2-digit', minute:'2-digit'})),
+                                datasets: [{
+                                    label: label,
+                                    data: hourly[dataKey],
+                                    borderColor: 'rgb(75, 192, 192)',
+                                    tension: 0.1
+                                }]
+                            },
+                            options: {
+                                scales: {
+                                    y: {
+                                        title: { display: true, text: yLabel }
+                                    }
+                                },
+                                plugins: {
+                                    legend: { display: false }
+                                }
+                            }
+                        });
+                    };
+
+                    createChart('temperatureChart', 'Temperature', 'temperature_2m', `${data.hourly_units.temperature_2m}`);
+                    createChart('humidityChart', 'Humidity', 'relativehumidity_2m', '%');
+                    createChart('windSpeedChart', 'Wind Speed', 'windspeed_10m', `${data.hourly_units.windspeed_10m}`);
+                });
+            }, error => {
+                console.error("Error getting location:", error);
+                document.getElementById('currentWeather').innerHTML = "<h2>Failed to get weather data.</h2>";
+            });
+        } else {
+            alert("Geolocation is not supported by this browser.");
+        }
+    });
+</script>
+
+</body>
+</html>

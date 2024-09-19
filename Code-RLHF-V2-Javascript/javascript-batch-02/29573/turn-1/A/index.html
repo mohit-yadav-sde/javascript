@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Weather Widget</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #f0f8ff; }
+        #weatherWidget {
+            width: 80%;
+            margin: 20px auto;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        .currentDetails {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .charts {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        .chart-container {
+            width: 300px;
+            margin: 10px;
+        }
+        .weather-info { color: #007BFF; }
+    </style>
+</head>
+<body>
+
+<div id="weatherWidget">
+    <div class="currentDetails" id="currentDetails"></div>
+    <div class="charts">
+        <div class="chart-container"><canvas id="tempChart"></canvas></div>
+        <div class="chart-container"><canvas id="humidityChart"></canvas></div>
+        <div class="chart-container"><canvas id="windChart"></canvas></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Function to get weather data
+    function getWeatherData(latitude, longitude) {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=temperature_2m,relativehumidity_2m,windspeed_10m`;
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                displayCurrentWeather(data);
+                createCharts(data);
+            });
+    }
+
+    // Display current weather
+    function displayCurrentWeather(data) {
+        const details = document.getElementById('currentDetails');
+        details.innerHTML = `
+            <h2 class="weather-info">Current Weather in ${data.latitude.toFixed(2)}°, ${data.longitude.toFixed(2)}°</h2>
+            <p>Temperature: ${data.current_weather.temperature} ${data.hourly_units.temperature_2m}</p>
+            <p>Wind Speed: ${data.current_weather.windspeed} ${data.hourly_units.windspeed_10m}</p>
+            <p>Time: ${new Date(data.current_weather.time).toLocaleString()}</p>
+        `;
+    }
+
+    // Create charts for weather metrics
+    function createCharts(data) {
+        const ctxTemp = document.getElementById('tempChart').getContext('2d');
+        const ctxHumidity = document.getElementById('humidityChart').getContext('2d');
+        const ctxWind = document.getElementById('windChart').getContext('2d');
+
+        const labels = data.hourly.time;
+        const tempData = data.hourly.temperature_2m;
+        const humidityData = data.hourly.relativehumidity_2m;
+        const windData = data.hourly.windspeed_10m;
+
+        new Chart(ctxTemp, { type: 'line', data: { labels, datasets: [{ label: 'Temperature', data: tempData, borderColor: 'red', fill: false }] });
+        new Chart(ctxHumidity, { type: 'line', data: { labels, datasets: [{ label: 'Humidity', data: humidityData, borderColor: 'blue', fill: false }] });
+        new Chart(ctxWind, { type: 'line', data: { labels, datasets: [{ label: 'Wind Speed', data: windData, borderColor: 'green', fill: false }] });
+    }
+
+    // Get user's location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(position => {
+            getWeatherData(position.coords.latitude, position.coords.longitude);
+        }, error => {
+            console.error("Error getting location:", error);
+            // Fallback to a default location or prompt user for location
+            getWeatherData(52.52, 13.41); // Default to Berlin
+        });
+    } else {
+        alert("Geolocation is not supported by this browser.");
+    }
+</script>
+
+</body>
+</html>
