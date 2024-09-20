@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manga Widget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom styles for improved visual appeal */
+        body {
+            background-color: #f0f4f8;
+            color: #2d3748;
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .manga-card {
+            transition: all 0.3s ease;
+        }
+        .manga-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn {
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="container mx-auto">
+        <h1 class="text-4xl font-bold mb-8 text-center text-indigo-600">Manga Explorer</h1>
+        <input type="text" id="search" placeholder="Search by title" class="w-full p-3 mb-6 border rounded-lg shadow-sm focus:ring focus:ring-indigo-200 focus:outline-none">
+        <div id="mangaGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        <div class="mt-8 flex justify-center items-center space-x-4">
+            <button id="prevPage" class="btn bg-indigo-500 text-white px-6 py-2 rounded-lg hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">Previous</button>
+            <span id="pageInfo" class="text-lg font-semibold">Page 1 of 1</span>
+            <button id="nextPage" class="btn bg-indigo-500 text-white px-6 py-2 rounded-lg hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">Next</button>
+        </div>
+        <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full">
+            <div class="relative top-20 mx-auto p-8 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-lg bg-white">
+                <div id="modalContent"></div>
+                <button id="closeModal" class="mt-6 bg-indigo-500 text-white px-6 py-2 rounded-lg hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">Close</button>
+            </div>
+        </div>
+        <div class="mt-12">
+            <h2 class="text-3xl font-bold mb-6 text-center text-indigo-600">Top 10 Rated Manga</h2>
+            <canvas id="ratingChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // API endpoint for fetching manga data
+        const apiUrl = 'https://api.jikan.moe/v4/manga';
+
+        // DOM element references
+        const mangaGrid = document.getElementById('mangaGrid');
+        const searchInput = document.getElementById('search');
+        const modal = document.getElementById('modal');
+        const modalContent = document.getElementById('modalContent');
+        const closeModal = document.getElementById('closeModal');
+        const prevPageBtn = document.getElementById('prevPage');
+        const nextPageBtn = document.getElementById('nextPage');
+        const pageInfo = document.getElementById('pageInfo');
+
+        // State variables
+        let allManga = [];
+        let filteredManga = [];
+        let currentPage = 1;
+        const itemsPerPage = 12;
+        let totalPages = 1;
+
+        // Fetch manga data from the API
+        async function fetchManga() {
+            try {
+                const response = await fetch(`${apiUrl}`);
+                const data = await response.json();
+                allManga = data.data;
+                filteredManga = allManga;
+                totalPages = Math.ceil(allManga.length / itemsPerPage);
+                updatePageInfo();
+                displayManga();
+                createChart();
+            } catch (error) {
+                console.error('Error fetching manga:', error);
+            }
+        }
+
+        // Format date to a readable string
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            return new Date(dateString).toLocaleDateString(undefined, options);
+        }
+
+        // Display manga in the grid
+        function displayManga() {
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const mangaToDisplay = filteredManga.slice(start, end);
+
+            mangaGrid.innerHTML = '';
+            mangaToDisplay.forEach(manga => {
+                const duration = calculateDuration(manga.published);
+                const element = document.createElement('div');
+                element.className = 'manga-card bg-white p-6 rounded-lg shadow-md';
+                element.innerHTML = `
+                    <h2 class="text-xl font-bold mb-2 text-indigo-600">${manga.title_english || manga.title}</h2>
+                    <p class="text-sm text-gray-600 mb-4">${manga.title_japanese}</p>
+                    <p><strong>Chapters:</strong> ${manga.chapters || 'N/A'}</p>
+                    <p><strong>Volumes:</strong> ${manga.volumes || 'N/A'}</p>
+                    <p><strong>Status:</strong> ${manga.status}</p>
+                    <p><strong>Publishing:</strong> ${manga.publishing ? 'Yes' : 'No'}</p>
+                    <p><strong>Score:</strong> ${manga.score || 'N/A'}</p>
+                    <p><strong>Published:</strong> ${formatDate(manga.published.from)} - ${formatDate(manga.published.to)}</p>
+                    <p><strong>Duration:</strong> ${duration}</p>
+                    <button class="btn mt-4 bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50" onclick="showDetails(${manga.mal_id})">See Details</button>
+                `;
+                mangaGrid.appendChild(element);
+            });
+        }
+
+        // Update pagination information
+        function updatePageInfo() {
+            pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+            prevPageBtn.disabled = currentPage === 1;
+            nextPageBtn.disabled = currentPage === totalPages;
+        }
+
+        // Event listeners for pagination buttons
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                displayManga();
+                updatePageInfo();
+            }
+        });
+
+        nextPageBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                displayManga();
+                updatePageInfo();
+            }
+        });
+
+        // Calculate duration of manga publication
+        function calculateDuration(published) {
+            if (!published.from || !published.to) return 'N/A';
+            const start = new Date(published.from);
+            const end = published.to ? new Date(published.to) : new Date();
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const years = Math.floor(diffDays / 365);
+            const months = Math.floor((diffDays % 365) / 30);
+            const days = diffDays % 30;
+            
+            let durationString = '';
+            if (years > 0) durationString += `${years} year${years > 1 ? 's' : ''} `;
+            if (months > 0) durationString += `${months} month${months > 1 ? 's' : ''} `;
+            if (days > 0) durationString += `${days} day${days > 1 ? 's' : ''}`;
+            
+            return durationString.trim() || 'Less than a day';
+        }
+
+        // Show detailed information for a manga
+        function showDetails(mangaId) {
+            const manga = allManga.find(m => m.mal_id === mangaId);
+            if (!manga) return;
+
+            modalContent.innerHTML = `
+                <h2 class="text-2xl font-bold mb-4 text-indigo-600">${manga.title}</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <img src="${manga.images.jpg.image_url}" alt="${manga.title}" class="w-full rounded-lg shadow-md">
+                    </div>
+                    <div>
+                        <p><strong>Chapters:</strong> ${manga.chapters || 'N/A'}</p>
+                        <p><strong>Volumes:</strong> ${manga.volumes || 'N/A'}</p>
+                        <p><strong>Status:</strong> ${manga.status}</p>
+                        <p><strong>Publishing:</strong> ${manga.publishing ? 'Yes' : 'No'}</p>
+                        <p><strong>Score:</strong> ${manga.score || 'N/A'}</p>
+                        <p><strong>Start Date:</strong> ${formatDate(manga.published.from)}</p>
+                        <p><strong>End Date:</strong> ${formatDate(manga.published.to)}</p>
+                        <p><strong>Duration:</strong> ${calculateDuration(manga.published)}</p>
+                        <p><strong>Scored By:</strong> ${manga.scored_by || 'N/A'}</p>
+                        <p><strong>Rank:</strong> ${manga.rank || 'N/A'}</p>
+                        <p><strong>Popularity:</strong> ${manga.popularity || 'N/A'}</p>
+                        <p><strong>Members:</strong> ${manga.members || 'N/A'}</p>
+                        <p><strong>Favorites:</strong> ${manga.favorites || 'N/A'}</p>
+                        <p><strong>Authors:</strong> ${manga.authors.map(a => a.name).join(', ') || 'N/A'}</p>
+                        <p><strong>Genres:</strong> ${manga.genres.map(g => g.name).join(', ') || 'N/A'}</p>
+                    </div>
+                </div>
+                <p class="mt-6"><strong>Synopsis:</strong> ${manga.synopsis || 'N/A'}</p>
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        // Close modal event
+        closeModal.onclick = function() {
+            modal.classList.add('hidden');
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.classList.add('hidden');
+            }
+        }
+
+        // Search functionality
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            filteredManga = allManga.filter(manga => 
+                (manga.title_english && manga.title_english.toLowerCase().includes(searchTerm)) ||
+                manga.title.toLowerCase().includes(searchTerm)
+            );
+            currentPage = 1;
+            totalPages = Math.ceil(filteredManga.length / itemsPerPage);
+            updatePageInfo();
+            displayManga();
+        });
+
+        // Create chart for top 10 rated manga
+        function createChart() {
+            const sortedManga = [...allManga].sort((a, b) => b.score - a.score);
+            const top10Manga = sortedManga.slice(0, 10);
+
+            const ctx = document.getElementById('ratingChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: top10Manga.map(manga => manga.title),
+                    datasets: [{
+                        label: 'Score',
+                        data: top10Manga.map(manga => manga.score),
+                        borderColor: 'rgb(79, 70, 229)',
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Top 10 Rated Manga',
+                            font: {
+                                size: 18
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: Math.floor(Math.min(...top10Manga.map(manga => manga.score)) - 0.5),
+                            max: 10
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize the widget
+        fetchManga();
+    </script>
+</body>
+</html>

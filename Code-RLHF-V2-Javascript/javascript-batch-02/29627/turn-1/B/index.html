@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manga Widget</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+<style>
+    body { font-family: 'Arial', sans-serif; background: #f4f4f9; }
+    .manga-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; padding: 20px; }
+    .manga-item { background: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; text-align: center; transition: transform .2s; }
+    .manga-item:hover { transform: scale(1.05); }
+    .search-bar, .pagination { margin: 20px; }
+    .modal-content { background: #fff; border-radius: 10px; }
+    .line-chart-container { margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <input type="text" id="searchInput" class="form-control search-bar" placeholder="Search by English Title...">
+    <div class="manga-grid" id="mangaGrid"></div>
+    <nav aria-label="Page navigation" class="pagination">
+        <ul class="pagination" id="pagination"></ul>
+    </nav>
+    
+    <!-- Modal -->
+    <div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <!-- Content will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <div class="line-chart-container">
+        <canvas id="scoreChart" width="400" height="200"></canvas>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+    let mangaData = [];
+    const itemsPerPage = 10;
+    let currentPage = 1;
+
+    // Fetch manga data
+    fetch('https://api.jikan.moe/v4/manga')
+        .then(response => response.json())
+        .then(data => {
+            mangaData = data.data;
+            displayManga(currentPage);
+            setupPagination(mangaData.length);
+            setupSearch();
+            drawChart(mangaData);
+        });
+
+    function displayManga(page) {
+        const grid = document.getElementById('mangaGrid');
+        grid.innerHTML = '';
+        const start = (page - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        const pageData = mangaData.filter(manga => 
+            manga.title_english.toLowerCase().includes(document.getElementById('searchInput').value.toLowerCase())
+        ).slice(start, end);
+
+        pageData.forEach(manga => {
+            const item = document.createElement('div');
+            item.className = 'manga-item';
+            item.innerHTML = `
+                <h5>${manga.title_english || manga.title}</h5>
+                <p><strong>Japanese:</strong> ${manga.title_japanese}</p>
+                <p><strong>Chapters:</strong> ${manga.chapters || 'N/A'}</p>
+                <p><strong>Volumes:</strong> ${manga.volumes || 'N/A'}</p>
+                <p><strong>Status:</strong> ${manga.status}</p>
+                <p><strong>Publishing:</strong> ${manga.publishing ? 'Yes' : 'No'}</p>
+                <p><strong>Score:</strong> ${manga.score || 'N/A'}</p>
+                <p><strong>Duration:</strong> ${manga.published.from ? new Date(manga.published.from).getFullYear() : 'N/A'} - ${manga.published.to ? new Date(manga.published.to).getFullYear() : 'Present'}</p>
+                <button class="btn btn-info" onclick="showDetails('${manga.mal_id}')">See Details</button>
+            `;
+            grid.appendChild(item);
+        });
+    }
+
+    function setupPagination(totalItems) {
+        const pagination = document.getElementById('pagination');
+        pagination.innerHTML = '';
+        const pageCount = Math.ceil(totalItems / itemsPerPage);
+        for(let i = 1; i <= pageCount; i++) {
+            let li = document.createElement('li');
+            li.className = 'page-item' + (i === currentPage ? ' active' : '');
+            let a = document.createElement('a');
+            a.className = 'page-link';
+            a.href = '#';
+            a.textContent = i;
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                currentPage = i;
+                displayManga(i);
+                setupPagination(totalItems);
+            });
+            li.appendChild(a);
+            pagination.appendChild(li);
+        }
+    }
+
+    function setupSearch() {
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            currentPage = 1;
+            displayManga(currentPage);
+            setupPagination(mangaData.length);
+        });
+    }
+
+    function showDetails(id) {
+        const manga = mangaData.find(m => m.mal_id == id);
+        const modalBody = document.querySelector('.modal-content');
+        modalBody.innerHTML = `
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailsModalLabel">${manga.title}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Chapters:</strong> ${manga.chapters || 'N/A'}</p>
+                <p><strong>Volumes:</strong> ${manga.volumes || 'N/A'}</p>
+                <p><strong>Status:</strong> ${manga.status}</p>
+                <p><strong>Publishing:</strong> ${manga.publishing ? 'Yes' : 'No'}</p>
+                <p><strong>Score:</strong> ${manga.score || 'N/A'}</p>
+                <p><strong>Scored By:</strong> ${manga.scored_by || 'N/A'}</p>
+                <p><strong>Rank:</strong> ${manga.rank || 'N/A'}</p>
+                <p><strong>Popularity:</strong> ${manga.popularity || 'N/A'}</p>
+                <p><strong>Members:</strong> ${manga.members || 'N/A'}</p>
+                <p><strong>Favorites:</strong> ${manga.favorites || 'N/A'}</p>
+                <p><strong>Authors:</strong> ${manga.authors.map(a => a.name).join(', ')}</p>
+                <p><strong>Genres:</strong> ${manga.genres.map(g => g.name).join(', ')}</p>
+                <p><strong>Synopsis:</strong> ${manga.synopsis || 'No synopsis available.'}</p>
+            </div>
+        `;
+        new bootstrap.Modal(document.getElementById('detailsModal')).show();
+    }
+
+    function drawChart(data) {
+        const sortedData = data.sort((a, b) => b.score - a.score).slice(0, 10);
+        const ctx = document.getElementById('scoreChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sortedData.map(m => m.title_english || m.title),
+                datasets: [{
+                    label: 'Top 10 Manga Scores',
+                    data: sortedData.map(m => m.score),
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+</body>
+</html>
