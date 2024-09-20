@@ -94,7 +94,7 @@
           method: "GET",
           headers: {
             "x-rapidapi-key":
-              "614ae3180amsh72b6be28d34476ep1f9a52jsnb2445e9a232c",
+              "e5803a5d36msh917d01cfda8572cp1cba29jsnfddd059e241e",
             "x-rapidapi-host": "local-business-data.p.rapidapi.com",
           },
         };
@@ -131,8 +131,7 @@
         const item = allData[index];
         const hasReviews =
           item.reviews_per_rating &&
-          Object.keys(item.reviews_per_rating).length > 0;
-
+          Object.keys(item.reviews_per_rating).length > 0 === null ? true: false;
         modalContent.innerHTML = `
         <h2 class="text-2xl font-bold mb-4">${item.name}</h2>
         <p><strong>Summary:</strong> ${item.about?.summary || "N/A"}</p>
@@ -163,7 +162,7 @@
 <ul class="list-disc pl-5">
     ${
       item.hotel_amenities
-        ? item.hotel_amenities.map((amenity) => `<li>${amenity}</li>`).join("")
+        ? Object.keys(item.hotel_amenities).map((amenity) => `<li>${amenity}</li>`).join("")
         : "No amenities information available"
     }
 </ul>
@@ -180,8 +179,9 @@
         </div>
         <h3 class="text-xl font-bold mt-4 mb-2">Location</h3>
         <div id="map" class="h-64 mt-2"></div>
-        <h3 class="text-xl font-bold mt-4 mb-2">Reviews per Rating</h3>
+        <h3 id="reviewsChartHeading" class="text-xl font-bold mt-4 mb-2">Reviews per Rating</h3>
         <canvas id="reviewsChart"></canvas>
+        <p id="noDataMessage" class="text-red-500 text-lg hidden">No data available</p>
     `;
         modal.classList.remove("hidden");
 
@@ -213,6 +213,9 @@
               ],
             },
           });
+        } else {
+          document.getElementById('reviewsChart').style.display = 'none';  // Hide the chart canvas
+          document.getElementById('noDataMessage').classList.remove('hidden');  // Show the 'No data available' message
         }
       }
 
