@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Qualifying Widget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <style>
+        #map { height: 400px; width: 100%; }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <!-- Main content container -->
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-4">F1 Qualifying Widget</h1>
+        <!-- Year input and search button -->
+        <div class="mb-4">
+            <input type="number" id="yearInput" placeholder="Enter year (2000-2023)" min="2000" max="2023" class="p-2 border rounded">
+            <button id="searchBtn" class="bg-blue-500 text-white px-4 py-2 rounded ml-2">Search</button>
+        </div>
+        
+        <!-- Loading overlay -->
+        <div id="loading" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center">
+            <div class="bg-white p-8 rounded-lg">
+                <div class="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
+                <p class="mt-4 text-center">Loading data...</p>
+            </div>
+        </div>
+
+        <!-- Main content area -->
+        <div id="content" class="hidden">
+            <!-- Grid Section of Each Round -->
+            <h2 class="text-2xl font-bold mt-8 mb-4">Grid Section of Each Round</h2>
+            <input type="text" id="raceSearch" placeholder="Search by race name" class="p-2 border rounded mb-4">
+            <div id="gridSection" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            <div id="gridPagination" class="mt-4 flex justify-center"></div>
+
+            <!-- Grid Section of 1st Position Drivers -->
+            <h2 class="text-2xl font-bold mt-8 mb-4">Grid Section of 1st Position Drivers</h2>
+            <input type="text" id="driverSearch" placeholder="Search by driver name or race name" class="p-2 border rounded mb-4">
+            <div id="firstPositionSection" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            <div id="firstPositionPagination" class="mt-4 flex justify-center"></div>
+
+            <!-- Line Chart Section -->
+            <h2 class="text-2xl font-bold mt-8 mb-4">Line Chart: Driver First Positions</h2>
+            <canvas id="lineChart"></canvas>
+        </div>
+
+        <!-- Modal for driver details -->
+        <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center">
+            <div class="bg-white p-8 rounded-lg max-w-3xl w-full max-h-screen overflow-y-auto">
+                <h2 class="text-2xl font-bold mb-4">Driver Details</h2>
+                <div id="modalContent"></div>
+                <div id="map" class="mt-4"></div>
+                <button id="closeModal" class="mt-4 bg-red-500 text-white px-4 py-2 rounded">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM element references
+        const yearInput = document.getElementById('yearInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const loading = document.getElementById('loading');
+        const content = document.getElementById('content');
+        const gridSection = document.getElementById('gridSection');
+        const firstPositionSection = document.getElementById('firstPositionSection');
+        const raceSearch = document.getElementById('raceSearch');
+        const driverSearch = document.getElementById('driverSearch');
+        const modal = document.getElementById('modal');
+        const modalContent = document.getElementById('modalContent');
+        const closeModal = document.getElementById('closeModal');
+        let map;
+        let markers = [];
+
+        // Data and pagination variables
+        let allData = [];
+        let currentGridPage = 1;
+        let currentFirstPositionPage = 1;
+        const itemsPerPage = 9;
+
+        // Event listeners
+        searchBtn.addEventListener('click', fetchData);
+        raceSearch.addEventListener('input', () => {
+            currentGridPage = 1;
+            filterRaces();
+        });
+        driverSearch.addEventListener('input', () => {
+            currentFirstPositionPage = 1;
+            filterDrivers();
+        });
+        closeModal.addEventListener('click', () => modal.classList.add('hidden'));
+
+        // Fetch data from API
+        async function fetchData() {
+            const year = parseInt(yearInput.value);
+            if (year < 2000 || year > 2023) {
+                alert('Please enter a year between 2000 and 2023');
+                return;
+            }
+
+            loading.classList.remove('hidden');
+            content.classList.add('hidden');
+            allData = [];
+
+            for (let offset of [0, 100, 200, 300, 400]) {
+                try {
+                    const response = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/qualifying/?limit=100&offset=${offset}`);
+                    const result = await response.json();
+                    if (result.MRData && result.MRData.RaceTable && result.MRData.RaceTable.Races) {
+                        allData = allData.concat(result.MRData.RaceTable.Races);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            }
+
+            displayData();
+            createLineChart();
+            loading.classList.add('hidden');
+            content.classList.remove('hidden');
+        }
+
+        // Display all data
+        function displayData() {
+            displayGridSection();
+            displayFirstPositionSection();
+        }
+
+        // Display grid section of each round
+        function displayGridSection() {
+            const filteredData = allData;
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            const startIndex = (currentGridPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageData = filteredData.slice(startIndex, endIndex);
+
+            gridSection.innerHTML = pageData.map(race => `
+                <div class="bg-white p-4 rounded shadow">
+                    <h3 class="font-bold">${race.raceName}</h3>
+                    <p>Round: ${race.round}</p>
+                    <p>Season: ${race.season}</p>
+                    <p>Location: ${race.Circuit.Location.locality}, ${race.Circuit.Location.country}</p>
+                    <a href="${race.url}" target="_blank" class="text-blue-500">Wiki Link</a>
+                    <button onclick="showDriverDetails('${race.round}')" class="mt-2 bg-green-500 text-white px-4 py-2 rounded">See Details</button>
+                </div>
+            `).join('');
+
+            displayPagination(totalPages, currentGridPage, 'gridPagination', () => {
+                displayGridSection();
+            });
+        }
+
+        // Display grid section of 1st position drivers
+        function displayFirstPositionSection() {
+            const firstPositionDrivers = allData.map(race => {
+                const firstDriver = race.QualifyingResults[0];
+                return {
+                    driver: firstDriver,
+                    raceName: race.raceName,
+                    round: race.round,
+                    season: race.season,
+                    location: race.Circuit.Location
+                };
+            });
+
+            const totalPages = Math.ceil(firstPositionDrivers.length / itemsPerPage);
+            const startIndex = (currentFirstPositionPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageData = firstPositionDrivers.slice(startIndex, endIndex);
+
+            firstPositionSection.innerHTML = pageData.map(item => `
+                <div class="bg-white p-4 rounded shadow">
+                    <h3 class="font-bold">${item.driver.Driver.givenName} ${item.driver.Driver.familyName} - ${item.driver.Driver.permanentNumber}</h3>
+                    <a href="${item.driver.Driver.url}" target="_blank" class="text-blue-500">Driver Wiki</a>
+                    <p>Race: ${item.raceName}</p>
+                    <p>Round: ${item.round}</p>
+                    <p>Season: ${item.season}</p>
+                    <p>Location: ${item.location.locality}, ${item.location.country}</p>
+                </div>
+            `).join('');
+
+            displayPagination(totalPages, currentFirstPositionPage, 'firstPositionPagination', () => {
+                displayFirstPositionSection();
+            });
+        }
+
+        // Display pagination controls
+        function displayPagination(totalPages, currentPage, elementId, callback) {
+            const paginationElement = document.getElementById(elementId);
+            let paginationHTML = '';
+
+            for (let i = 1; i <= totalPages; i++) {
+                paginationHTML += `
+                    <button class="mx-1 px-3 py-1 ${i === currentPage ? 'bg-blue-500 text-white' : 'bg-white'} rounded"
+                            onclick="changePage(${i}, '${elementId}')">${i}</button>
+                `;
+            }
+
+            paginationElement.innerHTML = paginationHTML;
+        }
+
+        // Change page for pagination
+        function changePage(page, elementId) {
+            if (elementId === 'gridPagination') {
+                currentGridPage = page;
+                displayGridSection();
+            } else if (elementId === 'firstPositionPagination') {
+                currentFirstPositionPage = page;
+                displayFirstPositionSection();
+            }
+        }
+
+        // Show driver details in modal
+        function showDriverDetails(round) {
+            const race = allData.find(r => r.round === round);
+            const drivers = [...race.QualifyingResults];
+            drivers.sort((a, b) => {
+                if (a.Q3 && b.Q3) return parseFloat(a.Q3) - parseFloat(b.Q3);
+                if (a.Q2 && b.Q2) return parseFloat(a.Q2) - parseFloat(b.Q2);
+                return parseFloat(a.Q1) - parseFloat(b.Q1);
+            });
+
+            modalContent.innerHTML = drivers.map((driver, index) => `
+                <div class="mb-2 ${index < 10 ? 'bg-green-100' : index < 15 ? 'bg-yellow-100' : 'bg-red-100'} p-2 rounded">
+                    <p class="font-bold">${driver.Driver.givenName} ${driver.Driver.familyName} - ${driver.Driver.permanentNumber}</p>
+                    <p>Position: ${index + 1}</p>
+                    <p>Time: ${driver.Q3 || driver.Q2 || driver.Q1}</p>
+                    <p>Date of Birth: ${driver.Driver.dateOfBirth}</p>
+                    <p>Nationality: ${driver.Driver.nationality}</p>
+                    <p>Constructor: ${driver.Constructor.name}</p>
+                    <a href="${driver.Driver.url}" target="_blank" class="text-blue-500">Driver Wiki</a>
+                </div>
+            `).join('');
+
+            updateMap(race);
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        // Update map with circuit location
+        function updateMap(race) {
+            if (!map) {
+                map = L.map('map').setView([race.Circuit.Location.lat, race.Circuit.Location.long], 10);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            } else {
+                map.setView([race.Circuit.Location.lat, race.Circuit.Location.long], 10);
+                markers.forEach(marker => map.removeLayer(marker));
+                markers = [];
+            }
+
+            // Add marker for the specific circuit
+            const marker = L.marker([race.Circuit.Location.lat, race.Circuit.Location.long])
+                .addTo(map)
+                .bindPopup(race.raceName);
+            markers.push(marker);
+
+            // Force a resize of the map to ensure it renders correctly
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 250);
+        }
+
+        // Filter races based on search input
+        function filterRaces() {
+            const searchTerm = raceSearch.value.toLowerCase();
+            const filteredRaces = allData.filter(race => race.raceName.toLowerCase().includes(searchTerm));
+            
+            const totalPages = Math.ceil(filteredRaces.length / itemsPerPage);
+            const startIndex = (currentGridPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageData = filteredRaces.slice(startIndex, endIndex);
+
+            gridSection.innerHTML = pageData.map(race => `
+                <div class="bg-white p-4 rounded shadow">
+                    <h3 class="font-bold">${race.raceName}</h3>
+                    <p>Round: ${race.round}</p>
+                    <p>Season: ${race.season}</p>
+                    <p>Location: ${race.Circuit.Location.locality}, ${race.Circuit.Location.country}</p>
+                    <a href="${race.url}" target="_blank" class="text-blue-500">Wiki Link</a>
+                    <button onclick="showDriverDetails('${race.round}')" class="mt-2 bg-green-500 text-white px-4 py-2 rounded">See Details</button>
+                </div>
+            `).join('');
+
+            displayPagination(totalPages, currentGridPage, 'gridPagination', () => {
+                filterRaces();
+            });
+        }
+
+        // Filter drivers based on search input
+        function filterDrivers() {
+            const searchTerm = driverSearch.value.toLowerCase();
+            const filteredDrivers = allData.filter(race => 
+                race.raceName.toLowerCase().includes(searchTerm) ||
+                race.QualifyingResults[0].Driver.givenName.toLowerCase().includes(searchTerm) ||
+                race.QualifyingResults[0].Driver.familyName.toLowerCase().includes(searchTerm)
+            );
+
+            const totalPages = Math.ceil(filteredDrivers.length / itemsPerPage);
+            const startIndex = (currentFirstPositionPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageData = filteredDrivers.slice(startIndex, endIndex);
+
+            firstPositionSection.innerHTML = pageData.map(race => {
+                const firstDriver = race.QualifyingResults[0];
+                return `
+                    <div class="bg-white p-4 rounded shadow">
+                        <h3 class="font-bold">${firstDriver.Driver.givenName} ${firstDriver.Driver.familyName} - ${firstDriver.Driver.permanentNumber}</h3>
+                        <a href="${firstDriver.Driver.url}" target="_blank" class="text-blue-500">Driver Wiki</a>
+                        <p>Race: ${race.raceName}</p>
+                        <p>Round: ${race.round}</p>
+                        <p>Season: ${race.season}</p>
+                        <p>Location: ${race.Circuit.Location.locality}, ${race.Circuit.Location.country}</p>
+                    </div>
+                `;
+            }).join('');
+
+            displayPagination(totalPages, currentFirstPositionPage, 'firstPositionPagination', () => {
+                filterDrivers();
+            });
+        }
+
+        // Create line chart showing driver performance
+        function createLineChart() {
+            const driverFirstPositions = {};
+            allData.forEach(race => {
+                const firstDriver = race.QualifyingResults[0].Driver;
+                const driverName = `${firstDriver.givenName} ${firstDriver.familyName}`;
+                if (!driverFirstPositions[driverName]) {
+                    driverFirstPositions[driverName] = 0;
+                }
+                driverFirstPositions[driverName]++;
+            });
+
+            const sortedDrivers = Object.entries(driverFirstPositions)
+                .sort((a, b) => b[1] - a[1]);
+
+            const labels = sortedDrivers.map(([driverName]) => driverName);
+            const data = sortedDrivers.map(([, count]) => count);
+
+            new Chart(document.getElementById('lineChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Number of 1st Positions',
+                        data: data,
+                        fill: false,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Drivers by Number of 1st Positions'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Drivers'
+                            },
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 90,
+                                minRotation: 90
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Number of 1st Positions'
+                            },
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

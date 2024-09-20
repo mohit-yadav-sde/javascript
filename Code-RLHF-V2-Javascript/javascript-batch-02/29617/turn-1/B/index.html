@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Qualifying Results</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.css">
+    <style>
+        /* CSS will go here */
+    </style>
+</head>
+<body>
+    <div id="app">
+        <input type="number" id="yearInput" placeholder="Enter Year (2000-2023)">
+        <button onclick="fetchData()">Search</button>
+        <!-- Grids and Chart sections will be dynamically inserted here -->
+    </div>
+    
+    <!-- Modal for driver details -->
+    <div id="driverModal" style="display:none;">
+        <!-- Content will be dynamically added -->
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
+    <script>
+    // JavaScript will go here including:
+    // - Input validation
+    // - API fetch with delay
+    // - Data manipulation and display
+    // - Modal functionality
+    // - Chart.js integration
+    // - Google Maps integration
+
+    function fetchData() {
+        const year = document.getElementById('yearInput').value;
+        if (year < 2000 || year > 2023 || year.length !== 4) {
+            alert('Please enter a valid year between 2000 and 2023.');
+            return;
+        }
+        // API call logic with pagination offset
+        let offset = 0;
+        let allData = [];
+
+        function fetchWithDelay() {
+            fetch(`https://api.jolpi.ca/ergast/f1/${year}/qualifying/?limit=100&offset=${offset}`)
+            .then(response => response.json())
+            .then(data => {
+                allData = allData.concat(data.MRData.RaceTable.Races);
+                offset += 100;
+                if (offset < 500) { // Limit to 5 calls as per instruction
+                    setTimeout(fetchWithDelay, 200);
+                } else {
+                    // Process allData here to populate grids and charts
+                }
+            });
+        }
+
+        fetchWithDelay();
+    }
+    </script>
+</body>
+</html>

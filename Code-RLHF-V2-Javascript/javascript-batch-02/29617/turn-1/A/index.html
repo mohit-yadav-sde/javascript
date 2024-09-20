@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Qualifying Widget</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .search-container { margin: 20px 0; }
+        .grid-item { background: #f8f9fa; border: 1px solid #dee2e6; margin-bottom: 10px; padding: 10px; }
+        .modal-body { max-height: 500px; overflow-y: auto; }
+        #map { height: 300px; }
+        .chart-container { width: 100%; height: 300px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container mt-4">
+    <h1>F1 Qualifying Results</h1>
+    <div class="search-container">
+        <input type="number" id="yearInput" class="form-control mb-2" placeholder="Enter Year (2000-2023)" min="2000" max="2023">
+        <button onclick="loadData()" class="btn btn-primary">Search</button>
+    </div>
+
+    <!-- Grid Section for Each Round -->
+    <h2>Races</h2>
+    <input type="text" id="raceSearch" onkeyup="searchRaces()" placeholder="Search for races..." class="form-control mb-2">
+    <div id="racesGrid" class="row"></div>
+
+    <!-- Grid Section for 1st Position Drivers -->
+    <h2>First Position Drivers</h2>
+    <input type="text" id="driverSearch" onkeyup="searchDrivers()" placeholder="Search for driver or race..." class="form-control mb-2">
+    <div id="firstPositionGrid" class="row"></div>
+
+    <!-- Line Chart Section -->
+    <div class="chart-container">
+        <canvas id="positionChart"></canvas>
+    </div>
+
+    <!-- Modal for Race Details -->
+    <div class="modal fade" id="raceModal" tabindex="-1" aria-labelledby="raceModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="raceModalLabel">Race Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="driversGrid" class="row"></div>
+                    <div id="map"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let allRaces = [];
+let chartData = {};
+
+function validateYear(year) {
+    return year >= 2000 && year <= 2023 && year.length === 4;
+}
+
+function loadData() {
+    const year = document.getElementById('yearInput').value;
+    if (!validateYear(year)) {
+        alert('Please enter a valid year between 2000 and 2023.');
+        return;
+    }
+
+    allRaces = [];
+    fetchData(year, 0);
+}
+
+function fetchData(year, offset) {
+    if (offset > 400) return; // Assuming we won't go beyond 5 calls
+    fetch(`https://api.jolpi.ca/ergast/f1/${year}/qualifying/?limit=100&offset=${offset}`)
+    .then(response => response.json())
+    .then(data => {
+        allRaces = allRaces.concat(data.MRData.RaceTable.Races);
+        if (data.MRData.total > offset + 100) {
+            setTimeout(() => fetchData(year, offset + 100), 200);
+        } else {
+            displayData();
+            updateChart();
+        }
+    });
+}
+
+function displayData() {
+    const racesGrid = document.getElementById('racesGrid');
+    const firstPositionGrid = document.getElementById('firstPositionGrid');
+    racesGrid.innerHTML = '';
+    firstPositionGrid.innerHTML = '';
+
+    allRaces.forEach(race => {
+        const raceItem = `
+            <div class="col-md-4 grid-item">
+                <h5>${race.raceName}</h5>
+                <p>Round: ${race.round}</p>
+                <p>Location: ${race.Circuit.Location.locality}, ${race.Circuit.Location.country}</p>
+                <a href="${race.url}" target="_blank">Wiki</a>
+                <button class="btn btn-info btn-sm" onclick="showRaceDetails('${race.raceName}', ${JSON.stringify(race.QualifyingResults)})">See Details</button>
+            </div>`;
+        racesGrid.innerHTML += raceItem;
+
+        // First Position Grid
+        if (race.QualifyingResults.length > 0) {
+            const firstDriver = race.QualifyingResults[0];
+            const driverItem = `
+                <div class="col-md-4 grid-item">
+                    <h5>${firstDriver.Driver.givenName} ${firstDriver.Driver.familyName} - ${firstDriver.Driver.permanentNumber}</h5>
+                    <p>Race: ${race.raceName}</p>
+                    <a href="${firstDriver.Driver.url}" target="_blank">Driver Wiki</a>
+                </div>`;
+            firstPositionGrid.innerHTML += driverItem;
+            // Update chart data
+            chartData[firstDriver.Driver.driverId] = (chartData[firstDriver.Driver.driverId] || 0) + 1;
+        }
+    });
+}
+
+function showRaceDetails(raceName, results) {
+    const modalTitle = document.getElementById('raceModalLabel');
+    const driversGrid = document.getElementById('driversGrid');
+    modalTitle.textContent = raceName;
+    driversGrid.innerHTML = '';
+    
+    const q3 = results.filter(r => r.Q3).sort((a, b) => parseFloat(a.Q3) - parseFloat(b.Q3)).slice(0, 10);
+    const q2 = results.filter(r => r.Q2 && !r.Q3).sort((a, b) => parseFloat(a.Q2) - parseFloat(b.Q2)).slice(0, 5);
+    const q1 = results.filter(r => !r.Q2 && !r.Q3).sort((a, b) => parseFloat(a.Q1) - parseFloat(b.Q1)).slice(0, 5);
+
+    [...q3, ...q2, ...q1].forEach(result => {
+        const driverItem = `
+            <div class="col-md-6">
+                <p><strong>${result.Driver.givenName} ${result.Driver.familyName} - ${result.Driver.permanentNumber}</strong></p>
+                <p>Position: ${result.position}</p>
+                <p>Time: ${result.Q3 || result.Q2 || result.Q1}</p>
+                <p>Born: ${result.Driver.dateOfBirth}</p>
+                <p>Nationality: ${result.Driver.nationality}</p>
+                <p>Constructor: ${result.Constructor.name}</p>
+                <a href="${result.Driver.url}" target="_blank">Driver Wiki</a>
+            </div>`;
+        driversGrid.innerHTML += driverItem;
+    });
+
+    const map = L.map('map').setView([results[0].Circuit.Location.lat, results[0].Circuit.Location.long], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    L.marker([results[0].Circuit.Location.lat, results[0].Circuit.Location.long]).addTo(map)
+        .bindPopup(raceName).openPopup();
+
+    const raceModal = new bootstrap.Modal(document.getElementById('raceModal'));
+    raceModal.show();
+}
+
+function searchRaces() {
+    const input = document.getElementById('raceSearch').value.toLowerCase();
+    const races = document.getElementById('racesGrid').children;
+    Array.from(races).forEach(race => {
+        const text = race.textContent.toLowerCase();
+        race.style.display = text.includes(input) ? "" : "none";
+    });
+}
+
+function searchDrivers() {
+    const input = document.getElementById('driverSearch').value.toLowerCase();
+    const drivers = document.getElementById('firstPositionGrid').children;
+    Array.from(drivers).forEach(driver => {
+        const text = driver.textContent.toLowerCase();
+        driver.style.display = text.includes(input) ? "" : "none";
+    });
+}
+
+function updateChart() {
+    const ctx = document.getElementById('positionChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Object.keys(chartData),
+            datasets: [{
+                label: 'Number of 1st Positions',
+                data: Object.values(chartData),
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+</script>
+</body>
+</html>
