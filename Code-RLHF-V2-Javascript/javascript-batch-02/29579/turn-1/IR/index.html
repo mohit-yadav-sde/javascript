@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 2020 Season Results</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f0f2f5;
+        }
+    </style>
+</head>
+<body class="p-8">
+    <div class="container mx-auto max-w-6xl">
+        <h1 class="text-5xl font-bold mb-12 text-center text-gray-800 tracking-tight">F1 2020 Season Results</h1>
+        
+        <!-- Search input -->
+        <div class="mb-10">
+            <input type="text" id="searchInput" placeholder="Search by round number or race name" class="w-full p-4 border-2 border-gray-300 rounded-full shadow-sm focus:ring-2 focus:ring-red-400 focus:border-red-500 transition text-lg">
+        </div>
+        
+        <!-- Grid for displaying race items -->
+        <div id="roundsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12"></div>
+        
+        <!-- Pagination buttons -->
+        <div class="flex justify-between mb-16">
+            <button id="prevBtn" class="bg-red-500 text-white px-8 py-3 rounded-full shadow-md hover:bg-red-600 transition text-lg font-semibold">Previous</button>
+            <button id="nextBtn" class="bg-red-500 text-white px-8 py-3 rounded-full shadow-md hover:bg-red-600 transition text-lg font-semibold">Next</button>
+        </div>
+        
+        <!-- Driver Wins Chart -->
+        <div class="mb-16 bg-white p-8 rounded-2xl shadow-lg">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">Driver Wins</h2>
+            <canvas id="driverWinsChart"></canvas>
+        </div>
+        
+        <!-- Constructor Points Chart -->
+        <div class="mb-16 bg-white p-8 rounded-2xl shadow-lg">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">Constructor Points</h2>
+            <canvas id="constructorPointsChart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Modal for displaying race details -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-white p-10 rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl">
+            <h2 id="modalTitle" class="text-3xl font-bold mb-6 text-gray-800"></h2>
+            <div id="modalContent" class="overflow-y-auto flex-grow"></div>
+            <button id="closeModal" class="bg-red-500 text-white px-8 py-3 rounded-full mt-6 hover:bg-red-600 transition text-lg font-semibold">Close</button>
+        </div>
+    </div>
+
+    <script>
+        const apiUrl = 'https://api.jolpi.ca/ergast/f1/2020/results/?limit=100&offset=';
+        let allRaces = [];
+        let originalRaces = [];
+        let currentPage = 0;
+        const itemsPerPage = 9;
+
+        // Fetch data from the API
+        async function fetchData() {
+            for (let offset = 0; offset <= 300; offset += 100) {
+                const response = await fetch(apiUrl + offset);
+                const data = await response.json();
+                allRaces = allRaces.concat(data.MRData.RaceTable.Races);
+            }
+            originalRaces = [...allRaces]; // Create a copy of the original dataset
+            renderRounds();
+            renderCharts();
+        }
+
+        // Render race items in the grid
+        function renderRounds() {
+            const grid = document.getElementById('roundsGrid');
+            grid.innerHTML = '';
+            const startIndex = currentPage * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageRaces = allRaces.slice(startIndex, endIndex);
+
+            pageRaces.forEach(race => {
+                const card = document.createElement('div');
+                card.className = 'bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition transform hover:-translate-y-1';
+                card.innerHTML = `
+                    <h3 class="font-bold text-2xl mb-4 text-gray-800">${race.raceName}</h3>
+                    <p class="text-gray-600 mb-2"><span class="font-semibold">Round:</span> ${race.round}</p>
+                    <p class="text-gray-600 mb-2"><span class="font-semibold">Date:</span> ${race.date}</p>
+                    <p class="text-gray-600 mb-2"><span class="font-semibold">Time:</span> ${race.time}</p>
+                    <p class="text-gray-600 mb-2"><span class="font-semibold">Circuit:</span> ${race.Circuit.circuitName}</p>
+                    <p class="text-gray-600 mb-4"><span class="font-semibold">Location:</span> ${race.Circuit.Location.locality}, ${race.Circuit.Location.country}</p>
+                    <div class="flex justify-between items-center">
+                        <a href="${race.url}" target="_blank" class="text-blue-500 hover:text-blue-700 transition font-semibold">Wiki</a>
+                        <button class="bg-red-500 text-white px-6 py-2 rounded-full hover:bg-red-600 transition font-semibold see-details">See Details</button>
+                    </div>
+                `;
+                const detailsButton = card.querySelector('.see-details');
+                detailsButton.addEventListener('click', () => showModal(race));
+                grid.appendChild(card);
+            });
+        }
+
+        // Show modal with race details
+        function showModal(race) {
+            const modal = document.getElementById('modal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+
+            modalTitle.textContent = race.Circuit.circuitName;
+            modalContent.innerHTML = `
+                <h3 class="font-bold mb-4 text-2xl text-gray-800">Top 3 Winners</h3>
+                <ul class="mb-8 space-y-4">
+                    ${race.Results.slice(0, 3).map(result => `
+                        <li class="text-gray-700 bg-gray-100 p-4 rounded-lg">
+                            <span class="font-semibold text-xl">${result.position}.</span> ${result.Driver.givenName} ${result.Driver.familyName} 
+                            <span class="text-gray-500">(${result.Constructor.name})</span><br>
+                            <a href="${result.Driver.url}" target="_blank" class="text-blue-500 hover:text-blue-700 transition">Wiki</a>
+                            - ${result.Driver.nationality}
+                        </li>
+                    `).join('')}
+                </ul>
+                <div id="mapContainer" class="h-80 rounded-xl overflow-hidden shadow-md"></div>
+            `;
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            // Initialize the map
+            setTimeout(() => {
+                const mapContainer = document.getElementById('mapContainer');
+                const raceMap = L.map(mapContainer).setView([race.Circuit.Location.lat, race.Circuit.Location.long], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(raceMap);
+                L.marker([race.Circuit.Location.lat, race.Circuit.Location.long]).addTo(raceMap);
+            }, 100);
+        }
+
+        // Close modal and remove map container
+        document.getElementById('closeModal').addEventListener('click', () => {
+            const modal = document.getElementById('modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.getElementById('mapContainer').remove();
+        });
+
+        // Render both charts
+        function renderCharts() {
+            renderDriverWinsChart();
+            renderConstructorPointsChart();
+        }
+
+        // Render Driver Wins Chart
+        function renderDriverWinsChart() {
+            const driverWins = {};
+            allRaces.forEach(race => {
+                const winner = race.Results[0].Driver;
+                const driverName = `${winner.givenName} ${winner.familyName}`;
+                driverWins[driverName] = (driverWins[driverName] || 0) + 1;
+            });
+
+            const ctx = document.getElementById('driverWinsChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(driverWins),
+                    datasets: [{
+                        label: 'Wins',
+                        data: Object.values(driverWins),
+                        borderColor: 'rgb(239, 68, 68)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const driver = context.label;
+                                    const raceNames = allRaces
+                                        .filter(race => `${race.Results[0].Driver.givenName} ${race.Results[0].Driver.familyName}` === driver)
+                                        .map(race => race.raceName);
+                                    return `Races won: ${raceNames.join(', ')}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Wins',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render Constructor Points Chart
+        function renderConstructorPointsChart() {
+            const constructorPoints = {};
+            allRaces.forEach(race => {
+                race.Results.forEach(result => {
+                    const constructor = result.Constructor.name;
+                    constructorPoints[constructor] = (constructorPoints[constructor] || 0) + parseInt(result.points);
+                });
+            });
+
+            const ctx = document.getElementById('constructorPointsChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(constructorPoints),
+                    datasets: [{
+                        label: 'Points',
+                        data: Object.values(constructorPoints),
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Total Points',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const constructor = Object.keys(constructorPoints)[elements[0].index];
+                            showConstructorPointsModal(constructor);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Show modal with constructor points details
+        function showConstructorPointsModal(constructor) {
+            const modal = document.getElementById('modal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+
+            const constructorResults = allRaces.flatMap(race => 
+                race.Results.filter(result => result.Constructor.name === constructor)
+            );
+
+            const totalPoints = constructorResults.reduce((sum, result) => sum + parseInt(result.points), 0);
+
+            modalTitle.textContent = `${constructor} Points`;
+            modalContent.innerHTML = `
+                <h3 class="font-bold mb-6 text-3xl text-gray-800">Total Points: ${totalPoints}</h3>
+                <ul class="space-y-4">
+                    ${allRaces.map(race => {
+                        const result = race.Results.find(r => r.Constructor.name === constructor);
+                        return result ? `
+                            <li class="bg-gray-100 p-4 rounded-lg">
+                                <span class="font-semibold text-lg">${race.raceName}:</span> 
+                                <span class="text-xl font-bold text-blue-600">${result.points}</span> points
+                            </li>` : '';
+                    }).join('')}
+                </ul>
+            `;
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        // Pagination: Previous button
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if (currentPage > 0) {
+                currentPage--;
+                renderRounds();
+            }
+        });
+
+        // Pagination: Next button
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if ((currentPage + 1) * itemsPerPage < allRaces.length) {
+                currentPage++;
+                renderRounds();
+            }
+        });
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+    const searchTerms = e.target.value.toLowerCase().split(/\s+/).filter(term => term.length > 0);
+    
+    if (searchTerms.length === 0) {
+        allRaces = [...originalRaces];
+    } else {
+        allRaces = originalRaces.filter(race => 
+            searchTerms.every(term => 
+                race.round.toLowerCase().includes(term) || 
+                race.raceName.toLowerCase().includes(term) ||
+                race.Circuit.circuitName.toLowerCase().includes(term) ||
+                race.Circuit.Location.locality.toLowerCase().includes(term) ||
+                race.Circuit.Location.country.toLowerCase().includes(term)
+            )
+        );
+    }
+    
+    currentPage = 0;
+    renderRounds();
+});
+
+        // Initial data fetch
+        fetchData();
+    </script>
+</body>
+</html>

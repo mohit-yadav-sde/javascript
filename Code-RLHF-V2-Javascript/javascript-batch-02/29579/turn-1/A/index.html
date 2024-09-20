@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F1 2020 Season Widget</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css"/>
+<style>
+    body { font-family: 'Arial', sans-serif; background: #f4f4f4; margin: 0; padding: 20px; }
+    .widget-container { max-width: 1200px; margin: auto; background: white; padding: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    .search-bar { margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+    .grid-item { background: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 8px; transition: transform .2s; }
+    .grid-item:hover { transform: scale(1.02); }
+    .modal-content { background: white; padding: 20px; border-radius: 5px; }
+    .chart-container { margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="widget-container">
+    <input type="text" id="searchInput" placeholder="Search by round or race name..." class="search-bar">
+    <div id="roundsGrid" class="grid"></div>
+    <div id="pagination" style="text-align: center; margin-top: 20px;"></div>
+    <div class="chart-container">
+        <canvas id="driverWinsChart" width="400" height="200"></canvas>
+        <canvas id="constructorPointsChart" width="400" height="200"></canvas>
+    </div>
+</div>
+
+<div id="raceModal" style="display: none;">
+    <div class="modal-content">
+        <h2 id="raceName"></h2>
+        <p id="circuitDetails"></p>
+        <h3>Top 3 Winners</h3>
+        <ul id="winnersList"></ul>
+        <div id="map" style="height: 300px;"></div>
+    </div>
+</div>
+
+<div id="constructorModal" style="display: none;">
+    <div class="modal-content">
+        <h2 id="constructorName"></h2>
+        <ul id="pointsBreakdown"></ul>
+        <p>Total Points: <span id="totalPoints"></span></p>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+<script>
+let allRaces = [];
+let currentPage = 1;
+const itemsPerPage = 9;
+
+async function fetchRaces(offset) {
+    const response = await fetch(`https://api.jolpi.ca/ergast/f1/2020/results/?limit=100&offset=${offset}`);
+    const data = await response.json();
+    return data.MRData.RaceTable.Races;
+}
+
+function displayRaces(races, page) {
+    const grid = document.getElementById('roundsGrid');
+    grid.innerHTML = '';
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const pageRaces = races.slice(startIndex, endIndex);
+
+    pageRaces.forEach(race => {
+        const item = document.createElement('div');
+        item.className = 'grid-item';
+        item.innerHTML = `
+            <h3>${race.raceName}</h3>
+            <p>Round: ${race.round}</p>
+            <p>Date: ${race.date} ${race.time}</p>
+            <button onclick="showRaceDetails('${race.round}')">See Details</button>
+        `;
+        grid.appendChild(item);
+    });
+
+    updatePagination(races.length);
+}
+
+function updatePagination(totalItems) {
+    const pagination = document.getElementById('pagination');
+    pagination.innerHTML = '';
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    for(let i = 1; i <= totalPages; i++) {
+        const button = document.createElement('button');
+        button.innerText = i;
+        button.onclick = () => displayRaces(allRaces, i);
+        if(i === currentPage) button.disabled = true;
+        pagination.appendChild(button);
+    }
+}
+
+function showRaceDetails(round) {
+    const race = allRaces.find(r => r.round === round);
+    if(race) {
+        document.getElementById('raceName').innerText = race.raceName;
+        document.getElementById('circuitDetails').innerText = `${race.Circuit.circuitName} - ${race.Circuit.Location.locality}, ${race.Circuit.Location.country}`;
+        const winnersList = document.getElementById('winnersList');
+        winnersList.innerHTML = '';
+        race.Results.slice(0, 3).forEach(result => {
+            const li = document.createElement('li');
+            li.innerHTML = `${result.Driver.givenName} ${result.Driver.familyName} - ${result.Constructor.name}`;
+            winnersList.appendChild(li);
+        });
+        
+        // Map setup
+        const map = L.map('map').setView([race.Circuit.Location.lat, race.Circuit.Location.long], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        L.marker([race.Circuit.Location.lat, race.Circuit.Location.long]).addTo(map);
+
+        document.getElementById('raceModal').style.display = 'block';
+    }
+}
+
+function showConstructorDetails(constructorId, pointsData) {
+    const constructor = allRaces[0].Results[0].Constructor; // Assuming all races have the same constructors for simplicity
+    document.getElementById('constructorName').innerText = constructor.name;
+    const pointsList = document.getElementById('pointsBreakdown');
+    pointsList.innerHTML = '';
+    pointsData.forEach(point => {
+        const li = document.createElement('li');
+        li.innerText = `Race ${point.race}: ${point.points}`;
+        pointsList.appendChild(li);
+    });
+    document.getElementById('totalPoints').innerText = pointsData.reduce((acc, curr) => acc + curr.points, 0);
+    document.getElementById('constructorModal').style.display = 'block';
+}
+
+document.getElementById('searchInput').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const filteredRaces = allRaces.filter(race => 
+        race.raceName.toLowerCase().includes(searchTerm) || race.round.includes(searchTerm)
+    );
+    displayRaces(filteredRaces, 1);
+});
+
+// Fetch data, setup charts, etc., would go here, using Chart.js for charts and handling click events for the constructor points chart to show details.
+// This script would also include closing modals, handling chart data, etc.
+
+(async () => {
+    for(let offset = 0; offset < 400; offset += 100) {
+        const races = await fetchRaces(offset);
+        allRaces = allRaces.concat(races);
+    }
+    displayRaces(allRaces, 1);
+    // Setup charts here
+})();
+</script>
+</body>
+</html>
