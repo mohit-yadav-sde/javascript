@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Pitstop Widget</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .widget-container { margin: 20px; }
+        .race-item { cursor: pointer; margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .modal-body .pitstop-grid { max-height: 300px; overflow-y: auto; }
+        .chart-container { width: 100%; height: 300px; }
+    </style>
+</head>
+<body>
+<div class="widget-container">
+    <input type="number" id="yearInput" placeholder="Enter Year (2000-2023)" class="form-control mb-3">
+    <button id="searchBtn" class="btn btn-primary">Search</button>
+    <input type="text" id="raceSearch" placeholder="Search by race name" class="form-control mb-3">
+    <div id="raceGrid"></div>
+    <div id="pagination"></div>
+
+    <div id="modal" class="modal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Race Details</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="pitstop-grid"></div>
+                    <div id="map" style="height: 300px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+$(document).ready(function() {
+    const yearInput = $('#yearInput');
+    const searchBtn = $('#searchBtn');
+    const raceGrid = $('#raceGrid');
+    const raceSearch = $('#raceSearch');
+    let allRaces = [];
+    let currentPage = 1;
+    const itemsPerPage = 5;
+
+    // Validation and fetch logic
+    searchBtn.on('click', function() {
+        const year = yearInput.val();
+        if(year.length !== 4 || year < 2000 || year > 2023) {
+            alert('Please enter a valid year between 2000 and 2023.');
+            return;
+        }
+        fetchRaces(year);
+    });
+
+    function fetchRaces(year) {
+        fetch(`https://api.jolpi.ca/ergast/f1/${year}`)
+        .then(response => response.json())
+        .then(data => {
+            allRaces = data.MRData.RaceTable.Races;
+            displayRaces(allRaces);
+            setupPagination();
+        });
+    }
+
+    function displayRaces(races) {
+        const filteredRaces = races.filter(race => race.raceName.toLowerCase().includes(raceSearch.val().toLowerCase()));
+        const start = (currentPage - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        const paginatedRaces = filteredRaces.slice(start, end);
+
+        raceGrid.html(paginatedRaces.map(race => `
+            <div class="race-item" data-race='${JSON.stringify(race)}'>
+                ${race.raceName} - Round ${race.round} - ${race.Circuit.Location.locality}, ${race.Circuit.Location.country}
+                <a href="${race.url}" target="_blank">Wiki</a>
+                <button class="btn btn-info btn-sm see-details">See Details</button>
+            </div>
+        `).join(''));
+    }
+
+    function setupPagination() {
+        const pageCount = Math.ceil(allRaces.length / itemsPerPage);
+        $('#pagination').twbsPagination({
+            totalPages: pageCount,
+            visiblePages: 5,
+            onPageClick: function (event, page) {
+                currentPage = page;
+                displayRaces(allRaces);
+            }
+        });
+    }
+
+    raceSearch.on('keyup', function() {
+        currentPage = 1; // Reset page on search
+        displayRaces(allRaces);
+    });
+
+    raceGrid.on('click', '.see-details', function(e) {
+        const race = JSON.parse($(e.target).parent().attr('data-race'));
+        $('#modal').modal('show');
+        fetchAndDisplayPitStops(race);
+    });
+
+    function fetchAndDisplayPitStops(race) {
+        let pitStops = [];
+        const fetchInterval = setInterval(() => {
+            fetch(`https://api.jolpi.ca/ergast/f1/${race.season}/${race.round}/pitstops/?limit=100`)
+            .then(res => res.json())
+            .then(data => {
+                pitStops = pitStops.concat(data.MRData.PitStopTable.PitStops);
+                if (data.MRData.total <= pitStops.length) {
+                    clearInterval(fetchInterval);
+                    displayPitStopDetails(pitStops, race);
+                }
+            });
+        }, 200);
+    }
+
+    function displayPitStopDetails(pitStops, race) {
+        const groupedStops = pitStops.reduce((acc, stop) => {
+            if (!acc[stop.driverId]) {
+                acc[stop.driverId] = {name: stop.driverId, stops: []};
+            }
+            acc[stop.driverId].stops.push({lap: stop.lap, stop: stop.stop, duration: stop.duration});
+            return acc;
+        }, {});
+
+        $('.pitstop-grid').html(Object.values(groupedStops).map(driver => `
+            <div>${driver.name}: ${driver.stops.map(s => `Lap ${s.lap}, Stop ${s.stop}, Duration: ${s.duration}`).join('; ')}</div>
+        `).join(''));
+
+        // Display Map
+        const map = L.map('map').setView([race.Circuit.Location.lat, race.Circuit.Location.long], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        L.marker([race.Circuit.Location.lat, race.Circuit.Location.long]).addTo(map)
+            .bindPopup(race.raceName).openPopup();
+
+        // Prepare data for chart
+        let chartData = Object.values(groupedStops).map(driver => ({
+            label: driver.name,
+            data: driver.stops.reduce((min, current) => 
+                parseFloat(current.duration) < min ? parseFloat(current.duration) : min, Infinity)
+        }));
+
+        new Chart(document.getElementById('pitstopChart'), {
+            type: 'line',
+            data: {
+                datasets: chartData.map(d => ({label: d.label, data: [{x: 1, y: d.data}]}))
+            },
+            options: { scales: { y: { beginAtZero: true }}}
+        });
+    }
+});
+</script>
+</body>
+</html>
