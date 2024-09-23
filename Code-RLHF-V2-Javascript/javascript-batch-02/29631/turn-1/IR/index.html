@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>F1 Constructor Widget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        background-image: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        min-height: 100vh;
+      }
+      .card-hover:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+      }
+      .modal-scroll::-webkit-scrollbar {
+        width: 8px;
+      }
+      .modal-scroll::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+      }
+      .modal-scroll::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+      }
+      .modal-scroll::-webkit-scrollbar-thumb:hover {
+        background: #555;
+      }
+    </style>
+  </head>
+  <body class="p-8">
+    <div class="max-w-6xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+      <h1 class="text-4xl font-bold mb-8 text-center text-gray-800">
+        F1 Constructor Widget
+      </h1>
+      <div class="flex mb-8">
+        <input
+          type="number"
+          id="yearInput"
+          min="2001"
+          max="2024"
+          placeholder="Enter year (2001-2024)"
+          class="flex-grow p-3 border-2 border-blue-300 rounded-l-md focus:outline-none focus:border-blue-500"
+        />
+        <button
+          id="searchBtn"
+          class="bg-blue-500 text-white px-6 py-3 rounded-r-md hover:bg-blue-600 transition duration-300"
+        >
+          Search
+        </button>
+      </div>
+      <!-- Add sorting dropdown (initially hidden) -->
+      <div id="sortContainer" class="mb-4 flex justify-end hidden">
+        <select id="sortOrder" class="p-2 border rounded-md">
+          <option value="asc">Sort: Position Ascending</option>
+          <option value="desc">Sort: Position Descending</option>
+        </select>
+      </div>
+      <div
+        id="results"
+        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+      ></div>
+      <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="bg-white p-6 rounded-lg shadow">
+          <h2 class="text-2xl font-semibold mb-4 text-gray-700">
+            Constructor Nationalities
+          </h2>
+          <canvas id="constructorChart"></canvas>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow">
+          <h2 class="text-2xl font-semibold mb-4 text-gray-700">
+            Driver Nationalities
+          </h2>
+          <canvas id="driverChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="modal"
+      class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center"
+    >
+      <div
+        class="bg-white p-8 rounded-lg shadow-lg max-w-2xl w-full max-h-[80vh] flex flex-col"
+      >
+        <h2 class="text-3xl font-bold mb-6 text-gray-800">Driver Details</h2>
+        <div
+          id="modalContent"
+          class="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto modal-scroll flex-grow"
+        ></div>
+        <button
+          id="closeModal"
+          class="mt-8 bg-red-500 text-white px-6 py-3 rounded-md hover:bg-red-600 transition duration-300"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+
+    <script>
+      // DOM elements
+      const yearInput = document.getElementById("yearInput");
+      const searchBtn = document.getElementById("searchBtn");
+      const results = document.getElementById("results");
+      const modal = document.getElementById("modal");
+      const modalContent = document.getElementById("modalContent");
+      const closeModal = document.getElementById("closeModal");
+      const sortOrder = document.getElementById("sortOrder");
+      const sortContainer = document.getElementById("sortContainer");
+      // Store chart instances
+      let constructorChart = null;
+      let driverChart = null;
+
+      // Data storage
+      let constructors = [];
+      let drivers = [];
+      let constructorStandings = [];
+
+      // Event listeners
+      searchBtn.addEventListener("click", fetchData);
+      closeModal.addEventListener("click", () => modal.classList.add("hidden"));
+      sortOrder.addEventListener("change", () => displayResults());
+
+      // Fetch data from APIs
+      async function fetchData() {
+        const year = yearInput.value;
+        if (year < 2001 || year > 2024) {
+          alert("Please enter a year between 2001 and 2024");
+          return;
+        }
+
+        try {
+          const [constructorsData, driversData, standingsData] =
+            await Promise.all([
+              fetch(
+                `https://api.jolpi.ca/ergast/f1/${year}/constructors/?limit=100`
+              ).then((res) => res.json()),
+              fetch(
+                `https://api.jolpi.ca/ergast/f1/${year}/driverstandings/?limit=100`
+              ).then((res) => res.json()),
+              fetch(
+                `https://api.jolpi.ca/ergast/f1/${year}/constructorStandings/?limit=100`
+              ).then((res) => res.json()),
+            ]);
+
+          constructors = constructorsData.MRData.ConstructorTable.Constructors;
+          drivers =
+            driversData.MRData.StandingsTable.StandingsLists[0].DriverStandings;
+          constructorStandings =
+            standingsData.MRData.StandingsTable.StandingsLists[0]
+              .ConstructorStandings;
+
+          // Show the sort container after data is loaded
+          sortContainer.classList.remove("hidden");
+
+          displayResults();
+          createCharts();
+        } catch (error) {
+          console.error("Error fetching data:", error);
+          alert("Error fetching data. Please try again.");
+        }
+      }
+
+      // Display constructor results
+      function displayResults() {
+        results.innerHTML = "";
+
+        // Sort constructorStandings based on the selected order
+        const sortedStandings = [...constructorStandings].sort((a, b) => {
+          const posA = parseInt(a.position);
+          const posB = parseInt(b.position);
+          return sortOrder.value === "asc" ? posA - posB : posB - posA;
+        });
+
+        sortedStandings.forEach((standing) => {
+          const constructor = constructors.find(
+            (c) => c.constructorId === standing.Constructor.constructorId
+          );
+          if (!constructor) return; // Skip if constructor not found
+
+          const card = document.createElement("div");
+          card.className = "bg-white p-6 rounded-lg shadow-md card-hover";
+          card.innerHTML = `
+                    <h3 class="text-2xl font-semibold mb-3 text-blue-600">${constructor.name}</h3>
+                    <p class="mb-2"><strong>Constructor ID:</strong> ${constructor.constructorId}</p>
+                    <p class="mb-2"><strong>Nationality:</strong> ${constructor.nationality}</p>
+                    <p class="mb-2"><strong>Position:</strong> ${standing.position}</p>
+                    <p class="mb-2"><strong>Points:</strong> ${standing.points}</p>
+                    <p class="mb-2"><strong>Wins:</strong> ${standing.wins}</p>
+                    <a href="${constructor.url}" target="_blank" class="text-blue-500 hover:underline">Wiki</a>
+                    <button class="mt-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition duration-300" 
+                            onclick="showDrivers('${constructor.constructorId}')">
+                        See Details
+                    </button>
+                `;
+          results.appendChild(card);
+        });
+      }
+
+      // Display driver details in modal
+      function showDrivers(constructorId) {
+        const constructorDrivers = drivers.filter((driver) =>
+          driver.Constructors.some((c) => c.constructorId === constructorId)
+        );
+        modalContent.innerHTML = "";
+        constructorDrivers.forEach((driver) => {
+          const driverCard = document.createElement("div");
+          driverCard.className = "bg-gray-100 p-6 rounded-lg";
+
+          const birthDate = new Date(driver.Driver.dateOfBirth);
+          const formattedDate = birthDate.toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          });
+
+          driverCard.innerHTML = `
+                    <h4 class="text-xl font-semibold mb-3 text-blue-600">${
+                      driver.Driver.givenName
+                    } ${driver.Driver.familyName}</h4>
+                    <p class="mb-2"><strong>Date of Birth:</strong> ${formattedDate}</p>
+                    <p class="mb-2"><strong>Nationality:</strong> ${
+                      driver.Driver.nationality
+                    }</p>
+                    <p class="mb-2"><strong>Permanent Number:</strong> ${
+                      driver.Driver.permanentNumber || "N/A"
+                    }</p>
+                    <a href="${
+                      driver.Driver.url
+                    }" target="_blank" class="text-blue-500 hover:underline">Wiki</a>
+                `;
+          modalContent.appendChild(driverCard);
+        });
+        modal.classList.remove("hidden");
+        modal.classList.add("flex");
+      }
+
+      // Create pie charts for nationality distribution
+      function createCharts() {
+        createPieChart(
+          "constructorChart",
+          getCountByNationality(constructors),
+          "Constructor Nationalities"
+        );
+        createPieChart(
+          "driverChart",
+          getCountByNationality(drivers.map((d) => d.Driver)),
+          "Driver Nationalities"
+        );
+      }
+
+      // Count nationalities
+      function getCountByNationality(data) {
+        const counts = {};
+        data.forEach((item) => {
+          counts[item.nationality] = (counts[item.nationality] || 0) + 1;
+        });
+        return counts;
+      }
+
+      // Create a pie chart using Chart.js
+      function createPieChart(canvasId, data, title) {
+        const ctx = document.getElementById(canvasId).getContext("2d");
+
+        // Destroy existing chart if it exists
+        if (canvasId === "constructorChart" && constructorChart) {
+          constructorChart.destroy();
+        } else if (canvasId === "driverChart" && driverChart) {
+          driverChart.destroy();
+        }
+
+        const newChart = new Chart(ctx, {
+          type: "pie",
+          data: {
+            labels: Object.keys(data),
+            datasets: [
+              {
+                data: Object.values(data),
+                backgroundColor: Object.keys(data).map(
+                  () => `hsl(${Math.random() * 360}, 70%, 60%)`
+                ),
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: "right",
+              },
+              title: {
+                display: true,
+                text: title,
+                font: {
+                  size: 16,
+                },
+              },
+            },
+          },
+        });
+
+        // Store the new chart instance
+        if (canvasId === "constructorChart") {
+          constructorChart = newChart;
+        } else if (canvasId === "driverChart") {
+          driverChart = newChart;
+        }
+      }
+
+      // Initialize with ascending sort
+      sortOrder.value = "asc";
+    </script>
+  </body>
+</html>

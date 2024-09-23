@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Constructor Standings</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .constructor-item { 
+            border: 1px solid #ddd; 
+            margin: 10px; 
+            padding: 15px; 
+            border-radius: 8px; 
+            background: #f9f9f9; 
+        }
+        .modal-content { background: white; }
+        .pie-chart { width: 300px; height: 300px; margin: 20px auto; }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <h2>F1 Constructor Standings</h2>
+    <input type="number" id="yearInput" min="2001" max="2024" placeholder="Enter Year (2001-2024)">
+    <button id="searchBtn">Search</button>
+    <select id="sortSelect">
+        <option value="asc">Ascending</option>
+        <option value="desc">Descending</option>
+    </select>
+    <div id="constructorsGrid"></div>
+    <div class="charts">
+        <canvas id="constructorsNationalityChart" class="pie-chart"></canvas>
+        <canvas id="driversNationalityChart" class="pie-chart"></canvas>
+    </div>
+</div>
+
+<div class="modal fade" id="driverModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Driver Details</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" id="modalBody">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('#searchBtn').on('click', function() {
+        const year = $('#yearInput').val();
+        if(year < 2001 || year > 2024) {
+            alert('Please enter a year between 2001 and 2024');
+            return;
+        }
+        
+        // Fetch and display data
+        fetchConstructors(year);
+        fetchDrivers(year);
+        fetchConstructorStandings(year);
+    });
+
+    function fetchConstructors(year) {
+        $.get(`https://api.jolpi.ca/ergast/f1/${year}/constructors/?limit=100`, function(data) {
+            // Process and display constructors
+            displayConstructors(data.MRData.ConstructorTable.Constructors, year);
+        });
+    }
+
+    function fetchDrivers(year) {
+        $.get(`https://api.jolpi.ca/ergast/f1/${year}/driverstandings/?limit=100`, function(data) {
+            // Store driver data for modal
+            window.driversData = data.MRData.StandingsTable.StandingsLists[0].DriverStandings;
+            drawPieCharts(data.MRData.StandingsTable.StandingsLists[0].DriverStandings, 'drivers');
+        });
+    }
+
+    function fetchConstructorStandings(year) {
+        $.get(`https://api.jolpi.ca/ergast/f1/${year}/constructorStandings/?limit=100`, function(data) {
+            window.constructorStandings = data.MRData.StandingsTable.StandingsLists[0].ConstructorStandings;
+            drawPieCharts(data.MRData.StandingsTable.StandingsLists[0].ConstructorStandings, 'constructors');
+        });
+    }
+
+    function displayConstructors(constructors, year) {
+        let grid = $('#constructorsGrid');
+        grid.empty();
+        constructors.forEach(con => {
+            let standing = window.constructorStandings.find(s => s.Constructor.constructorId === con.constructorId) || { position: 'N/A', points: 'N/A', wins: 'N/A' };
+            grid.append(`
+                <div class="constructor-item">
+                    <h4>${con.name}</h4>
+                    <p>Nationality: ${con.nationality}</p>
+                    <p>Position: ${standing.position}</p>
+                    <p>Points: ${standing.points}</p>
+                    <p>Wins: ${standing.wins}</p>
+                    <button class="btn btn-info" onclick="showDriverDetails('${con.constructorId}', ${year})">See Details</button>
+                </div>
+            `);
+        });
+    }
+
+    function showDriverDetails(constructorId, year) {
+        let modalBody = $('#modalBody');
+        modalBody.empty();
+        window.driversData.forEach(driver => {
+            if(driver.Constructors[0].constructorId === constructorId) {
+                modalBody.append(`
+                    <div><strong>${driver.Driver.givenName} ${driver.Driver.familyName}</strong> - Nationality: ${driver.Driver.nationality}, Number: ${driver.Driver.permanentNumber}</div>
+                `);
+            }
+        });
+        $('#driverModal').modal('show');
+    }
+
+    function drawPieCharts(data, type) {
+        let nationalities = data.reduce((acc, current) => {
+            let key = type === 'drivers' ? current.Driver.nationality : current.Constructor.nationality;
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+
+        let ctx = type === 'drivers' ? $('#driversNationalityChart') : $('#constructorsNationalityChart');
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(nationalities),
+                datasets: [{
+                    data: Object.values(nationalities),
+                    backgroundColor: ['#ff6384','#36a2eb','#ffce56','#4bc0c0','#ff9f40']
+                }]
+            }
+        });
+    }
+
+    $('#sortSelect').on('change', function() {
+        // Implement sorting logic here, re-render the constructor grid based on selection
+    });
+    
+    // Initial sort on page load
+    $('#sortSelect').val('asc').trigger('change');
+});
+</script>
+
+</body>
+</html>
