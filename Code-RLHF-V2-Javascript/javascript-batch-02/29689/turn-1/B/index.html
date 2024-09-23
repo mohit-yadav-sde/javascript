@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bank Details Widget</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/css/bootstrap.min.css">
+<style>
+    .bank-widget {
+        max-width: 600px;
+        margin: 50px auto;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .form-control, .btn {
+        margin-top: 10px;
+    }
+    .result {
+        margin-top: 20px;
+        background: white;
+        padding: 15px;
+        border-radius: 4px;
+    }
+</style>
+</head>
+<body>
+
+<div class="container bank-widget">
+    <h2 class="text-center mb-4">Bank Details</h2>
+    <form id="bankForm">
+        <select id="state" class="form-control" required></select>
+        <select id="district" class="form-control" disabled required></select>
+        <select id="city" class="form-control" disabled required></select>
+        <select id="center" class="form-control" disabled required></select>
+        <select id="branch" class="form-control" disabled required></select>
+        <button type="button" id="searchBtn" class="btn btn-primary btn-block">Search</button>
+    </form>
+    <div id="result" class="result"></div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script>
+$(document).ready(function() {
+    let apiUrl = 'https://bank-apis.justinclicks.com/API/V1/';
+
+    // Fetch states on load
+    $.getJSON(apiUrl + 'STATE/', function(data) {
+        $.each(data, function(index, state) {
+            $('#state').append('<option>' + state + '</option>');
+        });
+        $('#state').prop('disabled', false);
+    });
+
+    // Function to populate dropdowns
+    function populateDropdown(selectId, urlPart, nextSelectId) {
+        $(selectId).change(function() {
+            let selected = $(this).val();
+            if (selected) {
+                $.getJSON(apiUrl + urlPart + encodeURIComponent(selected) + '/', function(data) {
+                    let dropdown = $(nextSelectId);
+                    dropdown.empty().append('<option value="">Select</option>').prop('disabled', false);
+                    $.each(data, function(index, item) {
+                        dropdown.append('<option>' + item + '</option>');
+                    });
+                });
+            } else {
+                $(nextSelectId).prop('disabled', true).empty().append('<option value="">Select</option>');
+            }
+        });
+    }
+
+    populateDropdown('#state', 'STATE/', '#district');
+    populateDropdown('#district', 'STATE/', '#city');
+    populateDropdown('#city', 'DISTRICT/', '#center');
+    populateDropdown('#center', 'CITY/', '#branch');
+
+    // Search button click event
+    $('#searchBtn').click(function() {
+        let state = $('#state').val();
+        let district = $('#district').val();
+        let city = $('#city').val();
+        let center = $('#center').val();
+        let branch = $('#branch').val();
+
+        if (state && district && city && center && branch) {
+            $.getJSON(apiUrl + `STATE/${encodeURIComponent(state)}/DISTRICT/${encodeURIComponent(district)}/CITY/${encodeURIComponent(city)}/CENTER/${encodeURIComponent(center)}/BRANCH/${encodeURIComponent(branch)}.json`, function(data) {
+                let resultHtml = '<h4>Bank Details</h4><ul>';
+                ['BANK', 'ADDRESS', 'BRANCH', 'CITY', 'DISTRICT', 'STATE', 'IFSC', 'MICR'].forEach(key => {
+                    resultHtml += `<li><strong>${key}:</strong> ${data[key] || 'Not Available'}</li>`;
+                });
+                resultHtml += '</ul>';
+                $('#result').html(resultHtml);
+            }).fail(function() {
+                $('#result').html('<p class="text-danger">Failed to fetch bank details.</p>');
+            });
+        } else {
+            alert('Please select all fields.');
+        }
+    });
+});
+</script>
+</body>
+</html>

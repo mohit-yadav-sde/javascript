@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Details Widget</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .widget-container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        .dropdown {
+            margin-bottom: 15px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #e1e1e1;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container widget-container">
+    <h2 class="text-center">Bank Details Finder</h2>
+    <div class="dropdown">
+        <select id="state" class="form-control"></select>
+    </div>
+    <div class="dropdown">
+        <select id="district" class="form-control" disabled></select>
+    </div>
+    <div class="dropdown">
+        <select id="city" class="form-control" disabled></select>
+    </div>
+    <div class="dropdown">
+        <select id="center" class="form-control" disabled></select>
+    </div>
+    <div class="dropdown">
+        <select id="branch" class="form-control" disabled></select>
+    </div>
+    <button id="search" class="btn btn-primary btn-block" disabled>Search</button>
+    <div id="result" class="result"></div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script>
+$(document).ready(function() {
+    const baseURL = "https://bank-apis.justinclicks.com/API/V1/";
+
+    // Populate States
+    $.getJSON(baseURL + "STATE/", function(data) {
+        $.each(data, function(key, value) {
+            $('#state').append($('<option></option>').attr('value', key).text(value));
+        });
+    });
+
+    // Event Listeners for cascading dropdowns
+    $('#state').on('change', function() {
+        populateDropdown('district', $(this).val(), 'STATE');
+    });
+
+    $('#district').on('change', function() {
+        populateDropdown('city', $('#state').val() + '/' + $(this).val(), 'DISTRICT');
+    });
+
+    $('#city').on('change', function() {
+        populateDropdown('center', $('#state').val() + '/' + $('#district').val() + '/' + $(this).val(), 'CITY');
+    });
+
+    $('#center').on('change', function() {
+        populateDropdown('branch', $('#state').val() + '/' + $('#district').val() + '/' + $('#city').val() + '/' + $(this).val(), 'CENTER');
+    });
+
+    function populateDropdown(id, path, type) {
+        $.getJSON(baseURL + path, function(data) {
+            let $dropdown = $('#' + id);
+            $dropdown.empty().prop('disabled', false);
+            if (type !== 'BRANCH') {
+                $dropdown.append($('<option></option>').attr('value', '').text('Select ' + id));
+            }
+            $.each(data, function(key, value) {
+                $dropdown.append($('<option></option>').attr('value', value).text(value));
+            });
+            if (id !== 'branch') $('#' + id).trigger('change');
+            else $('#search').prop('disabled', false);
+        });
+    }
+
+    // Search Button Click
+    $('#search').on('click', function() {
+        let url = baseURL + $('#state').val() + '/' + $('#district').val() + '/' + $('#city').val() + '/' + $('#center').val() + '/' + $('#branch').val() + '.json';
+        $.getJSON(url, function(data) {
+            let resultHtml = '';
+            $.each(['BANK', 'ADDRESS', 'BRANCH', 'CITY', 'DISTRICT', 'STATE', 'IFSC', 'MICR'], function(_, key) {
+                resultHtml += `<strong>${key}:</strong> ${data[key] || 'N/A'}<br>`;
+            });
+            $('#result').html(resultHtml);
+        });
+    });
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bank Details Widget</title>
+    <!-- Load Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Alpine.js for reactive data binding -->
+    <script
+      src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"
+      defer
+    ></script>
+    <!-- Load Axios for making HTTP requests -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  </head>
+  <body class="bg-gray-100 p-8">
+    <!-- Main container with Alpine.js data binding -->
+    <div
+      x-data="bankDetails()"
+      x-init="loadStates()"
+      class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden md:max-w-2xl p-6"
+    >
+      <h1 class="text-2xl font-bold mb-4">Bank Details Widget</h1>
+
+      <div class="space-y-4">
+        <!-- State dropdown - always visible -->
+        <div>
+          <label for="state" class="block text-sm font-medium text-gray-700"
+            >State</label
+          >
+          <select
+            id="state"
+            x-model="selectedState"
+            @change="loadDistricts()"
+            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          >
+            <option value="">Select State</option>
+            <template x-for="state in states" :key="state">
+              <option :value="state" x-text="state"></option>
+            </template>
+          </select>
+        </div>
+
+        <!-- District dropdown - visible only when states are loaded -->
+        <div x-show="districts.length > 0">
+          <label for="district" class="block text-sm font-medium text-gray-700"
+            >District</label
+          >
+          <select
+            id="district"
+            x-model="selectedDistrict"
+            @change="loadCities()"
+            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          >
+            <option value="">Select District</option>
+            <template x-for="district in districts" :key="district">
+              <option :value="district" x-text="district"></option>
+            </template>
+          </select>
+        </div>
+
+        <!-- City dropdown - visible only when districts are loaded -->
+        <div x-show="cities.length > 0">
+          <label for="city" class="block text-sm font-medium text-gray-700"
+            >City</label
+          >
+          <select
+            id="city"
+            x-model="selectedCity"
+            @change="loadCenters()"
+            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          >
+            <option value="">Select City</option>
+            <template x-for="city in cities" :key="city">
+              <option :value="city" x-text="city"></option>
+            </template>
+          </select>
+        </div>
+
+        <!-- Center dropdown - visible only when cities are loaded -->
+        <div x-show="centers.length > 0">
+          <label for="center" class="block text-sm font-medium text-gray-700"
+            >Center</label
+          >
+          <select
+            id="center"
+            x-model="selectedCenter"
+            @change="loadBranches()"
+            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          >
+            <option value="">Select Center</option>
+            <template x-for="center in centers" :key="center">
+              <option :value="center" x-text="center"></option>
+            </template>
+          </select>
+        </div>
+
+        <!-- Branch dropdown - visible only when centers are loaded -->
+        <div x-show="branches.length > 0">
+          <label for="branch" class="block text-sm font-medium text-gray-700"
+            >Branch</label
+          >
+          <select
+            id="branch"
+            x-model="selectedBranch"
+            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          >
+            <option value="">Select Branch</option>
+            <template x-for="branch in branches" :key="branch">
+              <option :value="branch" x-text="branch"></option>
+            </template>
+          </select>
+        </div>
+
+        <!-- Search button - visible only when a branch is selected -->
+        <button
+          x-show="selectedBranch"
+          @click="searchBankDetails()"
+          class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+        >
+          Search
+        </button>
+      </div>
+
+      <!-- Bank details display - visible only when bank details are fetched and not null -->
+      <div x-show="bankDetails !== null" class="mt-6 space-y-2">
+        <h2 class="text-xl font-semibold">Bank Details</h2>
+        <p>
+          <strong>Bank:</strong> <span x-text="bankDetails?.BANK || ''"></span>
+        </p>
+        <p>
+          <strong>Address:</strong>
+          <span x-text="bankDetails?.ADDRESS || ''"></span>
+        </p>
+        <p>
+          <strong>Branch:</strong>
+          <span x-text="bankDetails?.BRANCH || ''"></span>
+        </p>
+        <p>
+          <strong>City:</strong> <span x-text="bankDetails?.CITY || ''"></span>
+        </p>
+        <p>
+          <strong>District:</strong>
+          <span x-text="bankDetails?.DISTRICT || ''"></span>
+        </p>
+        <p>
+          <strong>State:</strong>
+          <span x-text="bankDetails?.STATE || ''"></span>
+        </p>
+        <p>
+          <strong>IFSC:</strong> <span x-text="bankDetails?.IFSC || ''"></span>
+        </p>
+        <p>
+          <strong>MICR:</strong> <span x-text="bankDetails?.MICR || ''"></span>
+        </p>
+      </div>
+    </div>
+
+    <script>
+      function bankDetails() {
+        return {
+          // Data properties
+          states: [],
+          districts: [],
+          cities: [],
+          centers: [],
+          branches: [],
+          selectedState: "",
+          selectedDistrict: "",
+          selectedCity: "",
+          selectedCenter: "",
+          selectedBranch: "",
+          bankDetails: null,
+
+          // Load states on initialization
+          async loadStates() {
+            try {
+              const response = await axios.get(
+                "https://bank-apis.justinclicks.com/API/V1/STATE/"
+              );
+              this.states = response.data;
+            } catch (error) {
+              console.error("Error loading states:", error);
+            }
+          },
+
+          // Load districts when a state is selected
+          async loadDistricts() {
+            if (!this.selectedState) return;
+            try {
+              const response = await axios.get(
+                `https://bank-apis.justinclicks.com/API/V1/STATE/${this.selectedState}/`
+              );
+              this.districts = response.data;
+              // Reset subsequent selections
+              this.selectedDistrict = "";
+              this.cities = [];
+              this.centers = [];
+              this.branches = [];
+            } catch (error) {
+              console.error("Error loading districts:", error);
+            }
+          },
+
+          // Load cities when a district is selected
+          async loadCities() {
+            if (!this.selectedState || !this.selectedDistrict) return;
+            try {
+              const response = await axios.get(
+                `https://bank-apis.justinclicks.com/API/V1/STATE/${this.selectedState}/${this.selectedDistrict}/`
+              );
+              this.cities = response.data;
+              // Reset subsequent selections
+              this.selectedCity = "";
+              this.centers = [];
+              this.branches = [];
+            } catch (error) {
+              console.error("Error loading cities:", error);
+            }
+          },
+
+          // Load centers when a city is selected
+          async loadCenters() {
+            if (
+              !this.selectedState ||
+              !this.selectedDistrict ||
+              !this.selectedCity
+            )
+              return;
+            try {
+              const response = await axios.get(
+                `https://bank-apis.justinclicks.com/API/V1/STATE/${this.selectedState}/${this.selectedDistrict}/${this.selectedCity}/`
+              );
+              this.centers = response.data;
+              // Reset subsequent selections
+              this.selectedCenter = "";
+              this.branches = [];
+            } catch (error) {
+              console.error("Error loading centers:", error);
+            }
+          },
+
+          // Load branches when a center is selected
+          async loadBranches() {
+            if (
+              !this.selectedState ||
+              !this.selectedDistrict ||
+              !this.selectedCity ||
+              !this.selectedCenter
+            )
+              return;
+            try {
+              const response = await axios.get(
+                `https://bank-apis.justinclicks.com/API/V1/STATE/${this.selectedState}/${this.selectedDistrict}/${this.selectedCity}/${this.selectedCenter}/`
+              );
+              this.branches = response.data;
+              this.selectedBranch = "";
+            } catch (error) {
+              console.error("Error loading branches:", error);
+            }
+          },
+
+          // Fetch bank details when search button is clicked
+
+          async searchBankDetails() {
+            if (
+              !this.selectedState ||
+              !this.selectedDistrict ||
+              !this.selectedCity ||
+              !this.selectedCenter ||
+              !this.selectedBranch
+            ) {
+              alert("Please select all fields before searching.");
+              return;
+            }
+            try {
+              const response = await axios.get(
+                `https://bank-apis.justinclicks.com/API/V1/STATE/${this.selectedState}/${this.selectedDistrict}/${this.selectedCity}/${this.selectedCenter}/${this.selectedBranch}`
+              );
+              this.bankDetails = response.data;
+            } catch (error) {
+              console.error("Error fetching bank details:", error);
+              alert("Error fetching bank details. Please try again.");
+              this.bankDetails = null; // Reset to null on error
+            }
+          },
+        };
+      }
+    </script>
+  </body>
+</html>
