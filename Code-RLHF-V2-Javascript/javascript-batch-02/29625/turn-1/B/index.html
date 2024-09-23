@@ -2,166 +2,118 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>F1 Pitstop Widget</title>
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <title>Crypto Currency Orders Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@0.21.1/dist/axios.min.js"></script>
     <style>
-        body { font-family: 'Arial', sans-serif; }
-        .widget-container { margin: 20px; }
-        .race-item { cursor: pointer; margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
-        .modal-body .pitstop-grid { max-height: 300px; overflow-y: auto; }
-        .chart-container { width: 100%; height: 300px; }
+        body { font-family: Arial, sans-serif; }
+        .container { width: 90%; margin: auto; }
+        .input-section, .tabs, .charts, .table-section { margin-bottom: 20px; }
+        .charts canvas { max-width: 45%; margin: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
     </style>
 </head>
 <body>
-<div class="widget-container">
-    <input type="number" id="yearInput" placeholder="Enter Year (2000-2023)" class="form-control mb-3">
-    <button id="searchBtn" class="btn btn-primary">Search</button>
-    <input type="text" id="raceSearch" placeholder="Search by race name" class="form-control mb-3">
-    <div id="raceGrid"></div>
-    <div id="pagination"></div>
 
-    <div id="modal" class="modal" tabindex="-1" role="dialog">
-        <div class="modal-dialog modal-lg" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Race Details</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div class="pitstop-grid"></div>
-                    <div id="map" style="height: 300px;"></div>
-                </div>
-            </div>
-        </div>
+<div class="container">
+    <div class="input-section">
+        <input type="text" id="symbol" placeholder="Enter Symbol (e.g., BTC-USD)" value="BTC-USD">
+        <select id="level">
+            <option value="L2">L2</option>
+            <option value="L3">L3</option>
+        </select>
+        <button onclick="fetchData()">Search</button>
+    </div>
+
+    <div class="tabs">
+        <button onclick="showTab('asks')">Asks</button>
+        <button onclick="showTab('bids')">Bids</button>
+    </div>
+
+    <div class="charts" id="chartsSection">
+        <canvas id="lineChart" width="400" height="200"></canvas>
+        <canvas id="pieChart" width="400" height="200"></canvas>
+    </div>
+
+    <div class="table-section">
+        <table id="dataTable">
+            <thead><tr><th>Price</th><th>Quantity</th><th>Numbers</th></tr></thead>
+            <tbody></tbody>
+        </table>
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-$(document).ready(function() {
-    const yearInput = $('#yearInput');
-    const searchBtn = $('#searchBtn');
-    const raceGrid = $('#raceGrid');
-    const raceSearch = $('#raceSearch');
-    let allRaces = [];
-    let currentPage = 1;
-    const itemsPerPage = 5;
+    let currentData = {asks: [], bids: []};
+    let currentTab = 'asks';
 
-    // Validation and fetch logic
-    searchBtn.on('click', function() {
-        const year = yearInput.val();
-        if(year.length !== 4 || year < 2000 || year > 2023) {
-            alert('Please enter a valid year between 2000 and 2023.');
-            return;
-        }
-        fetchRaces(year);
-    });
+    function fetchData() {
+        const symbol = document.getElementById('symbol').value;
+        const level = document.getElementById('level').value;
+        const url = `https://api.blockchain.com/v3/exchange/${level}/${symbol}`;
+        axios.get(url)
+        .then(response => {
+            currentData = response.data;
+            showTab(currentTab);
+        })
+        .catch(error => console.error('Error fetching data:', error));
+    }
 
-    function fetchRaces(year) {
-        fetch(`https://api.jolpi.ca/ergast/f1/${year}`)
-        .then(response => response.json())
-        .then(data => {
-            allRaces = data.MRData.RaceTable.Races;
-            displayRaces(allRaces);
-            setupPagination();
+    function showTab(tab) {
+        currentTab = tab;
+        const data = currentData[tab];
+        if(!data) return;
+
+        // Update Charts
+        updateLineChart(data);
+        updatePieChart(data);
+
+        // Update Table
+        const tableBody = document.querySelector('#dataTable tbody');
+        tableBody.innerHTML = '';
+        data.forEach(item => {
+            const row = `<tr><td>${item.px}</td><td>${item.qty}</td><td>${item.num}</td></tr>`;
+            tableBody.innerHTML += row;
         });
     }
 
-    function displayRaces(races) {
-        const filteredRaces = races.filter(race => race.raceName.toLowerCase().includes(raceSearch.val().toLowerCase()));
-        const start = (currentPage - 1) * itemsPerPage;
-        const end = start + itemsPerPage;
-        const paginatedRaces = filteredRaces.slice(start, end);
-
-        raceGrid.html(paginatedRaces.map(race => `
-            <div class="race-item" data-race='${JSON.stringify(race)}'>
-                ${race.raceName} - Round ${race.round} - ${race.Circuit.Location.locality}, ${race.Circuit.Location.country}
-                <a href="${race.url}" target="_blank">Wiki</a>
-                <button class="btn btn-info btn-sm see-details">See Details</button>
-            </div>
-        `).join(''));
-    }
-
-    function setupPagination() {
-        const pageCount = Math.ceil(allRaces.length / itemsPerPage);
-        $('#pagination').twbsPagination({
-            totalPages: pageCount,
-            visiblePages: 5,
-            onPageClick: function (event, page) {
-                currentPage = page;
-                displayRaces(allRaces);
-            }
-        });
-    }
-
-    raceSearch.on('keyup', function() {
-        currentPage = 1; // Reset page on search
-        displayRaces(allRaces);
-    });
-
-    raceGrid.on('click', '.see-details', function(e) {
-        const race = JSON.parse($(e.target).parent().attr('data-race'));
-        $('#modal').modal('show');
-        fetchAndDisplayPitStops(race);
-    });
-
-    function fetchAndDisplayPitStops(race) {
-        let pitStops = [];
-        const fetchInterval = setInterval(() => {
-            fetch(`https://api.jolpi.ca/ergast/f1/${race.season}/${race.round}/pitstops/?limit=100`)
-            .then(res => res.json())
-            .then(data => {
-                pitStops = pitStops.concat(data.MRData.PitStopTable.PitStops);
-                if (data.MRData.total <= pitStops.length) {
-                    clearInterval(fetchInterval);
-                    displayPitStopDetails(pitStops, race);
-                }
-            });
-        }, 200);
-    }
-
-    function displayPitStopDetails(pitStops, race) {
-        const groupedStops = pitStops.reduce((acc, stop) => {
-            if (!acc[stop.driverId]) {
-                acc[stop.driverId] = {name: stop.driverId, stops: []};
-            }
-            acc[stop.driverId].stops.push({lap: stop.lap, stop: stop.stop, duration: stop.duration});
-            return acc;
-        }, {});
-
-        $('.pitstop-grid').html(Object.values(groupedStops).map(driver => `
-            <div>${driver.name}: ${driver.stops.map(s => `Lap ${s.lap}, Stop ${s.stop}, Duration: ${s.duration}`).join('; ')}</div>
-        `).join(''));
-
-        // Display Map
-        const map = L.map('map').setView([race.Circuit.Location.lat, race.Circuit.Location.long], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        L.marker([race.Circuit.Location.lat, race.Circuit.Location.long]).addTo(map)
-            .bindPopup(race.raceName).openPopup();
-
-        // Prepare data for chart
-        let chartData = Object.values(groupedStops).map(driver => ({
-            label: driver.name,
-            data: driver.stops.reduce((min, current) => 
-                parseFloat(current.duration) < min ? parseFloat(current.duration) : min, Infinity)
-        }));
-
-        new Chart(document.getElementById('pitstopChart'), {
+    function updateLineChart(data) {
+        const ctx = document.getElementById('lineChart').getContext('2d');
+        new Chart(ctx, {
             type: 'line',
             data: {
-                datasets: chartData.map(d => ({label: d.label, data: [{x: 1, y: d.data}]}))
+                labels: data.map(i => i.px),
+                datasets: [{
+                    label: 'Quantity by Price',
+                    data: data.map(i => i.qty),
+                    borderColor: 'blue',
+                    fill: false
+                }]
             },
-            options: { scales: { y: { beginAtZero: true }}}
+            options: { scales: { x: { title: { display: true, text: 'Price' }}, y: { title: { display: true, text: 'Quantity' }}}}
         });
     }
-});
+
+    function updatePieChart(data) {
+        const ctx = document.getElementById('pieChart').getContext('2d');
+        const priceCounts = data.reduce((acc, item) => {
+            acc[item.px] = (acc[item.px] || 0) + item.num;
+            return acc;
+        }, {});
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(priceCounts),
+                datasets: [{
+                    data: Object.values(priceCounts),
+                    backgroundColor: Object.keys(priceCounts).map((_, i) => `hsl(${i * 10}, 70%, 50%)`)
+                }]
+            }
+        });
+    }
 </script>
+
 </body>
 </html>

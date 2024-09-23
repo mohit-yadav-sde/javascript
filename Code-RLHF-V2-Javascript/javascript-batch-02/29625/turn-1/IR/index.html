@@ -1,265 +1,210 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>F1 Pitstop Widget</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypto Order Analysis Widget</title>
+  <!-- External libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 p-8">
-    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden">
-        <div class="p-8">
-            <h1 class="text-3xl font-bold mb-6 text-center">F1 Pitstop Widget</h1>
-            <div class="mb-6">
-                <label for="yearInput" class="block text-sm font-medium text-gray-700 mb-2">Enter Year (2000-2023):</label>
-                <input type="number" id="yearInput" min="2000" max="2023" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                <button id="searchBtn" class="mt-3 w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">Search</button>
-            </div>
-            <div class="mb-6">
-                <label for="raceSearch" class="block text-sm font-medium text-gray-700 mb-2">Search Race:</label>
-                <input type="text" id="raceSearch" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-            </div>
-            <div id="gridSection" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-            <div id="pagination" class="mt-6 flex justify-center space-x-2"></div>
+<body class="bg-gray-900 text-white">
+
+  <div class="container mx-auto p-8">
+    <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+      <h1 class="text-3xl font-bold text-center mb-6">Crypto Order List Analysis</h1>
+
+      <!-- Input form for symbol and order type -->
+      <div class="flex flex-col lg:flex-row justify-center items-center mb-6">
+        <input id="symbolInput" type="text" placeholder="Enter Symbol (e.g., BTC-USD)"
+          class="w-full lg:w-1/3 p-3 text-gray-900 rounded-lg focus:outline-none mb-4 lg:mb-0 lg:mr-4">
+        
+        <select id="orderType" class="w-full lg:w-1/3 p-3 text-gray-900 rounded-lg focus:outline-none mb-4 lg:mb-0 lg:mr-4">
+          <option value="L2">Level 2 (L2)</option>
+          <option value="L3">Level 3 (L3)</option>
+        </select>
+
+        <button id="searchBtn" class="w-full lg:w-1/3 p-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg">Search</button>
+      </div>
+
+      <!-- Container for charts and table, hidden by default -->
+      <div id="chartsContainer" class="hidden">
+        <!-- Tabs for switching between Bids and Asks -->
+        <div class="flex mb-6">
+          <button id="bidsTab" class="w-1/2 p-3 bg-blue-600 hover:bg-blue-700 rounded-l-lg font-bold">Bids</button>
+          <button id="asksTab" class="w-1/2 p-3 bg-red-600 hover:bg-red-700 rounded-r-lg font-bold">Asks</button>
         </div>
-    </div>
 
-    <div id="modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 shadow-lg rounded-md bg-white">
-            <div id="modalContent"></div>
-            <div id="map" class="h-64 mt-4"></div>
-            <button id="closeModal" class="mt-4 bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">Close</button>
+        <!-- Bids Charts -->
+        <div id="bidsCharts" class="hidden">
+          <h2 class="text-2xl mb-4">Bids</h2>
+          <canvas id="bidsLineChart" class="mb-6"></canvas>
+          <canvas id="bidsPieChart"></canvas>
         </div>
-    </div>
-
-    <div class="mt-8 max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden">
-        <div class="p-8">
-            <h2 class="text-2xl font-bold mb-4">Fastest Pitstops</h2>
-            <canvas id="pitStopChart"></canvas>
+        
+        <!-- Asks Charts -->
+        <div id="asksCharts" class="hidden">
+          <h2 class="text-2xl mb-4">Asks</h2>
+          <canvas id="asksLineChart" class="mb-6"></canvas>
+          <canvas id="asksPieChart"></canvas>
         </div>
+
+        <!-- Table for displaying order data -->
+        <div id="tableContainer" class="mt-6">
+          <table class="min-w-full bg-gray-800">
+            <thead>
+              <tr>
+                <th class="py-3 px-6 bg-gray-700">Price (px)</th>
+                <th class="py-3 px-6 bg-gray-700">Quantity (qty)</th>
+                <th class="py-3 px-6 bg-gray-700">Nums (num)</th>
+              </tr>
+            </thead>
+            <tbody id="ordersTable" class="divide-y divide-gray-700"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
+  </div>
 
-    <script>
-        // Global variables
-        const yearInput = document.getElementById('yearInput');
-        const searchBtn = document.getElementById('searchBtn');
-        const gridSection = document.getElementById('gridSection');
-        const modal = document.getElementById('modal');
-        const modalContent = document.getElementById('modalContent');
-        const closeModal = document.getElementById('closeModal');
-        const raceSearch = document.getElementById('raceSearch');
-        const paginationContainer = document.getElementById('pagination');
-        let map;
-        let pitStopChart;
-        let allRaces = [];
-        const itemsPerPage = 9;
-        let currentPage = 1;
-
-        // Event listeners
-        searchBtn.addEventListener('click', fetchF1Season);
-        closeModal.addEventListener('click', () => modal.classList.add('hidden'));
-        raceSearch.addEventListener('input', filterRaces);
-
-        // Function to filter races based on search input
-        function filterRaces() {
-            const searchTerm = raceSearch.value.toLowerCase();
-            const filteredRaces = allRaces.filter(race => 
-                race.raceName.toLowerCase().includes(searchTerm)
-            );
-            displaySeasonGrid(filteredRaces);
+  <script>
+    // Add event listener to the search button
+    document.getElementById('searchBtn').addEventListener('click', fetchOrderList);
+    
+    // Object to store chart instances
+    let charts = {};
+    
+    // Function to fetch order list data from the API
+    async function fetchOrderList() {
+      const symbol = document.getElementById('symbolInput').value.trim();
+      const orderType = document.getElementById('orderType').value;
+      const apiUrl = `https://api.blockchain.com/v3/exchange/${orderType.toLowerCase()}/${symbol}`;
+      
+      try {
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+        if (data.bids && data.asks) {
+          displayCharts(data);
+          document.getElementById('chartsContainer').classList.remove('hidden');
+          document.getElementById('bidsCharts').classList.remove('hidden'); // Show Bids by default
+          document.getElementById('asksCharts').classList.add('hidden'); // Hide Asks
+        } else {
+          alert('Invalid symbol or no data available');
         }
+      } catch (error) {
+        console.log(error)
+        alert('Error fetching data');
+      }
+    }
 
-        // Function to fetch F1 season data
-        async function fetchF1Season() {
-            const year = yearInput.value;
-            if (year < 2000 || year > 2023) {
-                alert('Please enter a year between 2000 and 2023');
-                return;
-            }
+    // Function to process and display chart data
+    function displayCharts(data) {
+      const bids = data.bids;
+      const asks = data.asks;
 
-            try {
-                const response = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/`);
-                const data = await response.json();
-                allRaces = data.MRData.RaceTable.Races;
-                displaySeasonGrid(allRaces);
-                fetchAllPitStops(year, allRaces);
-            } catch (error) {
-                console.error('Error fetching F1 season data:', error);
+      // Extract data for Bids
+      const bidsPx = bids.map(order => order.px);
+      const bidsQty = bids.map(order => order.qty);
+      const bidsNums = bids.map(order => order.num);
+
+      // Extract data for Asks
+      const asksPx = asks.map(order => order.px);
+      const asksQty = asks.map(order => order.qty);
+      const asksNums = asks.map(order => order.num);
+
+      // Create Line Charts
+      createLineChart('bidsLineChart', bidsPx, bidsQty, 'Bids Price vs Quantity', 'rgb(54, 162, 235)');
+      createLineChart('asksLineChart', asksPx, asksQty, 'Asks Price vs Quantity', 'rgb(255, 99, 132)');
+
+      // Create Pie Charts
+      createPieChart('bidsPieChart', bidsPx, bidsNums, 'Bids Price Distribution');
+      createPieChart('asksPieChart', asksPx, asksNums, 'Asks Price Distribution');
+
+      // Display data in table
+      displayTable(bids, asks);
+    }
+
+    // Function to create a line chart
+    function createLineChart(canvasId, labels, data, label, borderColor) {
+      // Destroy existing chart if it exists
+      if (charts[canvasId]) {
+        charts[canvasId].destroy();
+      }
+
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      
+      // Create and store new chart instance
+      charts[canvasId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: label,
+            data: data,
+            borderColor: borderColor,
+            borderWidth: 2,
+            fill: false,
+          }]
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: false, // Allow automatic scaling without forcing it to start at 0
             }
+          }
         }
+      });
+    }
 
-        // Function to display season grid with pagination
-        function displaySeasonGrid(races) {
-            gridSection.innerHTML = '';
-            paginationContainer.innerHTML = '';
+    // Function to create a pie chart
+    function createPieChart(canvasId, labels, data, label) {
+      // Destroy existing chart if it exists
+      if (charts[canvasId]) {
+        charts[canvasId].destroy();
+      }
 
-            const totalPages = Math.ceil(races.length / itemsPerPage);
-            const startIndex = (currentPage - 1) * itemsPerPage;
-            const endIndex = startIndex + itemsPerPage;
-            const currentRaces = races.slice(startIndex, endIndex);
-
-            currentRaces.forEach(race => {
-                const raceElement = document.createElement('div');
-                raceElement.className = 'race-item bg-white p-4 rounded-lg shadow';
-                raceElement.innerHTML = `
-                    <h3 class="text-xl font-semibold mb-2">${race.raceName}</h3>
-                    <p>Round: ${race.round}</p>
-                    <p>Season: ${race.season}</p>
-                    <p>Location: ${race.Circuit.Location.locality}, ${race.Circuit.Location.country}</p>
-                    <a href="${race.url}" target="_blank" class="text-blue-600 hover:underline">Wiki</a>
-                    <button class="mt-2 bg-green-500 text-white py-1 px-3 rounded hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2" onclick='showDetails(${JSON.stringify(race)})'>See Details</button>
-                `;
-                gridSection.appendChild(raceElement);
-            });
-
-            // Create pagination buttons
-            for (let i = 1; i <= totalPages; i++) {
-                const pageButton = document.createElement('button');
-                pageButton.textContent = i;
-                pageButton.className = `px-3 py-1 rounded ${i === currentPage ? 'bg-blue-500 text-white' : 'bg-gray-200'}`;
-                pageButton.onclick = () => {
-                    currentPage = i;
-                    displaySeasonGrid(races);
-                };
-                paginationContainer.appendChild(pageButton);
-            }
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      
+      // Create and store new chart instance
+      charts[canvasId] = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: label,
+            data: data,
+            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
+          }]
         }
+      });
+    }
 
-        // Function to show details of a specific race
-        async function showDetails(raceData) {
-            try {
-                const response = await fetch(`https://api.jolpi.ca/ergast/f1/${raceData.season}/${raceData.round}/pitstops/?limit=100`);
-                const data = await response.json();
-                const pitStops = data.MRData.RaceTable.Races[0]?.PitStops || [];
+    // Function to display order data in the table
+    function displayTable(bids, asks) {
+      const tableBody = document.getElementById('ordersTable');
+      tableBody.innerHTML = ''; // Clear previous rows
 
-                const pitStopsByDriver = pitStops.reduce((acc, pitStop) => {
-                    if (!acc[pitStop.driverId]) {
-                        acc[pitStop.driverId] = [];
-                    }
-                    acc[pitStop.driverId].push(pitStop);
-                    return acc;
-                }, {});
+      // Add bid data to the table
+      bids.forEach(order => {
+        tableBody.innerHTML += `
+          <tr>
+            <td class="py-3 px-6">${order.px}</td>
+            <td class="py-3 px-6">${order.qty}</td>
+            <td class="py-3 px-6">${order.num}</td>
+          </tr>`;
+      });
+    }
 
-                let modalHTML = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
-                for (const [driverId, stops] of Object.entries(pitStopsByDriver)) {
-                    modalHTML += `
-                        <div class="bg-gray-100 p-4 rounded-lg">
-                            <h4 class="font-bold mb-2">Driver: ${driverId}</h4>
-                            ${stops.map(stop => `
-                                <p>Lap: ${stop.lap}, Stop: ${stop.stop}, Duration: ${stop.duration}</p>
-                            `).join('')}
-                        </div>
-                    `;
-                }
-                modalHTML += '</div>';
-
-                modalContent.innerHTML = modalHTML;
-                modal.classList.remove('hidden');
-
-                initMap(raceData.Circuit.Location);
-            } catch (error) {
-                console.error('Error fetching pit stop data:', error);
-            }
-        }
-
-        // Function to initialize the map
-        function initMap(location) {
-            if (map) {
-                map.remove();
-            }
-            map = L.map('map').setView([parseFloat(location.lat), parseFloat(location.long)], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(map);
-            L.marker([parseFloat(location.lat), parseFloat(location.long)]).addTo(map)
-                .bindPopup(location.locality)
-                .openPopup();
-        }
-
-        // Function to fetch all pit stops for a season
-        async function fetchAllPitStops(year, races) {
-            const allPitStops = [];
-            for (const race of races) {
-                try {
-                    await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay
-                    const response = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/${race.round}/pitstops/?limit=100`);
-                    const data = await response.json();
-                    if (data.MRData.RaceTable.Races[0] && data.MRData.RaceTable.Races[0].PitStops) {
-                        allPitStops.push(...data.MRData.RaceTable.Races[0].PitStops);
-                    }
-                } catch (error) {
-                    console.error(`Error fetching pit stops for round ${race.round}:`, error);
-                }
-            }
-            createPitStopChart(allPitStops);
-        }
-
-        // Function to create the pit stop chart
-        function createPitStopChart(pitStops) {
-             // Filter out unrealistic pit stop times (less than 1.5 seconds or more than 60 seconds)
-    const validPitStops = pitStops.filter(stop => {
-        const duration = parseFloat(stop.duration);
-        return duration >= 1.5 && duration <= 60;
+    // Event listeners for tab switching
+    document.getElementById('bidsTab').addEventListener('click', () => {
+      document.getElementById('bidsCharts').classList.remove('hidden');
+      document.getElementById('asksCharts').classList.add('hidden');
     });
 
-    const driverFastestPitStops = validPitStops.reduce((acc, pitStop) => {
-        const duration = parseFloat(pitStop.duration);
-        if (!acc[pitStop.driverId] || duration < acc[pitStop.driverId]) {
-            acc[pitStop.driverId] = duration;
-        }
-        return acc;
-    }, {});
+    document.getElementById('asksTab').addEventListener('click', () => {
+      document.getElementById('asksCharts').classList.remove('hidden');
+      document.getElementById('bidsCharts').classList.add('hidden');
+    });
 
-            const sortedDrivers = Object.entries(driverFastestPitStops)
-                .sort((a, b) => a[1] - b[1]);
-
-            const labels = sortedDrivers.map(([driverId]) => driverId);
-            const data = sortedDrivers.map(([, duration]) => duration);
-
-            if (pitStopChart) {
-                pitStopChart.destroy();
-            }
-
-            const ctx = document.getElementById('pitStopChart').getContext('2d');
-            pitStopChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Fastest Pit Stop Duration (seconds)',
-                        data: data,
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Duration (seconds)'
-                            }
-                        },
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Driver ID'
-                            },
-                            ticks: {
-                                autoSkip: false,
-                                maxRotation: 90,
-                                minRotation: 90
-                            }
-                        }
-                    }
-                }
-            });
-        }
-    </script>
+  </script>
 </body>
 </html>

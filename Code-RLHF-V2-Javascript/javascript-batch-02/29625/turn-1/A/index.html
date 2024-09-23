@@ -2,224 +2,105 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>F1 Pitstop Widget</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Order Analysis</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { font-family: 'Arial', sans-serif; background: #e10600; color: white; }
-        .container { background: #15151e; padding: 20px; border-radius: 10px; margin-top: 20px; }
-        .title, .subtitle { color: white; }
-        .button { background-color: #e10600; border: none; }
-        .modal-content { background-color: #2a2a33; }
-        .card { margin: 10px 0; background: #3a3a44; }
-        #map { height: 200px; }
-        #chartContainer { width: 100%; height: 300px; }
+        .chart-container {
+            width: 100%;
+            height: 300px;
+        }
+        .nav-tabs .nav-link.active {
+            background-color: #f8f9fa;
+            border-color: #dee2e6 #dee2e6 #f8f9fa;
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1 class="title">F1 Pitstop Analysis</h1>
-    <div class="field">
-        <input id="yearInput" class="input" type="number" placeholder="Enter Year (2000-2023)">
-        <button id="searchBtn" class="button">Search</button>
+<div class="container mt-5">
+    <h2 class="text-center">Crypto Currency Order Analysis</h2>
+    <form id="cryptoForm">
+        <div class="form-group">
+            <label for="symbol">Symbol:</label>
+            <input type="text" class="form-control" id="symbol" placeholder="BTC-USD">
+        </div>
+        <div class="form-group">
+            <label for="level">Level:</label>
+            <select class="form-control" id="level">
+                <option value="L2">L2</option>
+                <option value="L3">L3</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+    
+    <ul class="nav nav-tabs mt-4" id="myTab" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="asks-tab" data-toggle="tab" href="#asks" role="tab">Asks</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="bids-tab" data-toggle="tab" href="#bids" role="tab">Bids</a>
+        </li>
+    </ul>
+    <div class="tab-content" id="myTabContent">
+        <div class="tab-pane fade show active" id="asks" role="tabpanel"></div>
+        <div class="tab-pane fade" id="bids" role="tabpanel"></div>
     </div>
-    <div id="gridSection" class="columns is-multiline"></div>
-    <nav class="pagination" role="navigation" aria-label="pagination">
-        <a class="pagination-previous">Previous</a>
-        <a class="pagination-next">Next</a>
-        <ul class="pagination-list"></ul>
-    </nav>
 </div>
 
-<div id="detailsModal" class="modal">
-  <div class="modal-background"></div>
-  <div class="modal-content">
-    <div class="box">
-        <h2 class="title" id="modalRaceName"></h2>
-        <div id="pitstopGrid"></div>
-        <div id="map"></div>
-    </div>
-  </div>
-  <button class="modal-close is-large" aria-label="close"></button>
-</div>
-
-<div class="container" id="chartContainer">
-    <canvas id="lineChart"></canvas>
-</div>
-
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1"></script>
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const yearInput = document.getElementById('yearInput');
-    const searchBtn = document.getElementById('searchBtn');
-    const gridSection = document.getElementById('gridSection');
-    const modal = document.getElementById('detailsModal');
-    const pitstopGrid = document.getElementById('pitstopGrid');
-    const mapDiv = document.getElementById('map');
-    const lineChartCanvas = document.getElementById('lineChart');
-    let map, chart;
-    let currentPage = 1;
-    let itemsPerPage = 5;
-    let allRaces = [];
+document.getElementById('cryptoForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const symbol = document.getElementById('symbol').value;
+    const level = document.getElementById('level').value;
+    const url = `https://api.blockchain.com/v3/exchange/${level}/${symbol}`;
 
-    // Input validation
-    yearInput.addEventListener('input', function() {
-        this.value = this.value.slice(0, 4);
-        if(this.value > 2023 || this.value < 2000) this.value = '';
-    });
-
-    // Search function
-    searchBtn.addEventListener('click', function() {
-        const year = yearInput.value;
-        if(year && year >= 2000 && year <= 2023) {
-            fetch(`https://api.jolpi.ca/ergast/f1/year/${year}`)
-                .then(response => response.json())
-                .then(data => {
-                    allRaces = data.MRData.RaceTable.Races;
-                    renderGrid(allRaces);
-                    setupPagination(allRaces, itemsPerPage);
-                });
-        } else {
-            alert('Please enter a valid year between 2000 and 2023.');
-        }
-    });
-
-    // Render grid
-    function renderGrid(races, page = 1) {
-        gridSection.innerHTML = '';
-        const start = (page - 1) * itemsPerPage;
-        const end = start + itemsPerPage;
-        races.slice(start, end).forEach(race => {
-            const card = document.createElement('div');
-            card.className = 'column is-one-fifth';
-            card.innerHTML = `
-                <div class="card">
-                    <div class="card-content">
-                        <p class="title is-6">${race.raceName}</p>
-                        <p>Round: ${race.round}</p>
-                        <p>Location: ${race.Circuit.Location.locality}, ${race.Circuit.Location.country}</p>
-                        <a href="${race.url}" target="_blank">Wiki</a>
-                        <button class="button is-small see-details" data-race="${race.round}">See Details</button>
-                    </div>
-                </div>`;
-            gridSection.appendChild(card);
-        });
-        
-        // Event listener for details button
-        document.querySelectorAll('.see-details').forEach(button => {
-            button.addEventListener('click', function() {
-                const round = this.getAttribute('data-race');
-                showDetailsModal(round, allRaces.find(r => r.round === round));
-            });
-        });
-    }
-
-    // Modal functionality
-    function showDetailsModal(round, race) {
-        document.getElementById('modalRaceName').textContent = race.raceName;
-        fetchPitstopData(race.year, round).then(pitstops => {
-            renderPitstopGrid(pitstops);
-            if(map) map.remove();
-            map = L.map('map').setView([race.Circuit.Location.lat, race.Circuit.Location.long], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
-            L.marker([race.Circuit.Location.lat, race.Circuit.Location.long]).addTo(map)
-                .bindPopup(race.raceName).openPopup();
-        });
-        modal.classList.add('is-active');
-    }
-
-    function fetchPitstopData(year, round) {
-        return fetch(`https://api.jolpi.ca/ergast/f1/${year}/${round}/pitstops/?limit=100`)
-            .then(response => response.json())
-            .then(data => data.MRData.RaceTable.Races[0].PitStops);
-    }
-
-    function renderPitstopGrid(pitstops) {
-        pitstopGrid.innerHTML = '';
-        const drivers = {};
-        pitstops.forEach(pit => {
-            if(!drivers[pit.driverId]) drivers[pit.driverId] = {name: pit.driverId, stops: []};
-            drivers[pit.driverId].stops.push(pit);
-        });
-
-        for(let driver in drivers) {
-            const driverDiv = document.createElement('div');
-            driverDiv.className = 'box';
-            driverDiv.innerHTML = `<p><strong>${drivers[driver].name}</strong></p>`;
-            drivers[driver].stops.forEach(stop => {
-                driverDiv.innerHTML += `<p>Lap ${stop.lap}, Stop ${stop.stop}, Duration: ${stop.duration}</p>`;
-            });
-            pitstopGrid.appendChild(driverDiv);
-        }
-    }
-
-    // Chart
-    function updateChart(pitstops) {
-        if(chart) chart.destroy();
-        const fastestStops = {};
-        pitstops.forEach(pit => {
-            if(!fastestStops[pit.driverId] || parseFloat(pit.duration) < parseFloat(fastestStops[pit.driverId].duration)) {
-                fastestStops[pit.driverId] = pit;
-            }
-        });
-
-        const labels = Object.keys(fastestStops);
-        const data = labels.map(driver => parseFloat(fastestStops[driver].duration));
-
-        chart = new Chart(lineChartCanvas, {
-            type: 'line',
-            data: {
-                labels: labels,
+    fetch(url)
+    .then(response => response.json())
+    .then(data => {
+        const processData = (type) => {
+            const chartData = {
+                labels: data[type].map(item => item.px),
                 datasets: [{
-                    label: 'Fastest Pit Stop Duration',
-                    data: data,
-                    borderColor: 'rgb(255, 99, 132)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    label: 'Quantity',
+                    data: data[type].map(item => item.qty),
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
                 }]
-            },
-            options: {
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
-    }
+            };
+            const pieData = {
+                labels: data[type].map(item => item.px),
+                datasets: [{
+                    data: data[type].map(item => item.num),
+                    backgroundColor: data[type].map((_, index) => `hsl(${index * 10}, 100%, 50%)`)
+                }]
+            };
 
-    // Pagination
-    function setupPagination(items, itemsPerPage) {
-        const paginationList = document.querySelector('.pagination-list');
-        const totalPages = Math.ceil(items.length / itemsPerPage);
-        
-        paginationList.innerHTML = '';
-        for(let i = 1; i <= totalPages; i++) {
-            const li = document.createElement('li');
-            const a = document.createElement('a');
-            a.className = 'pagination-link';
-            a.textContent = i;
-            a.addEventListener('click', () => {
-                currentPage = i;
-                renderGrid(items, currentPage);
+            const lineChart = new Chart(document.createElement('canvas'), {
+                type: 'line',
+                data: chartData
             });
-            li.appendChild(a);
-            paginationList.appendChild(li);
-        }
-    }
+            const pieChart = new Chart(document.createElement('canvas'), {
+                type: 'pie',
+                data: pieData
+            });
 
-    // Close modal
-    document.querySelector('.modal-close').addEventListener('click', () => {
-        modal.classList.remove('is-active');
+            const table = `<table class="table table-striped">
+                <thead><tr><th>Price</th><th>Quantity</th><th>Number of Orders</th></tr></thead>
+                <tbody>${data[type].map(item => `<tr><td>${item.px}</td><td>${item.qty}</td><td>${item.num}</td></tr>`).join('')}</tbody>
+            </table>`;
+
+            return `<div class="chart-container"><canvas></canvas></div>${table}`;
+        };
+
+        document.getElementById('asks').innerHTML = processData('asks');
+        document.getElementById('bids').innerHTML = processData('bids');
     });
-
-    // Initial fetch for pitstops to update chart
-    // This should be triggered after a valid year search for real-time data
-    // Here it's mocked for demonstration
-    fetchPitstopData('2023', '1').then(pitstops => updateChart(pitstops));
 });
 </script>
 
