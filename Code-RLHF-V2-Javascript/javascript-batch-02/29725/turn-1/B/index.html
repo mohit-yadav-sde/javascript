@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Weather Analysis Widget</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .widget-container { padding: 20px; background: #f8f9fa; }
+        .details-panel { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .map-container, .chart-container { height: 300px; margin: 10px 0; }
+        .chart-container { background: white; padding: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container widget-container">
+    <h2 class="text-center">Weather Analysis</h2>
+    <div class="input-group mb-3">
+        <input id="cityInput" type="text" class="form-control" placeholder="Enter City Name">
+        <div class="input-group-append">
+            <button class="btn btn-primary" onclick="fetchWeather()">Search</button>
+        </div>
+    </div>
+    
+    <div id="weatherDetails" class="details-panel"></div>
+    <div id="map" class="map-container"></div>
+    <div id="charts" class="row"></div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+<script>
+function fetchWeather() {
+    const city = $('#cityInput').val();
+    const apiUrl = `https://api.waqi.info/feed/${city}/?token=a183d68a2c1f37b390666953873970d044189df3`;
+
+    $.get(apiUrl, function(data) {
+        if (data.status === 'ok') {
+            displayWeatherDetails(data.data);
+            displayMap(data.data.city.geo);
+            displayCharts(data.data.forecast.daily);
+        } else {
+            alert('City not found or API error.');
+        }
+    });
+}
+
+function displayWeatherDetails(data) {
+    let html = `
+        <h4>${data.city.name}</h4>
+        <p>AQI: ${data.aqi}</p>
+        <p><a href="${data.city.url}" target="_blank">City Website</a></p>
+        <p>Last Updated: ${new Date(data.time.s).toLocaleString()}</p>
+        <h5>Forecast:</h5>
+        <ul>
+            <li>O3: ${data.forecast.daily.o3[0].avg}</li>
+            <li>PM10: ${data.forecast.daily.pm10[0].avg}</li>
+            <li>PM2.5: ${data.forecast.daily.pm25[0].avg}</li>
+            <li>UVI: ${data.forecast.daily.uvi[0].avg}</li>
+        </ul>
+        <h6>Attributions:</h6>
+        <ul>${data.attributions.map(att => `<li><a href="${att.url}">${att.name}</a></li>`).join('')}</ul>
+    `;
+    $('#weatherDetails').html(html);
+}
+
+function displayMap(geo) {
+    const map = new google.maps.Map(document.getElementById('map'), {
+        center: {lat: geo[0], lng: geo[1]},
+        zoom: 10
+    });
+    new google.maps.Marker({
+        position: {lat: geo[0], lng: geo[1]},
+        map: map,
+        title: "City Location"
+    });
+}
+
+function displayCharts(forecast) {
+    const days = Object.keys(forecast.o3);
+    const chartData = ['o3', 'pm10', 'pm25', 'uvi'].map(type => ({
+        label: type.toUpperCase(),
+        data: days.map(day => ({
+            x: day,
+            y: forecast[type][day].avg
+        })),
+        borderColor: 'rgba(' + Math.floor(Math.random()*255) + ',' + Math.floor(Math.random()*255) + ',' + Math.floor(Math.random()*255) + ',1)',
+        fill: false
+    }));
+
+    chartData.forEach(chart => {
+        let canvas = $('<canvas>').attr('id', chart.label + 'Chart').appendTo('#charts');
+        new Chart(canvas, {
+            type: 'line',
+            data: { datasets: [chart] },
+            options: { scales: { xAxes: [{ type: 'category', labels: days }] } }
+        });
+    });
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Analysis Widget</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        #cityInput, #fetchData {
+            padding: 10px;
+            margin: 10px 0;
+        }
+        #fetchData {
+            cursor: pointer;
+            background-color: #5cb85c;
+            border: none;
+            color: white;
+            border-radius: 4px;
+        }
+        #weatherPanel {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 4px;
+        }
+        .aqi-good { background-color: #00e400; }
+        .aqi-moderate { background-color: #ff0; }
+        .aqi-unhealthy-sensitive { background-color: #ff7e00; }
+        .aqi-unhealthy { background-color: #f00; }
+        .aqi-very-unhealthy { background-color: #99004c; }
+        .aqi-hazardous { background-color: #7e0023; }
+        #map { 
+            height: 300px; 
+            margin-top: 20px;
+        }
+        .chart-container {
+            width: 100%;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <input type="text" id="cityInput" placeholder="Enter city name">
+    <button id="fetchData">Get Weather Data</button>
+    <div id="weatherPanel"></div>
+    <div id="map"></div>
+    <div class="chart-container">
+        <canvas id="pollutionChart"></canvas>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.getElementById('fetchData').addEventListener('click', async function() {
+    const city = document.getElementById('cityInput').value;
+    if (!city) return alert('Please enter a city name.');
+
+    const response = await fetch(`https://api.waqi.info/feed/${city}/?token=a183d68a2c1f37b390666953873970d044189df3`);
+    const data = await response.json();
+    
+    if (data.status !== 'ok') {
+        return alert('City not found or API error.');
+    }
+
+    const weatherData = data.data;
+    const aqiClass = getAqiClass(weatherData.aqi);
+    
+    document.getElementById('weatherPanel').innerHTML = `
+        <h2>${weatherData.city.name}</h2>
+        <p><strong>AQI:</strong> <span class="aqi-${aqiClass}">${weatherData.aqi}</span></p>
+        <p><a href="${weatherData.city.url}" target="_blank">City Website</a></p>
+        <p><strong>Last Updated:</strong> ${new Date(weatherData.time.iso).toLocaleString()}</p>
+        <h3>Forecast:</h3>
+        <ul>
+            <li>O3: ${weatherData.forecast.daily.o3[0].avg}</li>
+            <li>PM10: ${weatherData.forecast.daily.pm10[0].avg}</li>
+            <li>PM2.5: ${weatherData.forecast.daily.pm25[0].avg}</li>
+            <li>UVI: ${weatherData.forecast.daily.uvi[0].avg}</li>
+        </ul>
+        <h4>Attributions:</h4>
+        <ul>
+            ${weatherData.attributions.map(attr => `<li><a href="${attr.url}">${attr.name}</a></li>`).join('')}
+        </ul>
+    `;
+
+    // Map
+    if (!window.map) {
+        window.map = L.map('map').setView([weatherData.city.geo[0], weatherData.city.geo[1]], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(window.map);
+    } else {
+        window.map.setView([weatherData.city.geo[0], weatherData.city.geo[1]]);
+    }
+    L.marker([weatherData.city.geo[0], weatherData.city.geo[1]]).addTo(window.map)
+        .bindPopup(weatherData.city.name).openPopup();
+
+    // Chart
+    const ctx = document.getElementById('pollutionChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: weatherData.forecast.daily.o3.map((_, i) => `Day ${i+1}`),
+            datasets: [{
+                label: 'O3',
+                data: weatherData.forecast.daily.o3.map(d => d.avg),
+                borderColor: 'blue',
+                fill: false
+            }, {
+                label: 'PM10',
+                data: weatherData.forecast.daily.pm10.map(d => d.avg),
+                borderColor: 'green',
+                fill: false
+            }, {
+                label: 'PM2.5',
+                data: weatherData.forecast.daily.pm25.map(d => d.avg),
+                borderColor: 'red',
+                fill: false
+            }, {
+                label: 'UVI',
+                data: weatherData.forecast.daily.uvi.map(d => d.avg),
+                borderColor: 'purple',
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: {
+                    title: { display: true, text: 'Days' }
+                },
+                y: {
+                    title: { display: true, text: 'Value' }
+                }
+            }
+        }
+    });
+});
+
+function getAqiClass(aqi) {
+    if (aqi <= 50) return 'good';
+    if (aqi <= 100) return 'moderate';
+    if (aqi <= 150) return 'unhealthy-sensitive';
+    if (aqi <= 200) return 'unhealthy';
+    if (aqi <= 300) return 'very-unhealthy';
+    return 'hazardous';
+}
+</script>
+
+</body>
+</html>

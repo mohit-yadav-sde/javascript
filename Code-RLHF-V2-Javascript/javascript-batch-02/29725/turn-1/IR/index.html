@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Analysis Widget</title>
+    <!-- Include Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include Leaflet.js for map functionality -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <!-- Include Chart.js for creating charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 p-4 sm:p-8">
+    <!-- Main container for the widget -->
+    <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-md p-4 sm:p-6">
+        <h1 class="text-2xl sm:text-3xl font-bold mb-4">Weather Analysis Widget</h1>
+        <!-- Input section for city name -->
+        <div class="mb-4">
+            <input type="text" id="cityInput" placeholder="Enter city name" class="w-full p-2 border rounded">
+            <button onclick="fetchData()" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Analyze</button>
+        </div>
+        <!-- Container for city information -->
+        <div id="cityInfo" class="mb-4"></div>
+        <!-- Container for the map -->
+        <div id="map" class="h-64 sm:h-96 mb-4"></div>
+        <!-- Container for charts -->
+        <div id="charts" class="grid grid-cols-1 lg:grid-cols-2 gap-8"></div>
+    </div>
+
+    <script>
+        // API endpoint and token
+        const apiUrl = 'https://api.waqi.info/feed/';
+        const apiToken = 'a183d68a2c1f37b390666953873970d044189df3';
+        let map;
+
+        // Function to fetch data from the API
+        async function fetchData() {
+            const cityName = document.getElementById('cityInput').value;
+            const response = await fetch(`${apiUrl}${cityName}/?token=${apiToken}`);
+            const data = await response.json();
+
+            if (data.status === 'ok') {
+                displayCityInfo(data.data);
+                displayMap(data.data);
+                displayCharts(data.data);
+            } else {
+                alert('City not found or API error');
+            }
+        }
+
+        // Function to display city information
+        function displayCityInfo(data) {
+            const cityInfo = document.getElementById('cityInfo');
+            const date = new Date(data.time.iso);
+            const formattedDate = date.toLocaleString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric', 
+                hour: 'numeric', 
+                minute: 'numeric', 
+                timeZoneName: 'short' 
+            });
+
+            // Get current date forecast
+            const currentDateForecasts = getCurrentDateForecasts(data.forecast.daily);
+
+            // Populate city info HTML
+            cityInfo.innerHTML = `
+                <h2 class="text-xl sm:text-2xl font-bold">${data.city.name}</h2>
+                <p class="mt-2">AQI: ${data.aqi}</p>
+                <p class="mt-1">Website: <a href="${data.city.url}" target="_blank" class="text-blue-500 hover:underline">${data.city.url}</a></p>
+                <p class="mt-1">Date: ${formattedDate}</p>
+                <div class="mt-2">
+                    <p class="font-semibold">Attribution:</p>
+                    <ul class="list-disc list-inside">
+                        ${data.attributions.map(a => `<li><a href="${a.url}" target="_blank" class="text-blue-500 hover:underline">${a.name}</a></li>`).join('')}
+                    </ul>
+                </div>
+                <div class="mt-4">
+                    <p class="font-semibold">Current Date Forecast:</p>
+                    <ul class="list-disc list-inside">
+                        ${Object.entries(currentDateForecasts).map(([key, value]) => `<li>${key.toUpperCase()}: ${value}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        // Function to get current date forecasts
+        function getCurrentDateForecasts(forecastData) {
+            const currentDate = new Date().toISOString().split('T')[0];
+            const forecasts = {};
+
+            for (const [key, value] of Object.entries(forecastData)) {
+                const currentForecast = value.find(item => item.day === currentDate);
+                if (currentForecast) {
+                    forecasts[key] = currentForecast.avg;
+                }
+            }
+
+            return forecasts;
+        }
+
+        // Function to display the map
+        function displayMap(data) {
+            if (map) {
+                map.remove();
+            }
+            // Initialize the map with the city's coordinates
+            map = L.map('map').setView([data.city.geo[0], data.city.geo[1]], 10);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            // Add a marker for the city
+            L.marker([data.city.geo[0], data.city.geo[1]]).addTo(map)
+                .bindPopup(data.city.name)
+                .openPopup();
+        }
+
+        // Function to display charts
+        function displayCharts(data) {
+            const chartContainer = document.getElementById('charts');
+            chartContainer.innerHTML = '';
+
+            const pollutants = ['o3', 'pm10', 'pm25', 'uvi'];
+            const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'];
+
+            pollutants.forEach((pollutant, index) => {
+                // Create a container for each chart
+                const chartDiv = document.createElement('div');
+                chartDiv.className = 'bg-white p-4 rounded-lg shadow';
+                chartDiv.style.height = '400px';  // Set a fixed height for the chart container
+                const canvas = document.createElement('canvas');
+                chartDiv.appendChild(canvas);
+                chartContainer.appendChild(chartDiv);
+
+                const ctx = canvas.getContext('2d');
+                const chartData = data.forecast.daily[pollutant];
+
+                // Create a new chart using Chart.js
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: chartData.map(d => new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                        datasets: [
+                            {
+                                label: `${pollutant.toUpperCase()} (avg)`,
+                                data: chartData.map(d => d.avg),
+                                borderColor: colors[index],
+                                fill: false
+                            },
+                            {
+                                label: `${pollutant.toUpperCase()} (max)`,
+                                data: chartData.map(d => d.max),
+                                borderColor: colors[(index + 1) % 4],
+                                fill: false
+                            },
+                            {
+                                label: `${pollutant.toUpperCase()} (min)`,
+                                data: chartData.map(d => d.min),
+                                borderColor: colors[(index + 2) % 4],
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${pollutant.toUpperCase()} Forecast`,
+                                font: {
+                                    size: 18,
+                                    weight: 'bold'
+                                }
+                            },
+                            legend: {
+                                position: 'bottom'
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Date'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Value'
+                                },
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
+        // Make the widget responsive
+        window.addEventListener('resize', function() {
+            if (map) {
+                map.invalidateSize();
+            }
+            // Recreate charts on window resize
+            const chartContainer = document.getElementById('charts');
+            if (chartContainer.innerHTML !== '') {
+                fetchData();
+            }
+        });
+    </script>
+</body>
+</html>
