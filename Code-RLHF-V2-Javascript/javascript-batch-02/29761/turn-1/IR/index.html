@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stops and Searches - Avon and Somerset</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100 p-4">
+    <div class="container mx-auto">
+      <h1 class="text-2xl font-bold mb-4 text-center">
+        Avon and Somerset Stops and Searches
+      </h1>
+
+      <!-- Line Chart for stops over time -->
+      <canvas id="lineChart" class="mb-8"></canvas>
+
+      <!-- Gender Filter Dropdown -->
+      <div class="mb-4">
+        <label for="genderFilter" class="font-semibold mr-2"
+          >Filter by Gender:</label
+        >
+        <select id="genderFilter" class="border p-2 rounded">
+          <option value="all">All</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+        </select>
+      </div>
+
+      <!-- Grid to display stops details -->
+      <div id="stopsGrid" class="grid grid-cols-1 gap-4 mb-8">
+        <!-- Stop items will be dynamically added here -->
+      </div>
+
+      <!-- Pagination Controls -->
+      <div id="pagination" class="flex justify-center mb-8">
+        <button
+          id="prevPage"
+          class="hidden bg-blue-500 text-white px-4 py-2 rounded mr-2"
+        >
+          Previous
+        </button>
+        <button
+          id="nextPage"
+          class="hidden bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          Next
+        </button>
+      </div>
+
+      <!-- Pie Chart for Gender Ratio -->
+      <canvas id="pieChart"></canvas>
+    </div>
+
+    <script>
+      const apiUrl =
+        "https://data.police.uk/api/stops-force?force=avon-and-somerset&date=2024-01";
+      let stopsData = []; // Stores fetched stops and searches data
+      let filteredStops = []; // Stores filtered data based on gender selection
+      let currentPage = 1; // Current pagination page
+      const itemsPerPage = 8; // Number of items per page
+
+      // Fetch data from the API
+      async function fetchData() {
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+        stopsData = data;
+        filteredStops = stopsData; // Initially display all
+        updateCharts(); // Update the charts with the fetched data
+        renderStops(); // Render the stops grid
+      }
+
+      // Update Line and Pie Charts
+      function updateCharts() {
+        const dates = {}; // Stores count of stops by date
+        let maleCount = 0,
+          femaleCount = 0; // Gender counts
+
+        // Process data to collect date and gender information
+        stopsData.forEach((stop) => {
+          const date = stop.datetime
+            ? stop.datetime.split("T")[0]
+            : "Unknown Date";
+          dates[date] = (dates[date] || 0) + 1;
+
+          if (stop.gender === "Male") maleCount++;
+          if (stop.gender === "Female") femaleCount++;
+        });
+
+        // Create Line Chart for Stops Over Time
+        const lineCtx = document.getElementById("lineChart").getContext("2d");
+        new Chart(lineCtx, {
+          type: "line",
+          data: {
+            labels: Object.keys(dates),
+            datasets: [
+              {
+                label: "Number of Stops",
+                data: Object.values(dates),
+                borderColor: "rgba(75, 192, 192, 1)",
+                fill: false,
+              },
+            ],
+          },
+        });
+
+        // Create Pie Chart for Male vs Female Ratio
+        const pieCtx = document.getElementById("pieChart").getContext("2d");
+        new Chart(pieCtx, {
+          type: "pie",
+          data: {
+            labels: ["Male", "Female"],
+            datasets: [
+              {
+                label: "Gender Ratio",
+                data: [maleCount, femaleCount],
+                backgroundColor: ["#4B9CD3", "#FF6384"],
+              },
+            ],
+          },
+        });
+      }
+
+      // Render Stops Grid with pagination
+      function renderStops() {
+        const grid = document.getElementById("stopsGrid");
+        grid.innerHTML = ""; // Clear previous grid content
+
+        // Paginate stops: Get current page items
+        const paginatedStops = filteredStops.slice(
+          (currentPage - 1) * itemsPerPage,
+          currentPage * itemsPerPage
+        );
+
+        paginatedStops.forEach((stop) => {
+          // Use "Not Reported" for any null or missing values
+          const {
+            legislation,
+            age_range,
+            type,
+            self_defined_ethnicity,
+            officer_defined_ethnicity,
+            object_of_search,
+            outcome,
+            datetime,
+          } = stop;
+
+          // Convert datetime to a more readable format if available
+          const readableDate =
+            datetime !== "Not Reported"
+              ? new Date(datetime).toLocaleString()
+              : "Not Reported";
+
+          // Append grid item to the container
+          grid.innerHTML += `
+          <div class="bg-white p-4 shadow rounded">
+            <p><strong>Legislation:</strong> ${
+              legislation ? legislation : "Not Reported"
+            }</p>
+            <p><strong>Age Range:</strong> ${
+              age_range ? age_range : "Not Reported"
+            }</p>
+            <p><strong>Type:</strong> ${type ? type : "Not Reported"}</p>
+            <p><strong>Self-Defined Ethnicity:</strong> ${
+              self_defined_ethnicity ? self_defined_ethnicity : "Not Reported"
+            }</p>
+            <p><strong>Officer-Defined Ethnicity:</strong> ${
+              officer_defined_ethnicity
+                ? officer_defined_ethnicity
+                : "Not Reported"
+            }</p>
+            <p><strong>Object of Search:</strong> ${
+              object_of_search ? object_of_search : "Not Reported"
+            }</p>
+            <p><strong>Outcome:</strong> ${
+              outcome ? outcome : "Not Reported"
+            }</p>
+            <p><strong>DateTime:</strong> ${
+              readableDate ? readableDate : "Not Reported"
+            }</p>
+          </div>
+        `;
+        });
+
+        // Handle Pagination controls visibility
+        const totalPages = Math.ceil(filteredStops.length / itemsPerPage);
+        document.getElementById("prevPage").style.display =
+          currentPage > 1 ? "inline-block" : "none";
+        document.getElementById("nextPage").style.display =
+          currentPage < totalPages ? "inline-block" : "none";
+      }
+
+      // Filter stops by gender when dropdown changes
+      document
+        .getElementById("genderFilter")
+        .addEventListener("change", (e) => {
+          const gender = e.target.value;
+          // Filter stops based on selected gender or show all if "all" is selected
+          filteredStops = stopsData.filter(
+            (stop) => gender === "all" || stop.gender === gender
+          );
+          currentPage = 1; // Reset to first page
+          renderStops(); // Re-render the grid with the new filtered data
+        });
+
+      // Handle Previous Page button click
+      document.getElementById("prevPage").addEventListener("click", () => {
+        if (currentPage > 1) {
+          currentPage--;
+          renderStops();
+        }
+      });
+
+      // Handle Next Page button click
+      document.getElementById("nextPage").addEventListener("click", () => {
+        const totalPages = Math.ceil(filteredStops.length / itemsPerPage);
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderStops();
+        }
+      });
+
+      // Fetch and display data when the page loads
+      fetchData();
+    </script>
+  </body>
+</html>

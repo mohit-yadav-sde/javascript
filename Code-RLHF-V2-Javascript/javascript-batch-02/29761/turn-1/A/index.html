@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avon and Somerset Stops and Searches</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .chart-container { width: 100%; max-width: 800px; margin: 20px auto; }
+        .grid-container { max-width: 1200px; margin: auto; }
+        .pagination li { display: inline-block; margin: 0 5px; cursor: pointer; }
+        .pagination li.active { background-color: #3498db; color: white; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <!-- Line Chart for Stops and Searches -->
+        <div class="chart-container">
+            <canvas id="lineChart"></canvas>
+        </div>
+
+        <!-- Filter and Grid -->
+        <div class="grid-container">
+            <select id="genderFilter" class="mb-4 p-2 border rounded">
+                <option value="all">All Genders</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+            </select>
+            <table id="stopsTable" class="table-auto w-full bg-white shadow-md rounded">
+                <thead class="bg-gray-200">
+                    <tr>
+                        <th class="px-4 py-2">Legislation</th>
+                        <th class="px-4 py-2">Age Range</th>
+                        <th class="px-4 py-2">Type</th>
+                        <th class="px-4 py-2">Ethnicity (Self)</th>
+                        <th class="px-4 py-2">Ethnicity (Officer)</th>
+                        <th class="px-4 py-2">Object of Search</th>
+                        <th class="px-4 py-2">Outcome</th>
+                        <th class="px-4 py-2">Datetime</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <ul id="pagination" class="pagination mt-4"></ul>
+        </div>
+
+        <!-- Pie Chart for Gender Distribution -->
+        <div class="chart-container">
+            <canvas id="pieChart"></canvas>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const apiUrl = 'https://data.police.uk/api/stops-force?force=avon-and-somerset&date=2024-01';
+        let stopsData = [];
+
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                stopsData = data.map(item => ({
+                    ...item,
+                    datetime: item.datetime || "Not Reported",
+                    legislation: item.legislation || "Not Reported",
+                    age_range: item.age_range || "Not Reported",
+                    self_defined_ethnicity: item.self_defined_ethnicity || "Not Reported",
+                    officer_defined_ethnicity: item.officer_defined_ethnicity || "Not Reported",
+                    object_of_search: item.object_of_search || "Not Reported",
+                    outcome: item.outcome || "Not Reported"
+                }));
+
+                updateLineChart(data);
+                updateGrid(data);
+                updatePieChart(data);
+            });
+
+        function updateLineChart(data) {
+            const ctx = document.getElementById('lineChart').getContext('2d');
+            const dateCounts = data.reduce((acc, curr) => {
+                const date = curr.datetime.split('T')[0];
+                acc[date] = (acc[date] || 0) + 1;
+                return acc;
+            }, {});
+            const lineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(dateCounts),
+                    datasets: [{
+                        label: 'Stops and Searches',
+                        data: Object.values(dateCounts),
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: { responsive: true }
+            });
+        }
+
+        function updateGrid(data) {
+            const tbody = document.querySelector('#stopsTable tbody');
+            const genderFilter = document.getElementById('genderFilter');
+            const pagination = document.getElementById('pagination');
+            let currentPage = 1;
+            const itemsPerPage = 8;
+
+            function displayItems(items) {
+                tbody.innerHTML = '';
+                const start = (currentPage - 1) * itemsPerPage;
+                const end = start + itemsPerPage;
+                items.slice(start, end).forEach(item => {
+                    const row = `<tr>
+                        <td>${item.legislation}</td>
+                        <td>${item.age_range}</td>
+                        <td>${item.type}</td>
+                        <td>${item.self_defined_ethnicity}</td>
+                        <td>${item.officer_defined_ethnicity}</td>
+                        <td>${item.object_of_search}</td>
+                        <td>${item.outcome}</td>
+                        <td>${item.datetime}</td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                });
+
+                if (items.length > itemsPerPage) {
+                    pagination.style.display = 'block';
+                    const pageCount = Math.ceil(items.length / itemsPerPage);
+                    pagination.innerHTML = '';
+                    for(let i = 1; i <= pageCount; i++) {
+                        const li = document.createElement('li');
+                        li.textContent = i;
+                        li.onclick = () => { currentPage = i; displayItems(items); };
+                        if(i === currentPage) li.classList.add('active');
+                        pagination.appendChild(li);
+                    }
+                } else {
+                    pagination.style.display = 'none';
+                }
+            }
+
+            genderFilter.onchange = function() {
+                const filter = this.value === 'all' ? '' : this.value;
+                const filteredData = filter ? data.filter(item => item.gender === filter) : data;
+                displayItems(filteredData);
+            };
+
+            genderFilter.onchange(); // Initial display
+        }
+
+        function updatePieChart(data) {
+            const ctx = document.getElementById('pieChart').getContext('2d');
+            const genderCount = data.reduce((acc, curr) => {
+                acc[curr.gender] = (acc[curr.gender] || 0) + 1;
+                return acc;
+            }, {});
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(genderCount),
+                    datasets: [{
+                        data: Object.values(genderCount),
+                        backgroundColor: ['#FF6384', '#36A2EB'],
+                    }]
+                },
+                options: { responsive: true }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

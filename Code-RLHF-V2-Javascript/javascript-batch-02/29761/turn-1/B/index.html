@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Avon and Somerset Stops and Searches</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+    <style>
+        body { padding: 20px; }
+        #filterDropdown { margin-bottom: 20px; }
+        .chart-container { width: 100%; height: 300px; margin-bottom: 20px; }
+        .pagination { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1 class="title">Stops and Searches in Avon and Somerset</h1>
+    <div id="filterDropdown">
+        <div class="select">
+            <select id="genderFilter">
+                <option value="">All Genders</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+            </select>
+        </div>
+    </div>
+    <div class="chart-container" id="lineChart"></div>
+    <div id="grid"></div>
+    <div class="chart-container" id="pieChart"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+    $(document).ready(function() {
+        const apiUrl = 'https://data.police.uk/api/stops-force?force=avon-and-somerset&date=2024-01';
+
+        // Fetch data
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                let stopsByDate = {};
+                let genderCount = { 'Male': 0, 'Female': 0 };
+                data.forEach(stop => {
+                    const date = new Date(stop.datetime).toISOString().split('T')[0];
+                    stopsByDate[date] = (stopsByDate[date] || 0) + 1;
+                    genderCount[stop.gender] = (genderCount[stop.gender] || 0) + 1;
+                });
+
+                // Line Chart
+                new Chart(document.getElementById('lineChart'), {
+                    type: 'line',
+                    data: {
+                        labels: Object.keys(stopsByDate),
+                        datasets: [{
+                            label: 'Stops and Searches',
+                            data: Object.values(stopsByDate),
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            fill: false
+                        }]
+                    }
+                });
+
+                // Function to render grid
+                function renderGrid(items) {
+                    $('#grid').html(items.map(item => `
+                        <div class="box">
+                            <p><strong>Legislation:</strong> ${item.legislation || 'Not Reported'}</p>
+                            <p><strong>Age Range:</strong> ${item.age_range || 'Not Reported'}</p>
+                            <p><strong>Type:</strong> ${item.type}</p>
+                            <p><strong>Ethnicity (Self-Defined):</strong> ${item.self_defined_ethnicity || 'Not Reported'}</p>
+                            <p><strong>Ethnicity (Officer-Defined):</strong> ${item.officer_defined_ethnicity || 'Not Reported'}</p>
+                            <p><strong>Object of Search:</strong> ${item.object_of_search || 'Not Reported'}</p>
+                            <p><strong>Outcome:</strong> ${item.outcome || 'Not Reported'}</p>
+                            <p><strong>Date/Time:</strong> ${item.datetime || 'Not Reported'}</p>
+                        </div>
+                    `).join(''));
+                }
+
+                // Initial render
+                renderGrid(data);
+
+                // Pie Chart for Gender
+                new Chart(document.getElementById('pieChart'), {
+                    type: 'pie',
+                    data: {
+                        labels: ['Male', 'Female'],
+                        datasets: [{
+                            data: [genderCount['Male'], genderCount['Female']],
+                            backgroundColor: ['#36A2EB', '#FF6384']
+                        }]
+                    }
+                });
+
+                // Filter functionality
+                $('#genderFilter').on('change', function() {
+                    const filterGender = this.value;
+                    const filteredData = filterGender ? data.filter(item => item.gender === filterGender) : data;
+                    renderGrid(filteredData);
+                });
+            });
+    });
+    </script>
+</body>
+</html>
