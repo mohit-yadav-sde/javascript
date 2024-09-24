@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scryfall Card Collection</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+        margin: 20px 0;
+    }
+    .card-item {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    .card-item:hover {
+        transform: scale(1.05);
+    }
+    .card-img {
+        width: 100%;
+        height: auto;
+    }
+    .pagination-container {
+        display: flex;
+        justify-content: center;
+        margin-top: 20px;
+    }
+    .modal-content {
+        background-color: #fefefe;
+        margin: auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%;
+    }
+    .close {
+        color: #aaaaaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+    }
+    .close:hover,
+    .close:focus {
+        color: #000;
+        text-decoration: none;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div id="cardGrid" class="card-grid"></div>
+    <div class="pagination-container">
+        <button id="prevPage" class="btn btn-secondary">Previous</button>
+        <button id="nextPage" class="btn btn-secondary">Next</button>
+    </div>
+</div>
+
+<div id="cardModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modalCardName"></h2>
+        <img id="modalCardImage" class="img-fluid mb-3">
+        <div><strong>Release Date:</strong> <span id="modalReleaseDate"></span></div>
+        <div><strong>Type:</strong> <span id="modalType"></span></div>
+        <div><strong>Mana Cost:</strong> <span id="modalManaCost"></span></div>
+        <div><strong>Oracle Text:</strong> <p id="modalOracleText"></p></div>
+        <div><strong>Power/Toughness:</strong> <span id="modalPowerToughness"></span></div>
+        <div><strong>Games:</strong> <span id="modalGames"></span></div>
+        <div><strong>Set:</strong> <span id="modalSetName"></span></div>
+        <div><strong>Artist:</strong> <span id="modalArtist"></span></div>
+        <div><strong>Price (USD):</strong> <span id="modalPrice"></span></div>
+        <canvas id="legalitiesChart" width="200" height="200"></canvas>
+        <div><a id="modalPurchaseLink" href="#" target="_blank">Purchase</a></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+    let currentPage = 1;
+    const itemsPerPage = 8;
+    let cards = [];
+
+    const modal = document.getElementById('cardModal');
+    const span = document.getElementsByClassName("close")[0];
+
+    span.onclick = function() {
+        modal.style.display = "none";
+    }
+
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+
+    function fetchCards() {
+        fetch('https://api.scryfall.com/cards/collection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                "identifiers": [
+                    {"id": "683a5707-cddb-494d-9b41-51b4584ded69"},
+                    {"name": "Ancient Tomb"},
+                    {"set": "mrd", "collector_number": "150"}
+                ]
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            cards = data.data || [];
+            displayCards();
+        });
+    }
+
+    function displayCards() {
+        const grid = document.getElementById('cardGrid');
+        grid.innerHTML = '';
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const pageCards = cards.slice(startIndex, endIndex);
+
+        pageCards.forEach(card => {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'card-item';
+            cardDiv.innerHTML = `
+                <img src="${card.image_uris.normal}" alt="${card.name}" class="card-img">
+                <div>${card.name}</div>
+                <button class="btn btn-info btn-sm" onclick="showDetails('${card.id}')">See Details</button>
+            `;
+            grid.appendChild(cardDiv);
+        });
+
+        updatePagination();
+    }
+
+    function showDetails(cardId) {
+        const card = cards.find(c => c.id === cardId);
+        if (card) {
+            document.getElementById('modalCardName').textContent = card.name;
+            document.getElementById('modalCardImage').src = card.image_uris.normal;
+            document.getElementById('modalReleaseDate').textContent = card.released_at;
+            document.getElementById('modalType').textContent = card.object;
+            document.getElementById('modalManaCost').textContent = card.mana_cost;
+            document.getElementById('modalOracleText').textContent = card.oracle_text;
+            document.getElementById('modalPowerToughness').textContent = `${card.power}/${card.toughness}`;
+            document.getElementById('modalGames').textContent = card.games.join(', ');
+            document.getElementById('modalSetName').textContent = `${card.set_name} - ${card.set_type}`;
+            document.getElementById('modalArtist').textContent = card.artist;
+            document.getElementById('modalPrice').textContent = card.prices.usd;
+            document.getElementById('modalPurchaseLink').href = card.purchase_uris.tcgplayer;
+
+            const legalities = Object.entries(card.legalities).map(([format, status]) => ({format, status}));
+            const legalData = legalities.filter(l => l.status !== 'not_legal').length;
+            const notLegalData = legalities.length - legalData;
+
+            new Chart(document.getElementById('legalitiesChart'), {
+                type: 'pie',
+                data: {
+                    labels: ['Legal', 'Not Legal'],
+                    datasets: [{
+                        data: [legalData, notLegalData],
+                        backgroundColor: ['green', 'red']
+                    }]
+                }
+            });
+
+            modal.style.display = "block";
+        }
+    }
+
+    function updatePagination() {
+        document.getElementById('prevPage').disabled = currentPage === 1;
+        document.getElementById('nextPage').disabled = currentPage * itemsPerPage >= cards.length;
+    }
+
+    document.getElementById('nextPage').onclick = () => {
+        if ((currentPage * itemsPerPage) < cards.length) {
+            currentPage++;
+            displayCards();
+        }
+    };
+
+    document.getElementById('prevPage').onclick = () => {
+        if (currentPage > 1) {
+            currentPage--;
+            displayCards();
+        }
+    };
+
+    fetchCards();
+});
+</script>
+</body>
+</html>

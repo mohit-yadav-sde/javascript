@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scryfall Card Viewer</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+        .card-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: transform .2s;
+        }
+        .card-item:hover {
+            transform: scale(1.05);
+        }
+        .card-image {
+            width: 100%;
+            height: auto;
+        }
+        .modal-content {
+            background: #f4f4f4;
+        }
+        .pagination {
+            justify-content: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="cardGrid" class="card-grid"></div>
+<div class="pagination"></div>
+
+<div class="modal fade" id="cardModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalCardName"></h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <img id="modalCardImage" class="img-fluid mb-3">
+        <p><strong>Type:</strong> <span id="modalObjectType"></span></p>
+        <p><strong>Released:</strong> <span id="modalReleaseDate"></span></p>
+        <p><strong>Mana Cost:</strong> <span id="modalManaCost"></span></p>
+        <p><strong>Type Line:</strong> <span id="modalTypeLine"></span></p>
+        <p><strong>Oracle Text:</strong> <span id="modalOracleText"></span></p>
+        <div id="legalityChart" style="width: 200px; height: 200px;"></div>
+        <!-- Additional details can be added here -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cardGrid = document.getElementById('cardGrid');
+    const paginationDiv = document.querySelector('.pagination');
+    let currentPage = 1;
+    const itemsPerPage = 8;
+
+    function fetchCards() {
+        fetch('https://api.scryfall.com/cards/collection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                "identifiers": [
+                    {"id": "683a5707-cddb-494d-9b41-51b4584ded69"},
+                    {"name": "Ancient Tomb"},
+                    {"set": "mrd", "collector_number": "150"}
+                ]
+            })
+        })
+        .then(response => response.json())
+        .then(data => displayCards(data.data));
+    }
+
+    function displayCards(cards) {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedCards = cards.slice(startIndex, endIndex);
+
+        cardGrid.innerHTML = '';
+        paginatedCards.forEach(card => {
+            const div = document.createElement('div');
+            div.className = 'card-item';
+            div.innerHTML = `
+                <img src="${card.image_uris.normal}" alt="${card.name}" class="card-image">
+                <div>${card.name}</div>
+                <button class="btn btn-info" onclick="showModal('${card.id}')">See Details</button>
+            `;
+            cardGrid.appendChild(div);
+        });
+
+        updatePagination(cards.length);
+    }
+
+    function updatePagination(totalItems) {
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        let paginationHtml = '';
+        for(let i = 1; i <= totalPages; i++) {
+            paginationHtml += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#" onclick="changePage(${i})">${i}</a></li>`;
+        }
+        paginationDiv.innerHTML = `<ul class="pagination">${paginationHtml}</ul>`;
+    }
+
+    function changePage(page) {
+        currentPage = page;
+        fetchCards();
+    }
+
+    function showModal(cardId) {
+        // Here you would fetch detailed card data or use the data if already fetched
+        // For simplicity, assuming we have all data in initial fetch
+        $('#cardModal').modal('show');
+        // Populate modal with card data and chart
+    }
+
+    fetchCards();
+});
+</script>
+
+</body>
+</html>
