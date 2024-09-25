@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leicestershire Crime Data</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #f4f4f9; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .form-group, .charts, .table-container { margin: 20px 0; }
+        select { padding: 10px; margin-right: 10px; }
+        button { padding: 10px 20px; background-color: #5cb85c; border: none; color: white; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        tr:hover { background-color: #f5f5f5; }
+        .pagination { text-align: center; padding: 10px; }
+        .pagination button { margin: 0 5px; }
+        .chart-container { width: 100%; height: 300px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="form-group">
+        <select id="year">
+            <option value="2023">2023</option>
+            <option value="2024">2024</option>
+        </select>
+        <select id="month">
+            <option value="01">January</option>
+            <!-- Add all months here -->
+            <option value="09">September</option>
+        </select>
+        <button onclick="fetchData()">Fetch Data</button>
+    </div>
+    
+    <div class="charts">
+        <div class="chart-container"><canvas id="lineChart"></canvas></div>
+        <div class="chart-container"><canvas id="pieChart"></canvas></div>
+    </div>
+
+    <div class="table-container">
+        <table id="crimeTable"></table>
+        <div class="pagination" id="pagination"></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let crimes = [];
+    const itemsPerPage = 8;
+    let currentPage = 1;
+
+    function fetchData() {
+        const year = document.getElementById('year').value;
+        const month = document.getElementById('month').value;
+        fetch(`https://data.police.uk/api/crimes-no-location?category=all-crime&force=leicestershire&date=${year}-${month}`)
+            .then(response => response.json())
+            .then(data => {
+                crimes = data.map(crime => ({
+                    ...crime,
+                    outcome_status: crime.outcome_status || { category: "Not Reported", date: "Not Reported" }
+                }));
+                updateCharts();
+                updateTable();
+            });
+    }
+
+    function updateCharts() {
+        const ctxLine = document.getElementById('lineChart').getContext('2d');
+        const categories = [...new Set(crimes.map(crime => crime.category))];
+        const lineData = categories.map(cat => crimes.filter(c => c.category === cat).length);
+
+        new Chart(ctxLine, {
+            type: 'line',
+            data: {
+                labels: categories,
+                datasets: [{
+                    label: 'Crimes by Category',
+                    data: lineData,
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    fill: false
+                }]
+            },
+            options: { responsive: true }
+        });
+
+        // Pie chart data for bicycle theft vs burglary
+        const ctxPie = document.getElementById('pieChart').getContext('2d');
+        const pieData = [
+            crimes.filter(c => c.category === 'bicycle-theft').length,
+            crimes.filter(c => c.category === 'burglary').length
+        ];
+
+        new Chart(ctxPie, {
+            type: 'pie',
+            data: {
+                labels: ['Bicycle Theft', 'Burglary'],
+                datasets: [{
+                    data: pieData,
+                    backgroundColor: ['#FF6384', '#36A2EB']
+                }]
+            }
+        });
+    }
+
+    function updateTable(page = 1) {
+        const table = document.getElementById('crimeTable');
+        table.innerHTML = ''; // Clear table
+        const start = (page - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        const paginatedItems = crimes.slice(start, end);
+
+        // Create table header
+        let header = table.createTHead();
+        let row = header.insertRow();
+        ['Category', 'Location', 'Location Type', 'Context', 'Outcome Category', 'Outcome Date'].forEach(title => {
+            let th = document.createElement("th");
+            th.appendChild(document.createTextNode(title));
+            row.appendChild(th);
+        });
+
+        // Populate table
+        let body = table.createTBody();
+        paginatedItems.forEach(crime => {
+            let row = body.insertRow();
+            ['category', 'location', 'location_type', 'context', 'outcome_status.category', 'outcome_status.date'].forEach(field => {
+                let cell = row.insertCell();
+                cell.textContent = crime[field] || "Not Reported";
+            });
+        });
+
+        // Update pagination
+        const totalPages = Math.ceil(crimes.length / itemsPerPage);
+        if (totalPages > 1) {
+            document.getElementById('pagination').innerHTML = 
+                `<button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Prev</button>` +
+                `<span>Page ${currentPage} of ${totalPages}</span>` +
+                `<button onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>`;
+        } else {
+            document.getElementById('pagination').innerHTML = '';
+        }
+    }
+
+    function changePage(page) {
+        if (page < 1 || page > Math.ceil(crimes.length / itemsPerPage)) return;
+        currentPage = page;
+        updateTable(currentPage);
+    }
+</script>
+
+</body>
+</html>
