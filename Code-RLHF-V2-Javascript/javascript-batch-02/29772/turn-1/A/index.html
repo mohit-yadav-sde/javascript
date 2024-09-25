@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Player Stats Widget</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #f4f4f4; }
+        .widget-container { background: white; padding: 20px; margin: 20px auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 1000px; }
+        select, button { margin: 10px 0; }
+        .table { margin-top: 20px; }
+        .table th { background-color: #1E90FF; color: white; }
+        .modal-content { border: none; border-radius: 10px; }
+        .modal-header { background-color: #1E90FF; color: white; }
+        .pagination { justify-content: center; }
+        #draftYearChart { margin-top: 30px; }
+    </style>
+</head>
+<body>
+
+<div class="container widget-container">
+    <h2 class="text-center">NBA Player Stats</h2>
+    <div class="form-group">
+        <select id="option1" class="form-control">
+            <option value="height">Height</option>
+            <!-- Other options would be added similarly -->
+        </select>
+        <!-- Add three more selects here -->
+        <button onclick="displayStats()" class="btn btn-primary">Display</button>
+    </div>
+    <table class="table table-striped" id="playerTable">
+        <!-- Table will be populated here -->
+    </table>
+    <ul class="pagination" id="pagination"></ul>
+    
+    <!-- Modal for Team Details -->
+    <div class="modal fade" id="teamModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <!-- Modal content will be dynamically filled -->
+            </div>
+        </div>
+    </div>
+
+    <canvas id="draftYearChart" width="400" height="200"></canvas>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
+<script>
+let playersData;
+const itemsPerPage = 8;
+
+// Fetch data from API
+fetch("https://api.balldontlie.io/v1/players?per_page=100", {
+    headers: {"Authorization": "e1634768-5d1f-4a48-9c51-881b824ab7a0"} // Replace 'KEY' with your actual key
+})
+.then(response => response.json())
+.then(data => {
+    playersData = data.data;
+    populateSelectOptions();
+    drawDraftYearChart();
+})
+.catch(error => console.error('Error:', error));
+
+function populateSelectOptions() {
+    const options = ["height", "jersey_number", "college", "draft_year", "draft_round", "draft_number", "name", "position"];
+    const selects = document.querySelectorAll('select');
+    selects.forEach(select => {
+        options.forEach(option => {
+            const opt = document.createElement('option');
+            opt.value = option;
+            opt.textContent = option.replace('_', ' ');
+            select.appendChild(opt);
+        });
+    });
+}
+
+function displayStats() {
+    const selectedOptions = Array.from(document.querySelectorAll('select')).map(sel => sel.value);
+    let tableHTML = '<tr><th>' + selectedOptions.join('</th><th>') + '</th><th>Team Details</th></tr>';
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedData = playersData.slice(startIndex, endIndex);
+    
+    paginatedData.forEach(player => {
+        tableHTML += `<tr>
+            ${selectedOptions.map(opt => `<td>${opt === 'name' ? player.first_name + ' ' + player.last_name : player[opt]}</td>`).join('')}
+            <td><button class="btn btn-info btn-sm" onclick="showTeamDetails(${player.team.id})">Show</button></td>
+        </tr>`;
+    });
+
+    document.getElementById('playerTable').innerHTML = tableHTML;
+    setupPagination();
+}
+
+let currentPage = 1;
+function setupPagination() {
+    const totalPages = Math.ceil(playersData.length / itemsPerPage);
+    let paginationHTML = '';
+    for(let i = 1; i <= totalPages; i++) {
+        paginationHTML += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#" onclick="changePage(${i})">${i}</a></li>`;
+    }
+    document.getElementById('pagination').innerHTML = totalPages > 1 ? paginationHTML : '';
+}
+
+function changePage(page) {
+    currentPage = page;
+    displayStats();
+}
+
+function showTeamDetails(teamId) {
+    // Assuming team data is available or fetched separately
+    // Here you would populate the modal with team details
+    $('#teamModal').modal('show');
+}
+
+function drawDraftYearChart() {
+    const draftYearCount = playersData.reduce((acc, player) => {
+        acc[player.draft_year] = (acc[player.draft_year] || 0) + 1;
+        return acc;
+    }, {});
+
+    new Chart(document.getElementById('draftYearChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: Object.keys(draftYearCount),
+            datasets: [{
+                label: 'Players Drafted',
+                data: Object.values(draftYearCount),
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{ticks: {beginAtZero: true}}]
+            }
+        }
+    });
+}
+</script>
+</body>
+</html>

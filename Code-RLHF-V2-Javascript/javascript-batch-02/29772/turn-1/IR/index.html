@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Player Stats Widget</title>
+    <!-- Include Tailwind CSS and Chart.js from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom styles */
+        body {
+            /* Gradient background for the page */
+            background-image: linear-gradient(to right, #4a00e0, #8e2de2);
+        }
+        .widget-container {
+            /* Limit widget height and add vertical scrolling if content overflows */
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .table-container {
+            /* Add horizontal scrolling for table on smaller screens */
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <!-- Main widget container -->
+    <div class="widget-container max-w-4xl w-full mx-auto bg-white rounded-lg shadow-2xl p-4 sm:p-6 md:p-8">
+        <!-- Widget title -->
+        <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 sm:mb-6 md:mb-8 text-center text-indigo-800">NBA Player Stats Widget</h1>
+        
+        <!-- Player History Section -->
+        <div id="playerHistory" class="mb-6 sm:mb-8 md:mb-12">
+            <h2 class="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6 text-indigo-600">Player History</h2>
+            <!-- Options grid for selecting player attributes -->
+            <div id="optionsContainer" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
+                <!-- Checkbox for Height -->
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" class="form-checkbox h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" value="height"> 
+                    <span class="ml-2 text-sm sm:text-base text-gray-700">Height</span>
+                </label>
+                <!-- Checkbox for Jersey Number -->
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" class="form-checkbox h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" value="jersey_number"> 
+                    <span class="ml-2 text-sm sm:text-base text-gray-700">Jersey Number</span>
+                </label>
+                <!-- Checkbox for College -->
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" class="form-checkbox h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" value="college"> 
+                    <span class="ml-2 text-sm sm:text-base text-gray-700">College</span>
+                </label>
+                <!-- Checkbox for Draft Year -->
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" class="form-checkbox h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" value="draft_year"> 
+                    <span class="ml-2 text-sm sm:text-base text-gray-700">Draft Year</span>
+                </label>
+                <!-- Checkbox for Draft Round -->
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" class="form-checkbox h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" value="draft_round"> 
+                    <span class="ml-2 text-sm sm:text-base text-gray-700">Draft Round</span>
+                </label>
+                <!-- Checkbox for Draft Number -->
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" class="form-checkbox h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" value="draft_number"> 
+                    <span class="ml-2 text-sm sm:text-base text-gray-700">Draft Number</span>
+                </label>
+                <!-- Checkbox for Name -->
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" class="form-checkbox h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" value="name"> 
+                    <span class="ml-2 text-sm sm:text-base text-gray-700">Name</span>
+                </label>
+                <!-- Checkbox for Position -->
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" class="form-checkbox h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" value="position"> 
+                    <span class="ml-2 text-sm sm:text-base text-gray-700">Position</span>
+                </label>
+            </div>
+            <!-- Display button -->
+            <button id="displayBtn" class="w-full bg-indigo-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold text-sm sm:text-lg hover:bg-indigo-700 transition duration-300">Display</button>
+        </div>
+        
+        <!-- Player Table Section (hidden by default) -->
+        <div id="playerTable" class="mb-6 sm:mb-8 md:mb-12 hidden">
+            <div class="table-container">
+                <table class="w-full border-collapse">
+                    <thead>
+                        <!-- Table header row -->
+                        <tr id="tableHeader" class="bg-indigo-100"></tr>
+                    </thead>
+                    <!-- Table body -->
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+            <!-- Pagination container -->
+            <div id="pagination" class="mt-4 sm:mt-6 flex flex-wrap justify-center"></div>
+        </div>
+        
+        <!-- Chart Container -->
+        <div id="chartContainer" class="mb-4 sm:mb-6 md:mb-8">
+            <canvas id="draftYearChart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Modal for Team Details (hidden by default) -->
+    <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white p-4 sm:p-6 md:p-8 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <!-- Modal title -->
+            <h2 id="modalTitle" class="text-xl sm:text-2xl font-semibold mb-2 sm:mb-4 text-indigo-800"></h2>
+            <!-- Modal content -->
+            <div id="modalContent" class="text-gray-700"></div>
+            <!-- Close modal button -->
+            <button id="closeModal" class="mt-4 sm:mt-6 bg-red-500 text-white px-3 sm:px-4 py-1 sm:py-2 rounded hover:bg-red-600 transition duration-300">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // API key for authentication
+        const apiKey = 'e1634768-5d1f-4a48-9c51-881b824ab7a0';
+        
+        // Global variables
+        let allPlayers = [];
+        let currentPage = 1;
+        const playersPerPage = 8;
+
+        // Fetch players data from the API
+        async function fetchPlayers() {
+            const myHeaders = new Headers();
+            myHeaders.append("Authorization", apiKey);
+
+            const requestOptions = {
+                method: "GET",
+                headers: myHeaders,
+                redirect: "follow"
+            };
+
+            try {
+                const response = await fetch("https://api.balldontlie.io/v1/players?per_page=100", requestOptions);
+                const result = await response.json();
+                allPlayers = result.data;
+                createDraftYearChart();
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        // Display player table based on selected options
+        function displayPlayerTable() {
+            const selectedOptions = Array.from(document.querySelectorAll('#optionsContainer input:checked'))
+                .map(input => input.value);
+
+            if (selectedOptions.length !== 4) {
+                alert('Please select exactly 4 options.');
+                return;
+            }
+
+            const tableHeader = document.getElementById('tableHeader');
+            const tableBody = document.getElementById('tableBody');
+            tableHeader.innerHTML = '';
+            tableBody.innerHTML = '';
+
+            // Create table header
+            selectedOptions.forEach(option => {
+                const th = document.createElement('th');
+                th.textContent = option.replace('_', ' ').toUpperCase();
+                th.className = 'border p-3 text-left text-indigo-800';
+                tableHeader.appendChild(th);
+            });
+
+            const thAction = document.createElement('th');
+            thAction.textContent = 'ACTION';
+            thAction.className = 'border p-3 text-left text-indigo-800';
+            tableHeader.appendChild(thAction);
+
+            // Create table rows
+            const startIndex = (currentPage - 1) * playersPerPage;
+            const endIndex = startIndex + playersPerPage;
+            const playersToShow = allPlayers.slice(startIndex, endIndex);
+
+            playersToShow.forEach(player => {
+                const tr = document.createElement('tr');
+                selectedOptions.forEach(option => {
+                    const td = document.createElement('td');
+                    if (option === 'name') {
+                        td.textContent = `${player.first_name} ${player.last_name}`;
+                    } else {
+                        td.textContent = player[option] || 'N/A';
+                    }
+                    td.className = 'border p-3';
+                    tr.appendChild(td);
+                });
+
+                const tdAction = document.createElement('td');
+                const actionBtn = document.createElement('button');
+                actionBtn.textContent = 'Team Details';
+                actionBtn.className = 'bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition duration-300';
+                actionBtn.onclick = () => displayTeamDetails(player.team);
+                tdAction.appendChild(actionBtn);
+                tdAction.className = 'border p-3';
+                tr.appendChild(tdAction);
+
+                tableBody.appendChild(tr);
+            });
+
+            document.getElementById('playerTable').classList.remove('hidden');
+            
+            // Only update pagination if there are more than 8 players
+            if (allPlayers.length > playersPerPage) {
+                updatePagination();
+            } else {
+                // Hide pagination if there are 8 or fewer players
+                document.getElementById('pagination').innerHTML = '';
+            }
+        }
+
+        // Update pagination buttons
+        function updatePagination() {
+            const paginationContainer = document.getElementById('pagination');
+            paginationContainer.innerHTML = '';
+
+            const totalPages = Math.ceil(allPlayers.length / playersPerPage);
+
+            // Only show pagination if there's more than one page
+            if (totalPages > 1) {
+                for (let i = 1; i <= totalPages; i++) {
+                    const pageBtn = document.createElement('button');
+                    pageBtn.textContent = i;
+                    pageBtn.className = `mx-1 px-4 py-2 rounded ${currentPage === i ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'} hover:bg-indigo-500 hover:text-white transition duration-300`;
+                    pageBtn.onclick = () => {
+                        currentPage = i;
+                        displayPlayerTable();
+                    };
+                    paginationContainer.appendChild(pageBtn);
+                }
+            }
+        }
+
+        // Display team details in modal
+        function displayTeamDetails(team) {
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+            modalTitle.textContent = team.full_name;
+
+            const teamDetails = [
+                { label: 'ID', value: team.id },
+                { label: 'Conference', value: team.conference },
+                { label: 'Division', value: team.division },
+                { label: 'City', value: team.city },
+                { label: 'Name', value: team.name },
+                { label: 'Full Name', value: team.full_name },
+                { label: 'Abbreviation', value: team.abbreviation }
+            ];
+
+            modalContent.innerHTML = teamDetails.map(detail => 
+                `<p class="mb-2"><strong class="text-indigo-600">${detail.label}:</strong> ${detail.value}</p>`
+            ).join('');
+
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        // Create draft year chart
+        function createDraftYearChart() {
+            const draftYears = allPlayers.map(player => player.draft_year).filter(year => year);
+            const yearCounts = draftYears.reduce((acc, year) => {
+                acc[year] = (acc[year] || 0) + 1;
+                return acc;
+            }, {});
+
+            const labels = Object.keys(yearCounts).sort();
+            const data = labels.map(year => yearCounts[year]);
+
+            const ctx = document.getElementById('draftYearChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Players Drafted',
+                        data: data,
+                        borderColor: 'rgb(79, 70, 229)',
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Number of Players Drafted by Year',
+                            font: {
+                                size: 18,
+                                weight: 'bold'
+                            },
+                            color: '#1e40af'
+                        },
+                        legend: {
+                            labels: {
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Players',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Draft Year',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Event listeners
+        document.getElementById('displayBtn').addEventListener('click', displayPlayerTable);
+        document.getElementById('closeModal').addEventListener('click', () => {
+            document.getElementById('modal').classList.add('hidden');
+        });
+
+        // Fetch players data on page load
+        fetchPlayers();
+    </script>
+</body>
+</html>
