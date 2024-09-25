@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NBA Season Widget</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+<style>
+    body { font-family: 'Arial', sans-serif; background: #f4f4f4; }
+    .widget-container { max-width: 1200px; margin: auto; background: white; padding: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    .chart-container { margin-bottom: 20px; }
+    .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+    .game-item { background: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 8px; transition: transform .2s; }
+    .game-item:hover { transform: translateY(-5px); }
+    .modal-content { background: #fff; border-radius: 10px; }
+    .btn-game-details { background-color: #1A5276; color: white; }
+    .btn-game-details:hover { background-color: #154360; }
+</style>
+</head>
+<body>
+
+<div class="widget-container">
+    <h2 class="text-center mb-4">NBA Season 2023</h2>
+    <div class="chart-container">
+        <canvas id="lineChart" width="400" height="200"></canvas>
+        <canvas id="pieChart" width="400" height="200"></canvas>
+    </div>
+    <div id="gameGrid" class="game-grid"></div>
+    <nav aria-label="Game pagination">
+        <ul class="pagination justify-content-center mt-3" id="pagination"></ul>
+    </nav>
+</div>
+
+<div class="modal fade" id="gameModal" tabindex="-1" aria-labelledby="gameModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <!-- Modal content will be dynamically filled -->
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const apiUrl = "https://api.balldontlie.io/v1/games?per_page=100&seasons[]=2023";
+const headers = new Headers();
+headers.append("Authorization", "e1634768-5d1f-4a48-9c51-881b824ab7a0"); // Replace "Key" with your actual API key
+
+let gamesData = [];
+let currentPage = 1;
+const itemsPerPage = 8;
+
+fetch(apiUrl, { headers })
+  .then(response => response.json())
+  .then(data => {
+    gamesData = data.data;
+    setupCharts(gamesData);
+    displayGames(1);
+  })
+  .catch(error => console.error('Error:', error));
+
+function setupCharts(data) {
+    const miamiGames = data.filter(game => game.home_team.full_name === "Miami Heat" || game.visitor_team.full_name === "Miami Heat");
+    const dates = miamiGames.map(game => new Date(game.date).toLocaleDateString());
+    const miamiScores = miamiGames.map(game => game.home_team.full_name === "Miami Heat" ? game.home_team_score : game.visitor_team_score);
+    const opponentScores = miamiGames.map(game => game.home_team.full_name !== "Miami Heat" ? game.home_team_score : game.visitor_team_score);
+
+    // Line Chart for Miami Heat
+    new Chart(document.getElementById('lineChart'), {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [{
+                label: 'Miami Heat Score',
+                data: miamiScores,
+                borderColor: 'rgb(249, 160, 27)',
+                fill: false
+            }, {
+                label: 'Opponent Score',
+                data: opponentScores,
+                borderColor: 'rgb(0, 0, 0)',
+                fill: false
+            }]
+        },
+        options: { responsive: true }
+    });
+
+    // Pie Chart for Home vs Visitor Wins
+    const homeWins = data.filter(game => game.home_team_score > game.visitor_team_score).length;
+    const visitorWins = data.length - homeWins;
+    new Chart(document.getElementById('pieChart'), {
+        type: 'pie',
+        data: {
+            labels: ['Home Wins', 'Visitor Wins'],
+            datasets: [{
+                data: [homeWins, visitorWins],
+                backgroundColor: ['#1A5276', '#E74C3C']
+            }]
+        },
+        options: { responsive: true }
+    });
+}
+
+function displayGames(page) {
+    const gameGrid = document.getElementById('gameGrid');
+    const start = (page - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const paginatedGames = gamesData.slice(start, end);
+
+    gameGrid.innerHTML = '';
+    paginatedGames.forEach(game => {
+        const gameItem = document.createElement('div');
+        gameItem.className = 'game-item';
+        gameItem.innerHTML = `
+            <h5>${game.date.slice(0, 10)}</h5>
+            <p>${game.home_team.full_name} vs ${game.visitor_team.full_name}</p>
+            <button class="btn btn-game-details" data-bs-toggle="modal" data-bs-target="#gameModal" onclick="showGameDetails(${game.id})">Game Details</button>
+        `;
+        gameGrid.appendChild(gameItem);
+    });
+
+    setupPagination(gamesData.length, page);
+}
+
+function showGameDetails(id) {
+    const game = gamesData.find(g => g.id === id);
+    const modalContent = document.querySelector('.modal-content');
+    modalContent.innerHTML = `
+        <div class="modal-header">
+            <h5 class="modal-title" id="gameModalLabel">${game.date.slice(0, 10)}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <h4>${game.home_team.full_name} vs ${game.visitor_team.full_name}</h4>
+            <div><strong>Home Team:</strong> ${game.home_team.full_name} (${game.home_team.abbreviation}), Score: ${game.home_team_score}</div>
+            <div><strong>Visitor Team:</strong> ${game.visitor_team.full_name} (${game.visitor_team.abbreviation}), Score: ${game.visitor_team_score}</div>
+        </div>
+    `;
+}
+
+function setupPagination(itemCount, currentPage) {
+    const pagination = document.getElementById('pagination');
+    pagination.innerHTML = '';
+    const pageCount = Math.ceil(itemCount / itemsPerPage);
+    if(pageCount > 1) {
+        for(let i = 1; i <= pageCount; i++) {
+            const li = document.createElement('li');
+            li.className = 'page-item' + (currentPage === i ? ' active' : '');
+            const link = document.createElement('a');
+            link.className = 'page-link';
+            link.href = '#';
+            link.textContent = i;
+            link.onclick = function() { displayGames(i); return false; };
+            li.appendChild(link);
+            pagination.appendChild(li);
+        }
+    }
+}
+</script>
+
+</body>
+</html>

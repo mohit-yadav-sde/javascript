@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NBA Season 2023 Widget</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/simple-modal/1.4.4/simple-modal.min.css">
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .widget {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .charts, .game-details { margin-bottom: 20px; }
+        .chart-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        .game-item {
+            background: #fff;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .pagination button {
+            margin: 0 5px;
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="widget">
+    <div class="charts">
+        <div class="chart-container"><canvas id="heatScoreChart"></canvas></div>
+        <div class="chart-container"><canvas id="homeAwayChart"></canvas></div>
+    </div>
+    <div class="game-details">
+        <div class="game-grid" id="gameGrid"></div>
+        <div class="pagination" id="pagination"></div>
+    </div>
+</div>
+
+<div id="gameModal" class="simple-modal" style="display:none;">
+    <div class="simple-modal-content"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/simple-modal/1.4.4/simple-modal.min.js"></script>
+<script>
+    const API_URL = "https://api.balldontlie.io/v1/games?per_page=100&seasons[]=2023";
+    const headers = new Headers({
+        "Authorization": "e1634768-5d1f-4a48-9c51-881b824ab7a0" // Replace with your actual key
+    });
+
+    async function fetchGames() {
+        try {
+            const response = await fetch(API_URL, { method: 'GET', headers: headers });
+            return await response.json();
+        } catch (error) {
+            console.error('Failed to fetch games:', error);
+        }
+    }
+
+    function setupCharts(games) {
+        const ctxHeat = document.getElementById('heatScoreChart').getContext('2d');
+        const ctxHomeAway = document.getElementById('homeAwayChart').getContext('2d');
+
+        // Prepare data for Miami Heat
+        let heatGames = games.filter(game => game.home_team.full_name === 'Miami Heat' || game.visitor_team.full_name === 'Miami Heat');
+        let heatLabels = heatGames.map(game => game.date.slice(0, 10));
+        let heatScores = heatGames.map(game => {
+            return game.home_team.full_name === 'Miami Heat' ? game.home_team_score : game.visitor_team_score;
+        });
+        let opponentScores = heatGames.map(game => {
+            return game.home_team.full_name === 'Miami Heat' ? game.visitor_team_score : game.home_team_score;
+        });
+
+        new Chart(ctxHeat, {
+            type: 'line',
+            data: {
+                labels: heatLabels,
+                datasets: [{
+                    label: 'Miami Heat Score',
+                    data: heatScores,
+                    borderColor: '#95001A',
+                    fill: false
+                }, {
+                    label: 'Opponent Score',
+                    data: opponentScores,
+                    borderColor: '#000000',
+                    fill: false
+                }]
+            },
+            options: { responsive: true }
+        });
+
+        // Prepare data for Home vs Away
+        let homeWins = games.filter(game => game.home_team_score > game.visitor_team_score).length;
+        let awayWins = games.length - homeWins;
+
+        new Chart(ctxHomeAway, {
+            type: 'pie',
+            data: {
+                labels: ['Home Wins', 'Away Wins'],
+                datasets: [{
+                    data: [homeWins, awayWins],
+                    backgroundColor: ['#007A33', '#BA0C2F']
+                }]
+            },
+            options: { responsive: true }
+        });
+    }
+
+    function displayGames(games, page = 1) {
+        const gameGrid = document.getElementById('gameGrid');
+        const start = (page - 1) * 8;
+        const end = start + 8;
+        const paginatedGames = games.slice(start, end);
+
+        gameGrid.innerHTML = '';
+        paginatedGames.forEach(game => {
+            const div = document.createElement('div');
+            div.className = 'game-item';
+            div.innerHTML = `<strong>${game.home_team.full_name}</strong> vs <strong>${game.visitor_team.full_name}</strong><br>Date: ${game.date.slice(0, 10)}`;
+            div.onclick = () => openModal(game);
+            gameGrid.appendChild(div);
+        });
+
+        setupPagination(games.length, page);
+    }
+
+    function setupPagination(totalItems, currentPage) {
+        const pagination = document.getElementById('pagination');
+        pagination.innerHTML = '';
+        if (totalItems > 8) {
+            for (let i = 1; i <= Math.ceil(totalItems / 8); i++) {
+                let button = document.createElement('button');
+                button.textContent = i;
+                button.onclick = () => displayGames(games, i);
+                if (i === currentPage) button.disabled = true;
+                pagination.appendChild(button);
+            }
+        }
+    }
+
+    function openModal(game) {
+        const modalContent = document.querySelector('.simple-modal-content');
+        modalContent.innerHTML = `
+            <h2>${game.date.slice(0, 10)}</h2>
+            <p><strong>${game.home_team.full_name}</strong> vs <strong>${game.visitor_team.full_name}</strong></p>
+            <div>
+                <h3>Home Team Details</h3>
+                <p>Name: ${game.home_team.full_name}</p>
+                <p>City: ${game.home_team.city}</p>
+                <p>Abbreviation: ${game.home_team.abbreviation}</p>
+                <p>Score: ${game.home_team_score}</p>
+            </div>
+            <div>
+                <h3>Visitor Team Details</h3>
+                <p>Name: ${game.visitor_team.full_name}</p>
+                <p>City: ${game.visitor_team.city}</p>
+                <p>Abbreviation: ${game.visitor_team.abbreviation}</p>
+                <p>Score: ${game.visitor_team_score}</p>
+            </div>
+        `;
+        new SimpleModal({element: '#gameModal'}).open();
+    }
+
+    // Execution
+    fetchGames().then(data => {
+        if (data.data) {
+            const games = data.data;
+            setupCharts(games);
+            displayGames(games);
+        }
+    });
+</script>
+
+</body>
+</html>
