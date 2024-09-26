@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MBTA Parking Details</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .pie-chart { width: 300px; height: 300px; margin: 20px auto; }
+        .nav-tabs .nav-link { color: #495057; }
+        .grid-item { border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .modal-body .map { height: 200px; }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <h2 class="text-center mb-4">MBTA Facilities Overview</h2>
+    
+    <!-- Section 1: Pie Charts -->
+    <div class="row">
+        <div class="col-md-6">
+            <canvas id="vendingMachineChart" class="pie-chart"></canvas>
+        </div>
+        <div class="col-md-6">
+            <canvas id="platformTypeChart" class="pie-chart"></canvas>
+        </div>
+    </div>
+
+    <!-- Section 2: Tabs -->
+    <ul class="nav nav-tabs mt-4" id="facilityTabs" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="vending-tab" data-toggle="tab" href="#vending" role="tab">Vending Machines</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="platform-tab" data-toggle="tab" href="#platform" role="tab">Platforms</a>
+        </li>
+    </ul>
+    <div class="tab-content" id="facilityTabsContent">
+        <div class="tab-pane fade show active" id="vending" role="tabpanel">
+            <input type="text" id="searchVending" class="form-control mt-2 mb-2" placeholder="Search by station name...">
+            <div id="vendingGrid"></div>
+        </div>
+        <div class="tab-pane fade" id="platform" role="tabpanel">
+            <div id="platformGrid"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Vending Machine Details -->
+<div class="modal fade" id="vendingModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title" id="vendingModalLabel">Vending Machine Details</h5></div>
+            <div class="modal-body" id="vendingModalBody"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Platform Details -->
+<div class="modal fade" id="platformModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title" id="platformModalLabel">Platform Details</h5></div>
+            <div class="modal-body" id="platformModalBody"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let facilities = [];
+
+    // Fetch data from MBTA API
+    fetch('https://api-v3.mbta.com/facilities')
+    .then(response => response.json())
+    .then(data => {
+        facilities = data.data;
+        console.log(data, facilities)
+        setupPieCharts();
+        setupGrids();
+    });
+
+    function setupPieCharts() {
+        let vendingMachineCount = facilities.filter(f => f.attributes.short_name.includes('7-Eleven')).length;
+        let totalVendingMachines = facilities.filter(f => f.attributes.type === 'BIKE_STORAGE' || f.attributes.type === 'VENDING_MACHINE').length;
+        let platformTypes = {};
+        facilities.forEach(f => {
+            if (f.attributes.type === 'PLATFORM') {
+                platformTypes[f.attributes.platform_type] = (platformTypes[f.attributes.platform_type] || 0) + 1;
+            }
+        });
+
+        new Chart(document.getElementById('vendingMachineChart'), {
+            type: 'pie',
+            data: {
+                labels: ['7-Eleven', 'Other'],
+                datasets: [{
+                    data: [vendingMachineCount, totalVendingMachines - vendingMachineCount],
+                    backgroundColor: ['#36A2EB', '#FF6384']
+                }]
+            }
+        });
+
+        new Chart(document.getElementById('platformTypeChart'), {
+            type: 'pie',
+            data: {
+                labels: Object.keys(platformTypes),
+                datasets: [{
+                    data: Object.values(platformTypes),
+                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+                }]
+            }
+        });
+    }
+
+    function setupGrids() {
+        console.log(facilities)
+        const vendingGrid = document.getElementById('vendingGrid');
+        const platformGrid = document.getElementById('platformGrid');
+        const searchInput = document.getElementById('searchVending');
+
+        function renderVendingMachines(filter = '') {
+            vendingGrid.innerHTML = '';
+            let filteredVending = facilities.filter(f => 
+                (f.attributes.type === 'VENDING_MACHINE' || f.attributes.type === 'BIKE_STORAGE') && 
+                f.attributes.long_name.toLowerCase().includes(filter.toLowerCase())
+            ).slice(0, 6).forEach((vm, index) => {
+                let div = document.createElement('div');
+                div.className = 'grid-item';
+                div.innerHTML = `
+                    <h6>${vm.attributes.long_name}</h6>
+                    <button class="btn btn-info btn-sm" onclick="showVendingDetails('${vm.id}')">See Details</button>
+                `;
+                vendingGrid.appendChild(div);
+            });
+            // Pagination logic can be added here if needed
+        }
+
+        function renderPlatforms() {
+            platformGrid.innerHTML = '';
+            facilities.filter(f => f.attributes.type === 'PLATFORM').slice(0, 6).forEach((p, index) => {
+                let div = document.createElement('div');
+                div.className = 'grid-item';
+                div.innerHTML = `
+                    <h6>${p.attributes.long_name}</h6>
+                    <button class="btn btn-info btn-sm" onclick="showPlatformDetails('${p.id}')">See Details</button>
+                `;
+                platformGrid.appendChild(div);
+            });
+        }
+
+        searchInput.oninput = function() { renderVendingMachines(this.value); };
+        renderVendingMachines();
+        renderPlatforms();
+    }
+
+    function showVendingDetails(id) {
+        const vm = facilities.find(f => f.id === id);
+        const modalBody = document.getElementById('vendingModalBody');
+        modalBody.innerHTML = `
+            <p><strong>Name:</strong> ${vm.attributes.long_name} (${vm.attributes.short_name})</p>
+            <p><strong>Address:</strong> ${vm.attributes.address}</p>
+            <p><strong>Contact:</strong> ${vm.attributes.contact_phone}</p>
+            <p><strong>Dispenses:</strong> ${vm.attributes.dispenses}</p>
+            <p><strong>Payments Accepted:</strong> ${vm.attributes.payment_form_accepted.join(', ')}</p>
+            ${vm.attributes.latitude && vm.attributes.longitude ? '<div class="map" id="map_${id}"></div>' : ''}
+        `;
+        if(vm.attributes.latitude && vm.attributes.longitude) {
+            const map = new google.maps.Map(document.getElementById(`map_${id}`), {
+                center: {lat: parseFloat(vm.attributes.latitude), lng: parseFloat(vm.attributes.longitude)},
+                zoom: 15
+            });
+            new google.maps.Marker({
+                position: {lat: parseFloat(vm.attributes.latitude), lng: parseFloat(vm.attributes.longitude)},
+                map: map,
+                title: vm.attributes.long_name
+            });
+        }
+        $('#vendingModal').modal('show');
+    }
+
+    function showPlatformDetails(id) {
+        const platform = facilities.find(f => f.id === id);
+        const modalBody = document.getElementById('platformModalBody');
+        modalBody.innerHTML = `
+            <p><strong>Name:</strong> ${platform.attributes.long_name} (${platform.attributes.short_name})</p>
+            <p><strong>Stops:</strong> ${platform.attributes.stops.map(s => s.name).join(', ')}</p>
+        `;
+        $('#platformModal').modal('show');
+    }
+});
+</script>
+
+</body>
+</html>

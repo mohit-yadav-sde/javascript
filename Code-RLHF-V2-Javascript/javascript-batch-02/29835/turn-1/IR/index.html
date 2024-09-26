@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MBTA Parking Details Widget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <style>
+        /* Custom styles */
+        .gradient-bg {
+            background: linear-gradient(135deg, #3B82F6, #2563EB);
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4">
+        <h1 class="text-4xl font-bold mb-8 text-center text-blue-600">MBTA Parking Details Widget</h1>
+        
+        <!-- Section 1: Pie Charts -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Vending Machines</h2>
+                <canvas id="vendingMachinesChart"></canvas>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Platform Types</h2>
+                <canvas id="platformTypesChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Section 2: Tabs -->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <div class="flex mb-6">
+                <button id="tab1Button" class="flex-1 px-6 py-3 bg-blue-500 text-white rounded-l-lg focus:outline-none transition duration-300 ease-in-out hover:bg-blue-600">Vending Machines</button>
+                <button id="tab2Button" class="flex-1 px-6 py-3 bg-gray-300 rounded-r-lg focus:outline-none transition duration-300 ease-in-out hover:bg-gray-400">Platforms</button>
+            </div>
+            
+            <!-- Tab 1: Vending Machines -->
+            <div id="tab1Content">
+                <input type="text" id="searchInput" placeholder="Search by station name" class="w-full p-3 mb-6 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div id="vendingMachinesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                <div id="vendingMachinesPagination" class="mt-8 text-center"></div>
+            </div>
+            
+            <!-- Tab 2: Platforms -->
+            <div id="tab2Content" class="hidden">
+                <div id="platformsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                <div id="platformsPagination" class="mt-8 text-center"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+        <div class="bg-white p-8 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <h2 id="modalTitle" class="text-3xl font-bold mb-6 text-blue-600"></h2>
+            <div id="modalContent"></div>
+            <div id="mapContainer" class="h-64 mt-6 hidden"></div>
+            <button id="closeModal" class="mt-6 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none transition duration-300 ease-in-out">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // API endpoint
+        const API_URL = 'https://api-v3.mbta.com/facilities';
+        
+        // Global variables
+        let allFacilities = [];
+        let currentPage = 1;
+        const itemsPerPage = 6;
+
+        // Fetch data from API
+        async function fetchData() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                allFacilities = data.data;
+                createCharts();
+                showTab1Content();
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        // Create pie charts
+        function createCharts() {
+            const vendingMachines = allFacilities.filter(f => f.attributes.type === 'FARE_VENDING_MACHINE');
+            const sevenElevenMachines = vendingMachines.filter(v => v.attributes.long_name.includes('7-Eleven'));
+            const platforms = allFacilities.filter(f => f.attributes.type.includes('PLATFORM'));
+
+            createPieChart('vendingMachinesChart', 'Vending Machines', [sevenElevenMachines.length, vendingMachines.length - sevenElevenMachines.length], ['7-Eleven', 'Other']);
+
+            const platformTypes = platforms.reduce((acc, p) => {
+                acc[p.attributes.type] = (acc[p.attributes.type] || 0) + 1;
+                return acc;
+            }, {});
+
+            createPieChart('platformTypesChart', 'Platform Types', Object.values(platformTypes), Object.keys(platformTypes));
+        }
+
+        // Create a pie chart
+        function createPieChart(id, label, data, labels) {
+            new Chart(document.getElementById(id), {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#6366F1']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                        title: {
+                            display: true,
+                            text: label,
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Tab functionality
+        document.getElementById('tab1Button').addEventListener('click', showTab1Content);
+        document.getElementById('tab2Button').addEventListener('click', showTab2Content);
+
+        function showTab1Content() {
+            document.getElementById('tab1Button').classList.add('bg-blue-500', 'text-white');
+            document.getElementById('tab1Button').classList.remove('bg-gray-300');
+            document.getElementById('tab2Button').classList.add('bg-gray-300');
+            document.getElementById('tab2Button').classList.remove('bg-blue-500', 'text-white');
+            document.getElementById('tab1Content').classList.remove('hidden');
+            document.getElementById('tab2Content').classList.add('hidden');
+            renderVendingMachines();
+        }
+
+        function showTab2Content() {
+            document.getElementById('tab2Button').classList.add('bg-blue-500', 'text-white');
+            document.getElementById('tab2Button').classList.remove('bg-gray-300');
+            document.getElementById('tab1Button').classList.add('bg-gray-300');
+            document.getElementById('tab1Button').classList.remove('bg-blue-500', 'text-white');
+            document.getElementById('tab2Content').classList.remove('hidden');
+            document.getElementById('tab1Content').classList.add('hidden');
+            renderPlatforms();
+        }
+
+        // Render vending machines
+        function renderVendingMachines() {
+            const vendingMachines = allFacilities.filter(f => f.attributes.type === 'FARE_VENDING_MACHINE');
+            const grid = document.getElementById('vendingMachinesGrid');
+            grid.innerHTML = '';
+
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filteredMachines = vendingMachines.filter(v => v.attributes.long_name.toLowerCase().includes(searchTerm));
+
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedMachines = filteredMachines.slice(startIndex, endIndex);
+
+            paginatedMachines.forEach(machine => {
+                const card = document.createElement('div');
+                card.className = 'bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 card-hover';
+                card.innerHTML = `
+                    <h3 class="font-bold text-xl text-blue-600 mb-3">${machine.attributes.long_name}</h3>
+                    <p class="text-gray-600 mb-2"><strong>Address:</strong> ${machine.attributes.address || 'N/A'}</p>
+                    <p class="text-gray-600 mb-2"><strong>Contact Phone:</strong> ${machine.attributes.contact_phone || 'N/A'}</p>
+                    <p class="text-gray-600 mb-4"><strong>Dispenses:</strong> ${machine.attributes.dispenses || 'N/A'}</p>
+                    <button class="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none transition duration-300 ease-in-out" onclick="showVendingMachineDetails('${machine.id}')">See Details</button>
+                `;
+                grid.appendChild(card);
+            });
+
+            renderPagination('vendingMachinesPagination', filteredMachines.length);
+        }
+
+        // Render platforms
+        function renderPlatforms() {
+            const platforms = allFacilities.filter(f => f.attributes.type.includes('PLATFORM'));
+            const grid = document.getElementById('platformsGrid');
+            grid.innerHTML = '';
+
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedPlatforms = platforms.slice(startIndex, endIndex);
+
+            paginatedPlatforms.forEach(platform => {
+                const card = document.createElement('div');
+                card.className = 'bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 card-hover';
+                card.innerHTML = `
+                    <h3 class="font-bold text-xl text-blue-600 mb-3">${platform.attributes.long_name}</h3>
+                    <p class="text-gray-600 mb-4"><strong>Type:</strong> ${platform.attributes.type}</p>
+                    <button class="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none transition duration-300 ease-in-out" onclick="showPlatformDetails('${platform.id}')">See Details</button>
+                `;
+                grid.appendChild(card);
+            });
+
+            renderPagination('platformsPagination', platforms.length);
+        }
+
+        // Render pagination
+        function renderPagination(elementId, totalItems) {
+            const paginationElement = document.getElementById(elementId);
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+            if (totalPages <= 1) {
+                paginationElement.innerHTML = '';
+                return;
+            }
+
+            let paginationHTML = `
+                <button class="mx-1 px-4 py-2 bg-blue-500 text-white rounded-lg disabled:opacity-50 transition duration-300 ease-in-out hover:bg-blue-600" onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
+                <span class="mx-2 text-lg">Page ${currentPage} of ${totalPages}</span>
+                <button class="mx-1 px-4 py-2 bg-blue-500 text-white rounded-lg disabled:opacity-50 transition duration-300 ease-in-out hover:bg-blue-600" onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+            `;
+            paginationElement.innerHTML = paginationHTML;
+        }
+
+        // Change page
+        function changePage(page) {
+            currentPage = page;
+            if (document.getElementById('tab1Content').classList.contains('hidden')) {
+                renderPlatforms();
+            } else {
+                renderVendingMachines();
+            }
+        }
+
+        // Show vending machine details
+        function showVendingMachineDetails(id) {
+            const machine = allFacilities.find(f => f.id === id);
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+            const mapContainer = document.getElementById('mapContainer');
+
+            modalTitle.textContent = machine.attributes.long_name;
+            
+            const paymentForms = machine.attributes.properties
+                .filter(prop => prop.name === 'payment-form-accepted')
+                .map(prop => prop.value);
+
+            modalContent.innerHTML = `
+                <p class="mb-3"><strong>Short Name:</strong> ${machine.attributes.short_name || 'N/A'}</p>
+                <p class="mb-3"><strong>Type:</strong> ${machine.attributes.type || 'N/A'}</p>
+                <p class="mb-3"><strong>Address:</strong> ${machine.attributes.address || 'N/A'}</p>
+                <p class="mb-3"><strong>Contact Phone:</strong> ${machine.attributes.contact_phone || 'N/A'}</p>
+                <p class="mb-3"><strong>Dispenses:</strong> ${machine.attributes.dispenses || 'N/A'}</p>
+                <p class="mb-3"><strong>Payment Forms Accepted:</strong></p>
+                <ul class="list-disc pl-5 mb-3">
+                    ${paymentForms.map(form => `<li>${form}</li>`).join('')}
+                </ul>
+            `;
+
+            // Check if latitude and longitude are present
+            if (machine.attributes.latitude && machine.attributes.longitude) {
+                mapContainer.classList.remove('hidden');
+                mapContainer.innerHTML = '<div id="map" class="h-full rounded-lg"></div>';
+                showModal();
+                
+                // Initialize the map after the modal is shown
+                setTimeout(() => {
+                    const map = L.map('map').setView([machine.attributes.latitude, machine.attributes.longitude], 15);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    }).addTo(map);
+                    L.marker([machine.attributes.latitude, machine.attributes.longitude])
+                        .addTo(map)
+                        .bindPopup(machine.attributes.long_name)
+                        .openPopup();
+                }, 100);
+            } else {
+                mapContainer.classList.add('hidden');
+                showModal();
+            }
+        }
+
+        // Show platform details
+        function showPlatformDetails(id) {
+            const platform = allFacilities.find(f => f.id === id);
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+            const mapContainer = document.getElementById('mapContainer');
+
+            modalTitle.textContent = platform.attributes.long_name;
+
+            const excludedStops = platform.attributes.properties
+                .filter(prop => prop.name === 'excludes-stop')
+                .map(prop => prop.value);
+
+            const note = platform.attributes.properties
+                .find(prop => prop.name === 'note')?.value || 'N/A';
+
+            modalContent.innerHTML = `
+                <p class="mb-3"><strong>Short Name:</strong> ${platform.attributes.short_name || 'N/A'}</p>
+                <p class="mb-3"><strong>Type:</strong> ${platform.attributes.type || 'N/A'}</p>
+                <p class="mb-3"><strong>Excluded Stops:</strong></p>
+                <ul class="list-disc pl-5 mb-3">
+                    ${excludedStops.map(stop => `<li>${stop}</li>`).join('')}
+                </ul>
+                <p class="mb-3"><strong>Note:</strong> ${note}</p>
+            `;
+
+            // Hide map for platforms
+            mapContainer.classList.add('hidden');
+            showModal();
+        }
+
+        // Modal functionality
+        function showModal() {
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+            document.body.style.overflow = 'hidden'; // Prevent scrolling when modal is open
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('modal').classList.remove('flex');
+            document.getElementById('mapContainer').innerHTML = ''; // Clear the map container
+            document.body.style.overflow = ''; // Restore scrolling
+        }
+
+        document.getElementById('closeModal').addEventListener('click', closeModal);
+
+        // Close modal when clicking outside the content
+        document.getElementById('modal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeModal();
+            }
+        });
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', () => {
+            currentPage = 1;
+            renderVendingMachines();
+        });
+
+        // Initialize the widget
+        fetchData();
+    </script>
+</body>
+</html>
