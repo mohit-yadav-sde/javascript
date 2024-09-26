@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MBTA Parking Details</title>
+    <!-- Load Tailwind CSS for utility classes -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Chart.js for creating charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Load Leaflet CSS and JS for maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <style>
+        /* Custom styles for enhanced visual appeal */
+        body {
+            background-color: #f0f4f8;
+            font-family: 'Arial', sans-serif;
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .chart-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        .chart-container:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        .facility-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        .facility-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+        }
+        .btn {
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-blue-50 p-8">
+    <div class="container mx-auto">
+        <!-- Main title -->
+        <h1 class="text-4xl font-bold mb-8 text-blue-800">MBTA Parking Details</h1>
+        
+        <!-- Charts section -->
+        <div class="mb-12">
+            <h2 class="text-2xl font-semibold mb-6 text-blue-700">Parking Statistics</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Operator Counts Chart -->
+                <div class="chart-container p-6">
+                    <h3 class="text-xl font-semibold mb-4 text-blue-600">Operator Counts</h3>
+                    <canvas id="operatorCountsChart"></canvas>
+                </div>
+                <!-- Top 10 Utilization Chart -->
+                <div class="chart-container p-6">
+                    <h3 class="text-xl font-semibold mb-4 text-blue-600">Top 10 Utilization</h3>
+                    <canvas id="utilizationChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Parking Facilities Grid -->
+        <div class="mb-12">
+            <h2 class="text-2xl font-semibold mb-6 text-blue-700">Parking Facilities</h2>
+            <div id="facilitiesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            <!-- Pagination controls -->
+            <div id="pagination" class="mt-8 flex justify-center items-center space-x-4"></div>
+        </div>
+    </div>
+
+    <!-- Modal for detailed facility information -->
+    <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center">
+        <div class="bg-white p-8 rounded-lg max-w-3xl w-full max-h-screen overflow-y-auto">
+            <h2 id="modalTitle" class="text-2xl font-semibold mb-6 text-blue-800"></h2>
+            <div id="modalContent" class="mb-6"></div>
+            <!-- Pie chart for capacity vs utilization -->
+            <div class="mb-6">
+                <h3 class="text-xl font-semibold mb-4 text-blue-700">Capacity vs Utilization</h3>
+                <div id="pieChartContainer">
+                    <canvas id="pieChart"></canvas>
+                </div>
+            </div>
+            <!-- Map for facility location -->
+            <div class="mb-6">
+                <h3 class="text-xl font-semibold mb-4 text-blue-700">Location</h3>
+                <div id="map" class="h-64 rounded-lg overflow-hidden"></div>
+            </div>
+            <button id="closeModal" class="btn bg-blue-500 hover:bg-blue-600 text-white font-semibold px-6 py-2 rounded">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // API URL for fetching facility data
+        const apiUrl = 'https://api-v3.mbta.com/facilities';
+        let facilities = [];
+        let currentPage = 1;
+        const itemsPerPage = 6;
+        let map = null; // Declare a variable to store the map instance
+        let pieChart = null; // Declare a variable to store the chart instance
+
+        // Fetch data from the API
+        async function fetchData() {
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                facilities = data.data.filter(facility => facility.attributes.type === 'PARKING_AREA');
+                createCharts();
+                updateGrid();
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        // Helper function to get property value from facility attributes
+        function getPropertyValue(facility, propertyName) {
+            const property = facility.attributes.properties.find(prop => prop.name === propertyName);
+            return property ? property.value : null;
+        }
+
+        // Create charts for parking statistics
+        function createCharts() {
+            createOperatorCountsChart();
+            createUtilizationChart();
+        }
+
+        // Create operator counts chart
+        function createOperatorCountsChart() {
+            const operatorCounts = {};
+            facilities.forEach(facility => {
+                const operator = getPropertyValue(facility, 'operator') || 'Unknown';
+                operatorCounts[operator] = (operatorCounts[operator] || 0) + 1;
+            });
+
+            const ctx = document.getElementById('operatorCountsChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(operatorCounts),
+                    datasets: [{
+                        label: 'Operator Counts',
+                        data: Object.values(operatorCounts),
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Operator Counts of Parking Spaces'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Create utilization chart
+        function createUtilizationChart() {
+            const utilizationData = facilities
+                .filter(facility => getPropertyValue(facility, 'weekday-typical-utilization'))
+                .sort((a, b) => getPropertyValue(b, 'weekday-typical-utilization') - getPropertyValue(a, 'weekday-typical-utilization'))
+                .slice(0, 10);
+
+            const ctx = document.getElementById('utilizationChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: utilizationData.map(facility => facility.attributes.long_name),
+                    datasets: [{
+                        label: 'Weekday Typical Utilization',
+                        data: utilizationData.map(facility => getPropertyValue(facility, 'weekday-typical-utilization')),
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Top 10 Weekday Typical Utilization'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update the facilities grid
+        function updateGrid() {
+            const grid = document.getElementById('facilitiesGrid');
+            grid.innerHTML = '';
+
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageItems = facilities.slice(startIndex, endIndex);
+
+            pageItems.forEach(facility => {
+                const item = document.createElement('div');
+                item.className = 'facility-card p-6';
+                item.innerHTML = `
+                    <h3 class="text-lg font-semibold mb-4 text-blue-700">${facility.attributes.long_name}</h3>
+                    <p class="mb-2"><strong class="text-blue-600">Operator:</strong> ${getPropertyValue(facility, 'operator') || 'N/A'}</p>
+                    <p class="mb-2"><strong class="text-blue-600">Attended:</strong> ${getPropertyValue(facility, 'attended') === '1' ? 'Yes' : 'No'}</p>
+                    <p class="mb-2"><strong class="text-blue-600">Capacity:</strong> ${getPropertyValue(facility, 'capacity') || 'N/A'}</p>
+                    <p class="mb-2"><strong class="text-blue-600">Contact Phone:</strong> ${getPropertyValue(facility, 'contact-phone') || 'N/A'}</p>
+                    <p class="mb-2"><strong class="text-blue-600">Contact URL:</strong> ${getPropertyValue(facility, 'contact-url') ? `<a href="${getPropertyValue(facility, 'contact-url')}" target="_blank" class="text-blue-500 hover:underline">Link</a>` : 'N/A'}</p>
+                    <p class="mb-4"><strong class="text-blue-600">Municipality:</strong> ${getPropertyValue(facility, 'municipality') || 'N/A'}</p>
+                    <button class="btn bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded" onclick="showModal('${facility.id}')">See Details</button>
+                `;
+                grid.appendChild(item);
+            });
+
+            updatePagination();
+        }
+
+        // Update pagination controls
+        function updatePagination() {
+            const paginationContainer = document.getElementById('pagination');
+            paginationContainer.innerHTML = '';
+
+            const totalPages = Math.ceil(facilities.length / itemsPerPage);
+
+            // Previous button
+            const prevButton = document.createElement('button');
+            prevButton.innerText = 'Previous';
+            prevButton.className = `btn px-4 py-2 rounded ${currentPage === 1 ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}`;
+            prevButton.onclick = () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    updateGrid();
+                }
+            };
+            paginationContainer.appendChild(prevButton);
+
+            // Page indicator
+            const pageIndicator = document.createElement('span');
+            pageIndicator.innerText = `Page ${currentPage} of ${totalPages}`;
+            pageIndicator.className = 'text-blue-600 font-semibold';
+            paginationContainer.appendChild(pageIndicator);
+
+            // Next button
+            const nextButton = document.createElement('button');
+            nextButton.innerText = 'Next';
+            nextButton.className = `btn px-4 py-2 rounded ${currentPage === totalPages ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}`;
+            nextButton.onclick = () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    updateGrid();
+                }
+            };
+            paginationContainer.appendChild(nextButton);
+        }
+
+        // Show modal with detailed facility information
+        function showModal(facilityId) {
+            const facility = facilities.find(f => f.id === facilityId);
+            const modal = document.getElementById('modal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+
+            modalTitle.textContent = facility.attributes.long_name;
+            modalContent.innerHTML = `
+                <p class="mb-2"><strong class="text-blue-600">Operator:</strong> ${getPropertyValue(facility, 'operator') || 'N/A'}</p>
+                <p class="mb-2"><strong class="text-blue-600">Attended:</strong> ${getPropertyValue(facility, 'attended') === '1' ? 'Yes' : 'No'}</p>
+                <p class="mb-2"><strong class="text-blue-600">Capacity:</strong> ${getPropertyValue(facility, 'capacity') || 'N/A'}</p>
+                <p class="mb-2"><strong class="text-blue-600">Contact Phone:</strong> ${getPropertyValue(facility, 'contact-phone') || 'N/A'}</p>
+                <p class="mb-2"><strong class="text-blue-600">Contact URL:</strong> ${getPropertyValue(facility, 'contact-url') ? `<a href="${getPropertyValue(facility, 'contact-url')}" target="_blank" class="text-blue-500 hover:underline">Link</a>` : 'N/A'}</p>
+                <p class="mb-2"><strong class="text-blue-600">Municipality:</strong> ${getPropertyValue(facility, 'municipality') || 'N/A'}</p>
+                <p class="mb-2"><strong class="text-blue-600">Daily Fee:</strong> ${getPropertyValue(facility, 'fee-daily') || 'N/A'}</p>
+                <p class="mb-2"><strong class="text-blue-600">Monthly Fee:</strong> ${getPropertyValue(facility, 'fee-monthly') || 'N/A'}</p>
+                <p class="mb-2"><strong class="text-blue-600">Payment App:</strong> ${getPropertyValue(facility, 'payment-app') || 'N/A'}</p>
+                <p class="mb-2"><strong class="text-blue-600">Payment App Link:</strong> ${getPropertyValue(facility, 'payment-app-url') ? `<a href="${getPropertyValue(facility, 'payment-app-url')}" target="_blank" class="text-blue-500 hover:underline">Link</a>` : 'N/A'}</p>
+                <p class="mb-2"><strong class="text-blue-600">Weekday Typical Utilization:</strong> ${getPropertyValue(facility, 'weekday-typical-utilization') || 'N/A'}</p>
+            `;
+
+            // Clear the pie chart container
+            document.getElementById('pieChartContainer').innerHTML = '<canvas id="pieChart"></canvas>';
+
+            // Clear the map container
+            document.getElementById('map').innerHTML = '';
+
+            createPieChart(facility);
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            // Create the map after the modal is visible
+            setTimeout(() => {
+                createMap(facility);
+            }, 100);
+        }
+
+        // Create pie chart for capacity vs utilization
+        function createPieChart(facility) {
+            const ctx = document.getElementById('pieChart').getContext('2d');
+            const capacity = parseInt(getPropertyValue(facility, 'capacity')) || 0;
+            const utilization = parseInt(getPropertyValue(facility, 'weekday-typical-utilization')) || 0;
+
+                // If a chart already exists, destroy it
+            if (pieChart) {
+                pieChart.destroy();
+            }
+
+            // Create a new chart
+            pieChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Capacity', 'Weekday Typical Utilization'],
+                    datasets: [{
+                        data: [capacity, utilization],
+                        backgroundColor: ['rgb(255, 99, 132)', 'rgb(54, 162, 235)']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Capacity vs Weekday Typical Utilization'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Create map showing facility location
+        function createMap(facility) {
+            const mapContainer = document.getElementById('map');
+            mapContainer.innerHTML = '';
+
+            const latitude = facility.attributes.latitude;
+            const longitude = facility.attributes.longitude;
+
+            if (!latitude || !longitude) {
+                mapContainer.innerHTML = '<p>No location data available</p>';
+                return;
+            }
+
+            // If a map already exists, remove it and its event listeners
+            if (map) {
+                map.remove();
+            }
+
+            // Create a new map instance
+            map = L.map(mapContainer).setView([latitude, longitude], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            L.marker([latitude, longitude])
+                .addTo(map)
+                .bindPopup(facility.attributes.long_name)
+                .openPopup();
+            
+            // Force a resize of the map after a short delay
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 100);
+        }
+
+        // Close modal when close button is clicked
+        document.getElementById('closeModal').addEventListener('click', () => {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('modal').classList.remove('flex');
+        });
+
+        // Initialize the application by fetching data
+        fetchData();
+    </script>
+</body>
+</html>

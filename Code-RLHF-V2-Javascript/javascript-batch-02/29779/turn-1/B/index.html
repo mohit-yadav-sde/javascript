@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MBTA Parking Details</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .chart-container { width: 100%; max-width: 600px; margin: 20px auto; }
+        .grid-item { margin: 10px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .modal-body .pie-chart { width: 300px; height: 300px; margin: 0 auto; }
+        #map { height: 300px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Line Charts Section -->
+    <div id="charts" class="chart-container"></div>
+
+    <!-- Grid Section -->
+    <div id="parkingGrid"></div>
+
+    <!-- Modal for Details -->
+    <div class="modal fade" id="detailsModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Parking Details</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                      <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <!-- Content will be dynamically inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const apiUrl = 'https://api-v3.mbta.com/facilities?filter[type]=parking_lot';
+
+    async function fetchData() {
+        const response = await fetch(apiUrl);
+        return await response.json();
+    }
+
+    function setupCharts(data) {
+        const operators = {}, utilization = {};
+        data.data.forEach(item => {
+            operators[item.attributes.operator] = (operators[item.attributes.operator] || 0) + 1;
+            if (item.attributes.weekday_typical_utilization) {
+                utilization[item.attributes.long_name] = item.attributes.weekday_typical_utilization;
+            }
+        });
+
+        // Chart 1: Operator Counts
+        new Chart(document.getElementById('charts').appendChild(document.createElement('canvas')), {
+            type: 'bar',
+            data: {
+                labels: Object.keys(operators),
+                datasets: [{
+                    label: 'Number of Parking Spaces by Operator',
+                    data: Object.values(operators),
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            }
+        });
+
+        // Chart 2: Top 10 Weekday Utilization
+        const sortedUtilization = Object.entries(utilization).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        new Chart(document.getElementById('charts').appendChild(document.createElement('canvas')), {
+            type: 'line',
+            data: {
+                labels: sortedUtilization.map(i => i[0]),
+                datasets: [{
+                    label: 'Top 10 Weekday Utilization',
+                    data: sortedUtilization.map(i => i[1]),
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    fill: false
+                }]
+            }
+        });
+    }
+
+    function displayGrid(data) {
+        const grid = document.getElementById('parkingGrid');
+        data.data.forEach(facility => {
+            const div = document.createElement('div');
+            div.className = 'grid-item';
+            div.innerHTML = `
+                <h5>Name: ${facility.attributes.long_name}</h5>
+                <p>Operator: ${facility.attributes.operator}</p>
+                <p>Attended: ${facility.attributes.attended ? 'Yes' : 'No'}</p>
+                <p>Capacity: ${facility.attributes.capacity}</p>
+                <button class="btn btn-primary" onclick="showDetails('${facility.id}')">See Details</button>
+            `;
+            grid.appendChild(div);
+        });
+    }
+
+    function showDetails(id) {
+        fetchData().then(data => {
+            const facility = data.data.find(f => f.id === id);
+            const modalBody = document.querySelector('.modal-body');
+            modalBody.innerHTML = `
+                <p>Name: ${facility.attributes.long_name}</p>
+                <p>Operator: ${facility.attributes.operator}</p>
+                <p>Capacity: ${facility.attributes.capacity}</p>
+                <div class="pie-chart"></div>
+                <div id="map"></div>
+                <!-- Add other details similarly -->
+            `;
+
+            // Setup Pie Chart
+            new Chart(modalBody.querySelector('.pie-chart'), {
+                type: 'pie',
+                data: {
+                    labels: ['Capacity', 'Utilized'],
+                    datasets: [{
+                        data: [facility.attributes.capacity, facility.attributes.weekday_typical_utilization],
+                        backgroundColor: ['#FF6384', '#36A2EB']
+                    }]
+                }
+            });
+
+            // Setup Map
+            const map = L.map('map').setView([facility.attributes.latitude, facility.attributes.longitude], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            L.marker([facility.attributes.latitude, facility.attributes.longitude]).addTo(map)
+                .bindPopup(facility.attributes.long_name).openPopup();
+
+            $('#detailsModal').modal('show');
+        });
+    }
+
+    // Initialization
+    fetchData().then(data => {
+        setupCharts(data);
+        displayGrid(data);
+    });
+</script>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

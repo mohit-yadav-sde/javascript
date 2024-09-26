@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MBTA Parking Details</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .chart-container { width: 100%; max-width: 800px; margin: 20px auto; }
+        .grid-item { margin-bottom: 20px; }
+        .modal-body .map { height: 300px; }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <h2 class="text-center mb-4">MBTA Parking Overview</h2>
+
+    <!-- Line Charts Section -->
+    <div class="row chart-container">
+        <div class="col-md-6">
+            <canvas id="operatorChart"></canvas>
+        </div>
+        <div class="col-md-6">
+            <canvas id="utilizationChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Parking Grid Section -->
+    <div id="parkingGrid" class="mt-5"></div>
+
+    <!-- Modal for Details -->
+    <div class="modal fade" id="detailsModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Parking Details</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-label="Close">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <!-- Details will be populated here -->
+                    <div id="modalDetails"></div>
+                    <canvas id="pieChart" width="200" height="200"></canvas>
+                    <div id="map" class="map"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+    let facilities = [];
+
+    // Fetch data from MBTA API
+    fetch('https://api-v3.mbta.com/facilities?filter[type]=parking_area')
+    .then(response => response.json())
+    .then(data => {
+        facilities = data.data;
+        setupCharts();
+        displayGrid(facilities);
+    });
+
+    function setupCharts() {
+        // Setup Operator Count Chart
+        const operatorCount = facilities.reduce((acc, facility) => {
+            acc[facility.attributes.operator] = (acc[facility.attributes.operator] || 0) + 1;
+            return acc;
+        }, {});
+        new Chart(document.getElementById('operatorChart'), {
+            type: 'line',
+            data: {
+                labels: Object.keys(operatorCount),
+                datasets: [{
+                    label: 'Parking Spaces by Operator',
+                    data: Object.values(operatorCount),
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            }
+        });
+
+        // Setup Utilization Chart
+        const topUtilization = facilities.sort((a, b) => b.attributes.weekday_typical_utilization - a.attributes.weekday_typical_utilization).slice(0, 10);
+        new Chart(document.getElementById('utilizationChart'), {
+            type: 'line',
+            data: {
+                labels: topUtilization.map(f => f.attributes.long_name),
+                datasets: [{
+                    label: 'Top 10 Weekday Utilization',
+                    data: topUtilization.map(f => f.attributes.weekday_typical_utilization),
+                    borderColor: 'rgb(255, 99, 132)',
+                    tension: 0.1
+                }]
+            }
+        });
+    }
+
+    function displayGrid(items, page = 1) {
+        const itemsPerPage = 6;
+        const start = (page - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        const paginatedItems = items.slice(start, end);
+
+        let gridHtml = '<div class="row">';
+        paginatedItems.forEach(item => {
+            gridHtml += `
+            <div class="col-md-4 grid-item">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">${item.attributes.long_name}</h5>
+                        <p><strong>Operator:</strong> ${item.attributes.operator}</p>
+                        <p><strong>Capacity:</strong> ${item.attributes.capacity}</p>
+                        <button class="btn btn-info" onclick="showDetails('${item.id}')">See Details</button>
+                    </div>
+                </div>
+            </div>`;
+        });
+        gridHtml += '</div>';
+
+        // Pagination
+        if (items.length > itemsPerPage) {
+            gridHtml += '<nav><ul class="pagination">';
+            for (let i = 1; i <= Math.ceil(items.length / itemsPerPage); i++) {
+                gridHtml += `<li class="page-item ${i === page ? 'active' : ''}"><a class="page-link" href="#" onclick="displayGrid(facilities, ${i})">${i}</a></li>`;
+            }
+            gridHtml += '</ul></nav>';
+        }
+
+        document.getElementById('parkingGrid').innerHTML = gridHtml;
+    }
+
+    function showDetails(id) {
+        const facility = facilities.find(f => f.id === id);
+        document.getElementById('modalDetails').innerHTML = `
+            <p><strong>Name:</strong> ${facility.attributes.long_name}</p>
+            <p><strong>Operator:</strong> ${facility.attributes.operator}</p>
+            <p><strong>Attended:</strong> ${facility.attributes.attended ? 'Yes' : 'No'}</p>
+            <p><strong>Capacity:</strong> ${facility.attributes.capacity}</p>
+            <p><strong>Contact:</strong> ${facility.attributes.contact_phone || 'N/A'}</p>
+            <p><strong>URL:</strong> ${facility.attributes.contact_url ? `<a href="${facility.attributes.contact_url}">Link</a>` : 'N/A'}</p>
+            <p><strong>Municipality:</strong> ${facility.attributes.municipality}</p>
+            <p><strong>Daily Fee:</strong> ${facility.attributes.daily_fee || 'N/A'}</p>
+            <p><strong>Monthly Fee:</strong> ${facility.attributes.monthly_fee || 'N/A'}</p>
+            <p><strong>Payment App:</strong> ${facility.attributes.payment_app || 'N/A'}</p>
+            <p><strong>Weekday Utilization:</strong> ${facility.attributes.weekday_typical_utilization}</p>
+        `;
+
+        // Pie Chart for Utilization
+        new Chart(document.getElementById('pieChart'), {
+            type: 'pie',
+            data: {
+                labels: ['Utilized', 'Available'],
+                datasets: [{
+                    data: [facility.attributes.weekday_typical_utilization, facility.attributes.capacity - facility.attributes.weekday_typical_utilization],
+                    backgroundColor: ['#FF6384', '#36A2EB']
+                }]
+            }
+        });
+
+        // Map
+        const mapDiv = document.getElementById('map');
+        if (mapDiv._leaflet_id) {
+            mapDiv._leaflet_id = null;
+        }
+        const map = L.map('map').setView([facility.attributes.latitude, facility.attributes.longitude], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        L.marker([facility.attributes.latitude, facility.attributes.longitude]).addTo(map)
+            .bindPopup(facility.attributes.long_name);
+
+        $('#detailsModal').modal('show');
+    }
+});
+</script>
+</body>
+</html>
