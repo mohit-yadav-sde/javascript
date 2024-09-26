@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Open Charge Map Widget</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet"/>
+    <style>
+        .grid-item {
+            margin: 10px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .modal-body .grid-item {
+            border: none;
+        }
+        #map {
+            height: 300px;
+            width: 100%;
+        }
+        .pagination {
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-4">
+    <div id="chargingStations"></div>
+    <ul class="pagination" id="pagination"></ul>
+    
+    <div class="my-4">
+        <canvas id="myChart" width="400" height="100"></canvas>
+    </div>
+</div>
+
+<div class="modal fade" id="detailsModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Station Details</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" id="modalContent"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const apiKey = '20f7d754-6c2d-49e1-b654-2e1863ae4d7c'; // Replace with your actual API key
+    const fetchUrl = "https://api.openchargemap.io/v3/poi";
+
+    function fetchData(page = 1) {
+        const headers = new Headers({'X-API-Key': apiKey});
+        fetch(`${fetchUrl}?limit=4&page=${page}`, {headers})
+        .then(response => response.json())
+        .then(data => {
+            displayGrid(data);
+            setupPagination(data.length, page);
+            updateChart(data);
+        });
+    }
+
+    function displayGrid(items) {
+        let gridHtml = items.map(item => `
+            <div class="col-md-6 grid-item">
+                <h5>${item.OperatorInfo.Title}</h5>
+                <p><a href="${item.OperatorInfo.WebsiteURL}" target="_blank">Visit Website</a></p>
+                <p>Usage: ${item.UsageType.Title}</p>
+                <p>Status: ${item.StatusType.Title}</p>
+                <button class="btn btn-info" onclick="showDetails(${item.ID})">See Details</button>
+            </div>
+        `).join('');
+        $('#chargingStations').html(gridHtml);
+    }
+
+    function showDetails(id) {
+        // Fetch details for the specific ID and display in modal
+        // This is a simplified version; you'll need to actually fetch detailed data
+        $('#detailsModal').modal('show');
+        $('#modalContent').html('Loading...');
+        // Here fetch and display detailed data including map
+    }
+
+    function setupPagination(itemCount, currentPage) {
+        if(itemCount < 4) return $('#pagination').hide();
+        $('#pagination').show();
+        // Setup your pagination logic here
+    }
+
+    function updateChart(data) {
+        // Parse data to count stations by continent for the chart
+        let continentCount = {};
+        data.forEach(item => {
+            let continent = item.AddressInfo.Country.ContinentCode;
+            continentCount[continent] = (continentCount[continent] || 0) + 1;
+        });
+        new Chart(document.getElementById('myChart'), {
+            type: 'line',
+            data: {
+                labels: Object.keys(continentCount),
+                datasets: [{
+                    label: 'Number of Charging Stations',
+                    data: Object.values(continentCount),
+                    fill: false,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            }
+        });
+    }
+
+    $(document).ready(function() {
+        fetchData();
+    });
+</script>
+
+</body>
+</html>

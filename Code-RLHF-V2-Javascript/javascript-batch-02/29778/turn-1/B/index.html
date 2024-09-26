@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open Charge Map Widget</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+    .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+    .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; }
+    .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    #map { height: 200px; width: 100%; }
+    #chartContainer { margin-top: 20px; }
+    .pagination { text-align: center; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<div id="chargingStations" class="grid"></div>
+<div class="pagination" id="pagination"></div>
+
+<div id="stationModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modalTitle"></h2>
+        <div id="modalDetails"></div>
+        <div id="map"></div>
+    </div>
+</div>
+
+<div id="chartContainer">
+    <canvas id="stationChart"></canvas>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const itemsPerPage = 4;
+    let currentPage = 1;
+    let stationsData = [];
+
+    function fetchStations(page) {
+        const myHeaders = new Headers();
+        myHeaders.append("X-API-Key", "20f7d754-6c2d-49e1-b654-2e1863ae4d7c");
+        const requestOptions = {
+            method: 'GET',
+            headers: myHeaders,
+            redirect: 'follow'
+        };
+        
+        fetch(`https://api.openchargemap.io/v3/poi/?output=json&maxresults=${itemsPerPage}&includecomments=true&page=${page-1}`, requestOptions)
+        .then(response => response.json())
+        .then(data => {
+            stationsData = data;
+            displayStations(data);
+            updatePagination(data.length);
+            updateChart(data);
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    function displayStations(data) {
+        const grid = document.getElementById('chargingStations');
+        grid.innerHTML = '';
+        data.forEach(station => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+                <h3>${station.OperatorInfo.Title}</h3>
+                <p>Usage: ${station.UsageType.Title}</p>
+                <p>Status: ${station.StatusType.Title}</p>
+                <button onclick="openModal(${station.ID})">See Details</button>`;
+            grid.appendChild(card);
+        });
+    }
+
+    function updatePagination(itemCount) {
+        const pagination = document.getElementById('pagination');
+        if(itemCount < itemsPerPage) {
+            pagination.style.display = 'none';
+        } else {
+            pagination.style.display = 'block';
+            pagination.innerHTML = `
+                <button onclick="changePage(-1)">Previous</button>
+                <span>Page ${currentPage}</span>
+                <button onclick="changePage(1)">Next</button>`;
+        }
+    }
+
+    function changePage(direction) {
+        currentPage += direction;
+        fetchStations(currentPage);
+    }
+
+    function openModal(id) {
+        const station = stationsData.find(s => s.ID === id);
+        if(station) {
+            document.getElementById('stationModal').style.display = 'block';
+            document.getElementById('modalTitle').innerText = station.OperatorInfo.Title;
+            document.getElementById('modalDetails').innerHTML = `
+                <p>Website: <a href="${station.OperatorInfo.WebsiteURL}" target="_blank">${station.OperatorInfo.WebsiteURL}</a></p>
+                <p>Usage Type: ${station.UsageType.Title}</p>
+                <p>Status: ${station.StatusType.Title}</p>
+                <p>Submission Status: ${station.SubmissionStatus.Title}</p>
+                <p>Verified: ${station.IsRecentlyVerified ? 'Yes' : 'No'}</p>
+                <p>Last Updated: ${station.DateLastStatusUpdate}</p>
+                <p>Address: ${station.AddressInfo.Title}, ${station.AddressInfo.AddressLine1}, ${station.AddressInfo.Town}, ${station.AddressInfo.StateOrProvince}, ${station.AddressInfo.Postcode}, ${station.AddressInfo.Country.Title}</p>
+                <h4>Connections:</h4>
+                <ul>${station.Connections.map(con => `<li>${con.ConnectionType.Title}: ${con.Level.Title} (${con.PowerKW}kW, ${con.CurrentType.Title})</li>`).join('')}</ul>`;
+            
+            const map = L.map('map').setView([station.AddressInfo.Latitude, station.AddressInfo.Longitude], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+            L.marker([station.AddressInfo.Latitude, station.AddressInfo.Longitude]).addTo(map)
+                .bindPopup(station.OperatorInfo.Title).openPopup();
+        }
+    }
+
+    document.querySelector('.close').onclick = function() {
+        document.getElementById('stationModal').style.display = 'none';
+    };
+
+    function updateChart(data) {
+        const continents = {};
+        data.forEach(station => {
+            const continent = station.AddressInfo.Country.ContinentCode;
+            continents[continent] = (continents[continent] || 0) + 1;
+        });
+
+        const ctx = document.getElementById('stationChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Object.keys(continents),
+                datasets: [{
+                    label: 'Number of Charging Stations',
+                    data: Object.values(continents),
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    fetchStations(currentPage);
+});
+</script>
+
+</body>
+</html>
