@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MBTA Train Lines</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .chart-container, .line-details { margin: 20px; }
+        .modal-body .color-strip { height: 20px; margin-bottom: 10px; }
+        .grid-container { margin-top: 20px; }
+        .grid-item { border: 1px solid #ddd; padding: 10px; margin: 5px; }
+        .pagination { justify-content: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>MBTA Train Lines Overview</h2>
+    
+    <!-- Line Chart -->
+    <div class="chart-container">
+        <canvas id="lineChart"></canvas>
+    </div>
+
+    <!-- Search and Grid -->
+    <div class="line-details">
+        <input type="text" id="searchLine" placeholder="Search for a line..." class="form-control mb-3">
+        <div class="grid-container" id="lineGrid"></div>
+        <div id="pagination" class="pagination"></div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Line Details</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/simplePagination.js/1.6/jquery.simplePagination.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let linesData;
+    const ctx = document.getElementById('lineChart').getContext('2d');
+
+    // Fetch data from API
+    fetch('https://api-v3.mbta.com/lines')
+    .then(response => response.json())
+    .then(data => {
+        linesData = data.data;
+        setupLineChart(data.data);
+        setupGrid(data.data);
+    });
+
+    function setupLineChart(data) {
+        const colors = {};
+        data.forEach(line => {
+            const color = line.attributes.color;
+            colors[color] = (colors[color] || 0) + 1;
+        });
+
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Object.keys(colors),
+                datasets: [{
+                    label: 'Number of Lines',
+                    data: Object.values(colors),
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    yAxes: [{ticks: {beginAtZero: true}}]
+                },
+                tooltips: {
+                    callbacks: {
+                        label: function(tooltipItem, data) {
+                            let label = data.labels[tooltipItem.index] || '';
+                            let names = linesData.filter(l => l.attributes.color === label).map(l => l.attributes.long_name).join(', ');
+                            return `Color: ${label}, Lines: ${names}`;
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function setupGrid(data) {
+        const grid = document.getElementById('lineGrid');
+        const searchInput = document.getElementById('searchLine');
+        const paginationDiv = document.getElementById('pagination');
+
+        function displayLines(lines, page = 1) {
+            const itemsPerPage = 6;
+            const start = (page - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            grid.innerHTML = '';
+            lines.slice(start, end).forEach(line => {
+                const item = document.createElement('div');
+                item.className = 'grid-item';
+                item.innerHTML = `
+                    <h5>Name: ${line.attributes.long_name}</h5>
+                    <p>Color: <span style="color: #${line.attributes.color}">&#9632;</span> ${line.attributes.color}</p>
+                    <button class="btn btn-info btn-sm see-details" data-id="${line.id}">See Details</button>
+                `;
+                grid.appendChild(item);
+            });
+
+            // Setup pagination
+            if (lines.length > itemsPerPage) {
+                paginationDiv.style.display = 'block';
+                $('#pagination').pagination({
+                    items: lines.length,
+                    itemsOnPage: itemsPerPage,
+                    currentPage: page,
+                    onPageClick: function(pageNumber) {
+                        displayLines(lines, pageNumber);
+                    }
+                });
+            } else {
+                paginationDiv.style.display = 'none';
+            }
+        }
+
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredLines = data.filter(line => line.attributes.long_name.toLowerCase().includes(searchTerm));
+            displayLines(filteredLines);
+        });
+
+        grid.addEventListener('click', function(e) {
+            if (e.target.classList.contains('see-details')) {
+                const lineId = e.target.getAttribute('data-id');
+                const line = data.find(l => l.id === lineId);
+                showModal(line);
+            }
+        });
+
+        displayLines(data);
+    }
+
+    function showModal(line) {
+        const modalBody = document.querySelector('.modal-body');
+        modalBody.innerHTML = `
+            <div class="color-strip" style="background-color: #${line.attributes.color};"></div>
+            <h5>${line.attributes.long_name}</h5>
+            <p>Sort Order: ${line.attributes.sort_order}</p>
+            <h6>Lines with same color:</h6>
+            <ul>${linesData.filter(l => l.attributes.color === line.attributes.color).map(l => `<li>${l.attributes.long_name}</li>`).join('')}</ul>
+            <canvas id="pieChart" width="200" height="200"></canvas>
+        `;
+
+        const pieCtx = document.getElementById('pieChart').getContext('2d');
+        new Chart(pieCtx, {
+            type: 'pie',
+            data: {
+                labels: ['This Color', 'Other Colors'],
+                datasets: [{
+                    data: [
+                        linesData.filter(l => l.attributes.color === line.attributes.color).length,
+                        linesData.length - linesData.filter(l => l.attributes.color === line.attributes.color).length
+                    ],
+                    backgroundColor: ['#'+line.attributes.color, '#e0e0e0']
+                }]
+            },
+            options: {
+                tooltips: {
+                    callbacks: {
+                        label: function(tooltipItem, data) {
+                            let dataset = data.datasets[tooltipItem.datasetIndex];
+                            let total = dataset.data.reduce((acc, current) => acc + current, 0);
+                            let currentValue = dataset.data[tooltipItem.index];
+                            let percentage = ((currentValue/total) * 100).toFixed(2) + '%';
+                            return percentage;
+                        }
+                    }
+                }
+            }
+        });
+
+        $('#detailsModal').modal('show');
+    }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MBTA Train Lines</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .line-color {
+            width: 100%;
+            height: 5px;
+            margin: 5px 0;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+        }
+        .grid-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <h2 class="text-center">MBTA Train Lines Overview</h2>
+    <div class="chart-container">
+        <canvas id="lineChart"></canvas>
+    </div>
+    
+    <div class="mt-4">
+        <input type="text" id="searchLine" class="form-control mb-3" placeholder="Search for a line...">
+        <div id="linesGrid"></div>
+        <nav id="pagination" aria-label="Page navigation"></nav>
+    </div>
+</div>
+
+<div class="modal fade" id="lineModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalLineName"></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="modalColorLine" class="line-color"></div>
+                <h6>Lines with same color:</h6>
+                <ul id="sameColorLines"></ul>
+                <canvas id="pieChart" width="300" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
+
+<script>
+    $(document).ready(function() {
+        let linesData = [];
+        const ctx = document.getElementById('lineChart').getContext('2d');
+        const pieCtx = document.getElementById('pieChart').getContext('2d');
+
+        // Fetch data from MBTA API
+        $.getJSON('https://api-v3.mbta.com/lines', function(data) {
+            linesData = data.data;
+            renderLineChart();
+            renderGrid(linesData);
+        });
+
+        function renderLineChart() {
+            const colors = linesData.map(line => line.attributes.color);
+            const colorCount = colors.reduce((acc, color) => {
+                acc[color] = (acc[color] || 0) + 1;
+                return acc;
+            }, {});
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(colorCount),
+                    datasets: [{
+                        label: 'Count of Lines by Color',
+                        data: Object.values(colorCount),
+                        borderColor: Object.keys(colorCount),
+                        fill: false
+                    }]
+                },
+                options: {
+                    scales: {
+                        yAxes: [{ticks: {beginAtZero: true}}]
+                    },
+                    tooltips: {
+                        callbacks: {
+                            label: function(tooltipItem, data) {
+                                let label = data.datasets[tooltipItem.datasetIndex].label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                label += tooltipItem.yLabel;
+                                return label;
+                            },
+                            afterLabel: function(tooltipItem, data) {
+                                const color = data.datasets[tooltipItem.datasetIndex].borderColor[tooltipItem.index];
+                                return linesData.filter(line => line.attributes.color === color).map(line => line.attributes.long_name);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderGrid(data) {
+            let filteredData = data;
+            
+            $('#searchLine').on('input', function() {
+                const searchTerm = $(this).val().toLowerCase();
+                filteredData = data.filter(line => 
+                    line.attributes.long_name.toLowerCase().includes(searchTerm)
+                );
+                renderGrid(filteredData);
+            });
+
+            const itemsPerPage = 6;
+            let currentPage = 1;
+
+            function displayPage(page) {
+                const start = (page - 1) * itemsPerPage;
+                const end = start + itemsPerPage;
+                $('#linesGrid').html(
+                    filteredData.slice(start, end).map(line => `
+                        <div class="col-md-4 grid-item">
+                            <h5>Name: ${line.attributes.long_name}</h5>
+                            <p>Color: <span style="background-color: #${line.attributes.color};">&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
+                            <button class="btn btn-info see-details" data-id="${line.id}">See Details</button>
+                        </div>
+                    `).join('')
+                );
+                
+                $('.see-details').click(function() {
+                    const lineId = $(this).data('id');
+                    showModal(lineId);
+                });
+            }
+
+            function updatePagination() {
+                const pageCount = Math.ceil(filteredData.length / itemsPerPage);
+                $('#pagination').html('');
+                for(let i = 1; i <= pageCount; i++) {
+                    $('#pagination').append(`<li class="page-item"><a class="page-link" href="#">${i}</a></li>`);
+                }
+                $('#pagination .page-link').click(function(e) {
+                    e.preventDefault();
+                    currentPage = parseInt($(this).text());
+                    displayPage(currentPage);
+                });
+            }
+
+            displayPage(currentPage);
+            if (filteredData.length > itemsPerPage) {
+                updatePagination();
+            } else {
+                $('#pagination').hide();
+            }
+        }
+
+        function showModal(lineId) {
+            const line = linesData.find(l => l.id === lineId);
+            $('#modalLineName').text(line.attributes.long_name);
+            $('#modalColorLine').css('background-color', '#' + line.attributes.color);
+            const sameColorLines = linesData.filter(l => l.attributes.color === line.attributes.color).map(l => l.attributes.long_name);
+            $('#sameColorLines').html(sameColorLines.map(name => `<li>${name}</li>`).join(''));
+            
+            // Pie Chart
+            const otherColorsCount = linesData.filter(l => l.attributes.color !== line.attributes.color).length;
+            new Chart(pieCtx, {
+                type: 'pie',
+                data: {
+                    datasets: [{
+                        data: [sameColorLines.length, otherColorsCount],
+                        backgroundColor: ['#' + line.attributes.color, '#cccccc']
+                    }],
+                    labels: ['This Color', 'Other Colors']
+                },
+                options: {
+                    tooltips: {
+                        callbacks: {
+                            label: function(tooltipItem, data) {
+                                const dataset = data.datasets[tooltipItem.datasetIndex];
+                                const total = dataset.data.reduce((acc, current) => acc + current, 0);
+                                const currentValue = dataset.data[tooltipItem.index];
+                                const percentage = ((currentValue/total) * 100).toFixed(2);
+                                return `${data.labels[tooltipItem.index]}: ${percentage}%`;
+                            }
+                        }
+                    }
+                }
+            });
+
+            $('#lineModal').modal('show');
+        }
+    });
+</script>
+
+</body>
+</html>
