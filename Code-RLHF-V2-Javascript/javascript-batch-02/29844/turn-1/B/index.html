@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MBTA Transit Routes Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    #map { height: 600px; width: 100%; }
+    .legend { background: white; padding: 10px; border-radius: 5px; box-shadow: 0 1px 5px rgba(0,0,0,0.4); }
+    .legend div { margin: 5px 0; }
+    .legend span { display: inline-block; width: 20px; height: 20px; margin-right: 5px; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="legend" class="legend"></div>
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    const map = L.map('map').setView([42.3601, -71.0589], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const legend = document.getElementById('legend');
+
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function fetchAndDrawRoutes() {
+        const response = await axios.get('https://api-v3.mbta.com/routes?filter[type]=0,1');
+        const routes = response.data.data;
+
+        for (let route of routes) {
+            await delay(2000); // Delay of 2 seconds
+
+            const stopsResponse = await axios.get(`https://api-v3.mbta.com/stops?filter[route]=${route.id}`);
+            const stops = stopsResponse.data.data;
+
+            const color = route.attributes.color ? `#${route.attributes.color}` : '#000000';
+            const polyline = L.polyline(
+                stops.map(stop => [stop.attributes.latitude, stop.attributes.longitude]), 
+                {color: color}
+            ).addTo(map);
+
+            polyline.bindPopup(`Route: ${route.attributes.long_name}`);
+            
+            // Add stops as markers
+            stops.forEach(stop => {
+                L.circleMarker([stop.attributes.latitude, stop.attributes.longitude], {
+                    radius: 5,
+                    fillColor: color,
+                    color: "#000",
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map).bindPopup(`Stop: ${stop.attributes.name}`);
+            });
+
+            // Add to legend
+            const legendItem = document.createElement('div');
+            legendItem.innerHTML = `<span style="background-color: ${color}"></span> ${route.attributes.long_name}`;
+            legend.appendChild(legendItem);
+        }
+    }
+
+    fetchAndDrawRoutes();
+</script>
+
+</body>
+</html>
