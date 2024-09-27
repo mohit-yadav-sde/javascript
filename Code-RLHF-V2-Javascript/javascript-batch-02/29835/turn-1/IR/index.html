@@ -102,7 +102,9 @@
                 return acc;
             }, {});
 
-            createPieChart('platformTypesChart', 'Platform Types', Object.values(platformTypes), Object.keys(platformTypes));
+            const labels = Object.keys(platformTypes).map(key=> key === "ELEVATED_SUBPLATFORM" ? "Elevated Sub-Platform" : "Fully Elevated Platform")
+
+            createPieChart('platformTypesChart', 'Platform Types', Object.values(platformTypes), labels);
         }
 
         // Create a pie chart
