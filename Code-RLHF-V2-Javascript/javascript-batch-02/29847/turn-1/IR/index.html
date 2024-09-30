@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Belgium Rail Network Widget</title>
+    <!-- External CSS and JS libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Base styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f4f8;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        /* Header styles */
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        /* Select dropdown styles */
+        .select-wrapper {
+            position: relative;
+            margin-bottom: 2rem;
+        }
+        .select-wrapper::after {
+            content: '\25BC';
+            position: absolute;
+            top: 50%;
+            right: 1rem;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+        select {
+            appearance: none;
+            background-color: white;
+            border: 2px solid #3498db;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        select:focus {
+            outline: none;
+            border-color: #2980b9;
+        }
+        
+        /* Map container styles */
+        .map-container {
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Platform grid styles */
+        .platform-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+        .platform-card {
+            background-color: white;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .platform-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* Button styles */
+        .btn {
+            background-color: #3498db;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            transition: background-color 0.3s ease;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        
+        /* Modal styles */
+        .modal-content {
+            background-color: white;
+            border-radius: 0.5rem;
+            padding: 2rem;
+        }
+        .departure-item {
+            background-color: #f8f9fa;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        /* Loading screen styles */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .loading-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Pagination styles */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+        .pagination button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            margin: 0 0.25rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .pagination button:hover {
+            background-color: #2980b9;
+        }
+        .pagination button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="text-3xl font-bold">Belgium Rail Network Widget</h1>
+        </header>
+        <div class="select-wrapper">
+            <select id="stationSelect" class="w-full">
+                <option value="">Select a station</option>
+            </select>
+        </div>
+        <div id="map" class="map-container h-64 mb-4 hidden"></div>
+        <div id="platformGrid" class="platform-grid"></div>
+    </div>
+
+    <!-- Modal for displaying departure details -->
+    <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full" style="z-index: 1000;">
+        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div id="modalContent" class="modal-content"></div>
+            <div class="text-right mt-4">
+                <button id="closeModal" class="btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen hidden">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>Loading data...</p>
+        </div>
+    </div>
+
+    <script>
+        // DOM element references
+        const stationSelect = document.getElementById('stationSelect');
+        const platformGrid = document.getElementById('platformGrid');
+        const modal = document.getElementById('modal');
+        const modalContent = document.getElementById('modalContent');
+        const closeModal = document.getElementById('closeModal');
+        const mapContainer = document.getElementById('map');
+        const loadingScreen = document.getElementById('loadingScreen');
+        
+        // Global variables
+        let map;
+        let currentLiveboard = null;
+        let currentPage = 1;
+        const itemsPerPage = 6;
+        let currentPlatformDepartures = [];
+
+        /**
+         * Fetch all stations from the API
+         * @returns {Promise<Array>} Array of station objects
+         */
+        async function fetchStations() {
+            const response = await fetch('https://api.irail.be/v1/stations/?format=json&lang=en');
+            const data = await response.json();
+            return data.station;
+        }
+
+        /**
+         * Fetch liveboard data for a specific station
+         * @param {string} id - Station ID
+         * @param {string} name - Station name
+         * @returns {Promise<Object>} Liveboard data
+         */
+        async function fetchLiveboard(id, name) {
+            showLoading(); // Show loading screen before fetching data
+            try {
+                const date = new Date();
+                const formattedDate = `${date.getDate().toString().padStart(2, '0')}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getFullYear().toString().slice(-2)}`;
+                const formattedTime = `${date.getHours().toString().padStart(2, '0')}${date.getMinutes().toString().padStart(2, '0')}`;
+                const response = await fetch(`https://api.irail.be/v1/liveboard/?id=${id}&station=${name}&date=${formattedDate}&time=${formattedTime}&arrdep=departure,arrival&lang=en&format=json&alerts=false`);
+                const data = await response.json();
+                return data;
+            } finally {
+                hideLoading(); // Hide loading screen after data is fetched (whether successful or not)
+            }
+        }
+
+        /**
+         * Initialize or update the map with station location
+         * @param {number} lat - Latitude
+         * @param {number} lon - Longitude
+         * @param {string} name - Station name
+         */
+        function initMap(lat, lon, name) {
+            // Check if latitude and longitude are valid numbers
+            if (isNaN(lat) || isNaN(lon)) {
+                console.log("Invalid coordinates. Map will not be displayed.");
+                mapContainer.classList.add('hidden');
+                return;
+            }
+
+            mapContainer.classList.remove('hidden');
+            if (map) {
+                map.remove();
+            }
+            map = L.map('map').setView([lat, lon], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+            L.marker([lat, lon]).addTo(map).bindPopup(name).openPopup();
+        }
+
+        /**
+         * Create platform grid based on liveboard data
+         * @param {Object} liveboard - Liveboard data
+         */
+        function createPlatformGrid(liveboard) {
+            currentLiveboard = liveboard;
+            platformGrid.innerHTML = '';
+            const platforms = new Set(liveboard.departures.departure.map(dep => dep.platform));
+
+            platforms.forEach(platform => {
+                const card = document.createElement('div');
+                card.className = 'platform-card';
+                card.innerHTML = `
+                    <h2 class="text-xl font-bold mb-2">${liveboard.station}</h2>
+                    <p class="text-lg mb-4">Platform: ${platform}</p>
+                    <button class="btn" onclick="showModal('${platform}')">See Details</button>
+                `;
+                platformGrid.appendChild(card);
+            });
+        }
+
+        /**
+         * Display modal with departure details for a specific platform
+         * @param {string} platform - Platform number
+         */
+        function showModal(platform) {
+            if (!currentLiveboard) {
+                console.error("No liveboard data available");
+                return;
+            }
+
+            currentPlatformDepartures = currentLiveboard.departures.departure.filter(dep => dep.platform === platform);
+            const otherDepartures = currentLiveboard.departures.departure.filter(dep => dep.platform !== platform);
+
+            currentPage = 1;
+            updateModalContent(platform);
+
+            const ctx = document.getElementById('departureChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: [`Platform ${platform}`, 'Other Platforms'],
+                    datasets: [{
+                        data: [currentPlatformDepartures.length, otherDepartures.length],
+                        backgroundColor: ['#3498db', '#e74c3c']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Departure Distribution'
+                        }
+                    }
+                }
+            });
+
+            modal.classList.remove('hidden');
+        }
+
+        /**
+         * Update modal content with paginated departures
+         * @param {string} platform - Platform number
+         */
+        function updateModalContent(platform) {
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const displayedDepartures = currentPlatformDepartures.slice(startIndex, endIndex);
+
+            let departureHtml = `<h2 class="text-2xl font-bold mb-4">Departures for Platform ${platform}</h2>`;
+            displayedDepartures.forEach((dep) => {
+                const departureTime = new Date(parseInt(dep.time) * 1000);
+                departureHtml += `
+                    <div class="departure-item">
+                        <p><strong>Name:</strong> ${dep.station}</p>
+                        <p><strong>Time:</strong> ${departureTime.toLocaleTimeString()}</p>
+                        <p><strong>Train:</strong> ${dep.vehicleinfo.shortname}</p>
+                        <p><strong>Platform:</strong> ${dep.platform}</p>
+                    </div>
+                `;
+            });
+
+            if (currentPlatformDepartures.length > itemsPerPage) {
+                departureHtml += `
+                    <div class="pagination">
+                        <button onclick="changePage(-1)" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
+                        <span>Page ${currentPage} of ${Math.ceil(currentPlatformDepartures.length / itemsPerPage)}</span>
+                        <button onclick="changePage(1)" ${endIndex >= currentPlatformDepartures.length ? 'disabled' : ''}>Next</button>
+                    </div>
+                `;
+            }
+
+            departureHtml += '<canvas id="departureChart" class="mt-4"></canvas>';
+
+            modalContent.innerHTML = departureHtml;
+        }
+
+        /**
+         * Change page in modal
+         * @param {number} direction - Direction of page change (-1 for previous, 1 for next)
+         */
+        function changePage(direction) {
+            currentPage += direction;
+            updateModalContent(currentPlatformDepartures[0].platform);
+        }
+
+        /**
+         * Show loading screen
+         */
+        function showLoading() {
+            loadingScreen.classList.remove('hidden');
+        }
+
+        /**
+         * Hide loading screen
+         */
+        function hideLoading() {
+            loadingScreen.classList.add('hidden');
+        }
+
+        /**
+         * Initialize the widget
+         */
+        async function init() {
+            try {
+                showLoading(); // Show loading screen while fetching initial station data
+                // Fetch and populate station options
+                const stations = await fetchStations();
+                stations.forEach(station => {
+                    const option = document.createElement('option');
+                    option.value = station.id;
+                    option.textContent = station.name;
+                    stationSelect.appendChild(option);
+                });
+
+                // Event listener for station selection
+                stationSelect.addEventListener('change', async (e) => {
+                    const selectedStation = stations.find(station => station.id === e.target.value);
+                    if (selectedStation) {
+                        try {
+                            showLoading();
+                            // Fetch liveboard data and update UI
+                            const liveboard = await fetchLiveboard(selectedStation.id, selectedStation.standardname);
+                            initMap(parseFloat(liveboard.stationinfo.locationY), parseFloat(liveboard.stationinfo.locationX), liveboard.station);
+                            createPlatformGrid(liveboard);
+                        } catch (error) {
+                            console.error("Error fetching liveboard:", error);
+                            alert("Failed to fetch liveboard data. Please try again.");
+                        }  finally {
+                            hideLoading(); // Hide loading screen after initialization is complete
+                        }
+                    } else {
+                        // Hide map and clear platform grid when no station is selected
+                        mapContainer.classList.add('hidden');
+                        platformGrid.innerHTML = '';
+                    }
+                });
+            } catch (error) {
+                console.error("Error initializing widget:", error);
+                alert("Failed to initialize the widget. Please refresh the page and try again.");
+            } finally {
+                hideLoading(); // Hide loading screen after initialization is complete
+            }
+        }
+
+        closeModal.onclick = function() {
+            modal.classList.add('hidden');
+        }
+
+        // Start the application
+        init();
+    </script>
+</body>
+</html>

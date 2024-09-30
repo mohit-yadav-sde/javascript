@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Belgium Rail Network Widget</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css"/>
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #f4f4f4; margin: 0; padding: 20px; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        #stationDropdown { margin-bottom: 20px; }
+        #map { height: 200px; margin-bottom: 20px; }
+        .platform-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+        .platform-item { background: #e9ecef; padding: 10px; border-radius: 5px; text-align: center; }
+        .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+        .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
+        .pagination { text-align: center; margin-top: 20px; }
+        .pagination button { margin: 0 5px; }
+        #pieChart { width: 100%; height: 300px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <select id="stationDropdown"></select>
+    <div id="map"></div>
+    <div class="platform-grid" id="platformGrid"></div>
+</div>
+
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modalStationName"></h2>
+        <div id="departuresGrid"></div>
+        <div class="pagination">
+            <button id="prevPage">Previous</button>
+            <button id="nextPage">Next</button>
+        </div>
+        <canvas id="pieChart"></canvas>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+<script>
+$(document).ready(function() {
+    let stations = [];
+    let currentStationId = '';
+    let currentPlatformData = null;
+
+    // Fetch stations
+    $.getJSON('https://api.irail.be/v1/stations/?format=json&lang=en', function(data) {
+        stations = data.station;
+        $.each(stations, function(i, station) {
+            $('#stationDropdown').append($('<option>', { 
+                value: station.id,
+                text : station.standardname 
+            }));
+        });
+    });
+
+    $('#stationDropdown').on('change', function() {
+        const stationId = $(this).val();
+        currentStationId = stationId;
+        const station = stations.find(s => s.id === stationId);
+        if(station) {
+            if(station.locationX && station.locationY) {
+                var map = L.map('map').setView([station.locationY, station.locationX], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+                L.marker([station.locationY, station.locationX]).addTo(map)
+                    .bindPopup(station.standardname).openPopup();
+            } else {
+                $('#map').html('No location data available.');
+            }
+
+            // Fetch platforms
+            const date = new Date();
+            const formattedDate = `${date.getDate()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getFullYear()).slice(-2)}`;
+            const time = `${String(date.getHours()).padStart(2, '0')}${String(date.getMinutes()).padStart(2, '0')}`;
+            $.getJSON(`https://api.irail.be/v1/liveboard/?id=${stationId}&station=${encodeURIComponent(station.standardname)}&date=${formattedDate}&time=${time}&arrdep=departure&lang=en&format=json&alerts=false`, function(platformData) {
+                $('#platformGrid').empty();
+                $.each(platformData.departures.departure, function(i, departure) {
+                    $('#platformGrid').append(`
+                        <div class="platform-item">
+                            <h3>${departure.station}</h3>
+                            <p>Platform: ${departure.platform}</p>
+                            <button onclick="showDetails('${departure.platform}', '${departure.station}', '${departure.vehicle}')">See Details</button>
+                        </div>
+                    `);
+                });
+            });
+        }
+    });
+
+    function showDetails(platform, station, vehicle) {
+        $('#modal').css('display', 'block');
+        $('#modalStationName').text(`${station} - Platform ${platform}`);
+        currentPlatformData = {platform, station, vehicle};
+        loadDepartures(1);
+    }
+
+    function loadDepartures(page = 1) {
+        // Here you would typically implement server-side pagination logic,
+        // but for simplicity, we'll simulate with client-side data handling.
+        // Assume we have all data from the initial call or fetch new if needed.
+        let itemsPerPage = 6;
+        let startIndex = (page - 1) * itemsPerPage;
+        let endIndex = startIndex + itemsPerPage;
+        let departures = currentPlatformData.departures || []; // This should be fetched if not available
+        
+        $('#departuresGrid').empty();
+        departures.slice(startIndex, endIndex).forEach(dep => {
+            $('#departuresGrid').append(`
+                <div>
+                    <p>Name: ${dep.vehicle}</p>
+                    <p>Time: ${dep.time}</p>
+                    <p>Current Station: ${dep.station}</p>
+                </div>
+            `);
+        });
+
+        // Update pagination
+        $('#prevPage').prop('disabled', page === 1);
+        $('#nextPage').prop('disabled', endIndex >= departures.length);
+
+        // Pie Chart
+        let thisPlatformCount = departures.filter(d => d.platform === currentPlatformData.platform).length;
+        let otherPlatformsCount = departures.length - thisPlatformCount;
+        new Chart(document.getElementById('pieChart'), {
+            type: 'pie',
+            data: {
+                labels: ['This Platform', 'Other Platforms'],
+                datasets: [{
+                    data: [thisPlatformCount, otherPlatformsCount],
+                    backgroundColor: ['#36A2EB', '#FF6384']
+                }]
+            }
+        });
+    }
+
+    $('.close, #prevPage, #nextPage').on('click', function() {
+        if($(this).attr('id') === 'nextPage') loadDepartures(2); // Simplification for example
+        else if($(this).attr('id') === 'prevPage') loadDepartures(1); // Simplification for example
+        else $('#modal').css('display', 'none');
+    });
+});
+</script>
+
+</body>
+</html>

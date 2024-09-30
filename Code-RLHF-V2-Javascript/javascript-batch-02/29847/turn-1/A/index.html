@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Belgium Rail Network</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css"/>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        #map { height: 300px; }
+        .grid { display: flex; flex-wrap: wrap; justify-content: space-around; }
+        .grid-item { border: 1px solid #ddd; padding: 10px; margin: 10px; text-align: center; }
+        .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+        .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<select id="stationSelect"></select>
+<div id="map"></div>
+<div class="grid" id="platformGrid"></div>
+
+<div id="detailsModal" class="modal">
+  <div class="modal-content">
+    <span class="close">&times;</span>
+    <div id="departureGrid"></div>
+    <canvas id="departureChart"></canvas>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+<script>
+$(document).ready(function() {
+    let stations = [];
+    const today = new Date();
+    const dateStr = `${today.getDate()}${('0' + (today.getMonth() + 1)).slice(-2)}${today.getFullYear().toString().substr(-2)}`;
+
+    // Fetch stations
+    $.getJSON('https://api.irail.be/v1/stations/?format=json&lang=en', function(data) {
+        stations = data.station;
+        stations.forEach(station => {
+            $('#stationSelect').append($('<option>', {
+                value: station.id,
+                text: station.name
+            }));
+        });
+    });
+
+    $('#stationSelect').on('change', function() {
+        const stationId = this.value;
+        const stationName = $(this).find(":selected").text();
+        $.getJSON(`https://api.irail.be/v1/liveboard/?id=${stationId}&station=${encodeURIComponent(stationName)}&date=${dateStr}&time=${today.getHours()}${today.getMinutes()}&arrdep=departure&lang=en&format=json&alerts=false`, function(data) {
+            let map = L.map('map').setView([0, 0], 13);  // Initialize map
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            $('#platformGrid').empty();
+            data.departures.departure.forEach(departure => {
+                if (departure.stationinfo.locationX && departure.stationinfo.locationY) {
+                    L.marker([departure.stationinfo.locationY, departure.stationinfo.locationX]).addTo(map)
+                        .bindPopup(departure.station).openPopup();
+                }
+                let gridItem = `<div class="grid-item">
+                    <h3>${departure.station}</h3>
+                    <p>Platform: ${departure.platform}</p>
+                    <button onclick="showDetails('${departure.vehicle}', '${departure.platform}', '${departure.time}')">See Details</button>
+                </div>`;
+                $('#platformGrid').append(gridItem);
+            });
+        });
+    });
+
+    window.showDetails = function(vehicle, platform, time) {
+        // Here you would fetch detailed data or simulate it
+        $('#departureGrid').html('Loading...');
+        // Example data for chart
+        let myChart = new Chart($('#departureChart'), {
+            type: 'pie',
+            data: {
+                labels: ['This Platform', 'Other Platforms'],
+                datasets: [{
+                    data: [5, 10],  // Example data
+                    backgroundColor: ['#FF6384', '#36A2EB']
+                }]
+            }
+        });
+        $('#detailsModal').css('display', 'block');
+    };
+
+    $('.close').on('click', function() {
+        $('#detailsModal').css('display', 'none');
+    });
+
+    $(window).on('click', function(event) {
+        if (event.target == $('#detailsModal')[0]) {
+            $('#detailsModal').css('display', 'none');
+        }
+    });
+});
+</script>
+
+</body>
+</html>
