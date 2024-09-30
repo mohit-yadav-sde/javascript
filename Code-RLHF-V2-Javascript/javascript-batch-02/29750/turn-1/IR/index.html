@@ -4,55 +4,85 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scryfall Collection</title>
-    <!-- Including Chart.js for the pie chart and Tailwind for styling -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Poppins', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary': '#4a5568',
+                        'secondary': '#718096',
+                        'accent': '#48bb78',
+                    },
+                },
+            },
+        }
+    </script>
 </head>
-<body class="bg-gray-100"> <!-- Setting background color using Tailwind -->
+<body class="bg-gray-100 font-sans">
+    <nav class="bg-primary text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">Scryfall Collection</h1>
+            <div class="space-x-4">
+                <a href="#" class="hover:text-accent transition">Home</a>
+                <a href="#" class="hover:text-accent transition">About</a>
+                <a href="#" class="hover:text-accent transition">Contact</a>
+            </div>
+        </div>
+    </nav>
 
-    <!-- Grid Container for displaying cards -->
     <div class="container mx-auto p-6">
-        <!-- Heading for the page -->
-        <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">Scryfall Card Collection</h1>
-        <!-- Grid to display cards -->
-        <div id="card-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6"></div>
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-3xl font-bold text-center mb-6 text-primary">Your Magic: The Gathering Collection</h2>
+            <p class="text-center text-gray-600 mb-4">Explore and manage your card collection with ease.</p>
+        </div>
 
-        <!-- Pagination controls with "Previous" and "Next" buttons -->
-        <div class="flex justify-center mt-6">
-            <button id="prev-page" class="bg-blue-500 text-white px-4 py-2 mr-2 rounded disabled:bg-gray-400 hover:bg-blue-600 transition">Previous</button>
-            <button id="next-page" class="bg-blue-500 text-white px-4 py-2 ml-2 rounded hover:bg-blue-600 transition">Next</button>
+        <div id="card-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
+
+        <div class="flex justify-center mt-8">
+            <button id="prev-page" class="bg-secondary text-white px-6 py-2 rounded-l-md hover:bg-opacity-80 transition">Previous</button>
+            <button id="next-page" class="bg-secondary text-white px-6 py-2 rounded-r-md hover:bg-opacity-80 transition">Next</button>
         </div>
     </div>
 
-    <!-- Modal for displaying detailed card information -->
-    <div id="modal" class="fixed inset-0 hidden bg-gray-800 bg-opacity-75 flex justify-center items-center">
-        <!-- Modal content -->
-        <div class="bg-white p-6 rounded-lg max-w-lg w-full h-3/4 overflow-y-auto relative shadow-xl">
-            <!-- Close button for the modal -->
-            <button id="close-modal" class="absolute top-0 right-0 m-4 text-gray-600 hover:text-gray-800">X</button>
-            <!-- Placeholder for modal content (card details) -->
+    <div id="modal" class="fixed inset-0 hidden bg-gray-900 bg-opacity-75 flex justify-center items-center">
+        <div class="bg-white p-6 rounded-lg max-w-2xl w-full h-5/6 overflow-y-auto relative shadow-2xl">
+            <button id="close-modal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
             <div id="modal-content" class="p-2"></div>
-            <!-- Canvas for rendering the pie chart -->
-            <canvas id="legality-chart" class="mt-4"></canvas>
+            <div style="height: 18rem;width: 18rem;" class="mx-auto">
+                <canvas id="legality-chart" class="mt-6"></canvas>
+            </div>
         </div>
     </div>
+
+    <footer class="bg-primary text-white py-4 mt-12">
+        <div class="container mx-auto text-center">
+            <p>&copy; 2024 Scryfall Collection. All rights reserved.</p>
+        </div>
+    </footer>
 
     <script>
-        const apiUrl = 'https://api.scryfall.com/cards/collection';  // Scryfall API URL
-        const pageSize = 8;  // Number of cards to show per page
-        let currentPage = 1;  // Track the current page for pagination
-        let cards = [];  // Array to hold card data
-        let chartInstance = null; // Declaring a variable to store the chart instance globally
+        const apiUrl = 'https://api.scryfall.com/cards/collection';
+        const pageSize = 8;
+        let currentPage = 1;
+        let cards = [];
+        let chartInstance = null;
 
-
-        // Function to fetch cards from the Scryfall API
         async function fetchCards() {
             const response = await fetch(apiUrl, {
-                method: 'POST',  // Using POST method for the request
+                method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',  // Specifying JSON format
+                    'Content-Type': 'application/json',
                 },
-                // Body of the POST request to send the card identifiers
                 body: JSON.stringify({
                     "identifiers": [
                         {"id": "683a5707-cddb-494d-9b41-51b4584ded69"},
@@ -61,83 +91,71 @@
                     ]
                 })
             });
-            const data = await response.json();  // Parse the JSON response
-            cards = data.data;  // Store fetched card data
-            renderGrid();  // Call the function to render the grid
+            const data = await response.json();
+            cards = data.data;
+            renderGrid();
         }
 
-        // Function to render the grid of cards
         function renderGrid() {
-            const grid = document.getElementById('card-grid');  // Get the grid container
-            grid.innerHTML = '';  // Clear any existing grid items
+            const grid = document.getElementById('card-grid');
+            grid.innerHTML = '';
 
-            // Determine the start and end indices for the current page
             const start = (currentPage - 1) * pageSize;
             const end = currentPage * pageSize;
-            const pageCards = cards.slice(start, end);  // Get cards for the current page
+            const pageCards = cards.slice(start, end);
 
-            // Loop through each card and create grid items
             pageCards.forEach(card => {
                 const cardDiv = document.createElement('div');
-                cardDiv.classList.add('bg-white', 'p-4', 'rounded-lg', 'shadow-md', 'hover:shadow-lg', 'transition', 'cursor-pointer');
-                // Set innerHTML for each card's data (image, name, release date, etc.)
+                cardDiv.classList.add('bg-white', 'rounded-lg', 'shadow-lg', 'overflow-hidden', 'transition', 'transform', 'hover:scale-105');
                 cardDiv.innerHTML = `
-                    <img src="${card.image_uris.normal}" alt="${card.name}" class="w-full h-max object-cover rounded-md">
-                    <h2 class="text-xl font-semibold mt-2 text-gray-700">${card.name}</h2>
-                    <p class="text-sm text-gray-600">Release Date: ${card.released_at}</p>
-                    <p class="text-sm text-gray-600">Type: ${card.type_line}</p>
-                    <p class="text-blue-500 mt-2"><a href="${card.scryfall_uri}" target="_blank">View on Scryfall</a></p>
-                    <p class="text-sm text-gray-600">Mana:${card.mana_cost ? card.mana_cost : "{0}"}</p>
-                    <button class="mt-4 bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition see-details-btn">See Details</button>
+                    <img src="${card.image_uris.normal}" alt="${card.name}" class="w-full h-max object-cover">
+                    <div class="p-4">
+                        <h2 class="text-xl font-semibold mb-2 text-primary">${card.name}</h2>
+                        <p class="text-sm text-gray-600">Release: ${card.released_at}</p>
+                        <p class="text-sm text-gray-600">Type: ${card.type_line}</p>
+                        <p class="text-accent mt-2"><a href="${card.scryfall_uri}" target="_blank" class="hover:underline">View on Scryfall</a></p>
+                        <p class="text-sm text-gray-600">Mana: ${card.mana_cost ? card.mana_cost : "{0}"}</p>
+                        <button class="mt-4 bg-accent text-white px-4 py-2 rounded-full hover:bg-opacity-80 transition see-details-btn">See Details</button>
+                    </div>
                 `;
-                // Add click event listener to open the modal when a card is clicked
                 cardDiv.querySelector('.see-details-btn').addEventListener('click', () => openModal(card));
-                grid.appendChild(cardDiv);  // Append the card to the grid
+                grid.appendChild(cardDiv);
             });
 
-            // If there are fewer or equal to 8 cards, hide the pagination buttons
-            const totalItems = cards.length;
-            if (totalItems <= pageSize) {
-                document.getElementById('prev-page').classList.add('hidden');
-                document.getElementById('next-page').classList.add('hidden');
-            } else {
-                document.getElementById('prev-page').classList.remove('hidden');
-                document.getElementById('next-page').classList.remove('hidden');
-            }
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('next-page').disabled = currentPage * pageSize >= cards.length;
         }
 
-        // Function to open the modal and display card details
         function openModal(card) {
-            const modal = document.getElementById('modal');  // Get the modal element
-            const modalContent = document.getElementById('modal-content');  // Get modal content area
-            // Set innerHTML with card details
+            const modal = document.getElementById('modal');
+            const modalContent = document.getElementById('modal-content');
             modalContent.innerHTML = `
-                <img src="${card.image_uris.normal}" alt="${card.name}" class="w-full h-max object-cover rounded-md">
-                <h2 class="text-2xl font-bold mt-4 text-gray-800">${card.name}</h2>
-                <p class="text-sm text-gray-600">Release Date: ${card.released_at}</p>
-                <p class="text-sm text-gray-600">Type: ${card.type_line}</p>
-                <p class="text-sm text-gray-600">Mana Cost: ${card.mana_cost}</p>
-                <p class="text-sm text-gray-600">Oracle Text: ${card.oracle_text}</p>
-                <p class="text-sm text-gray-600">Power: ${card.power || 'N/A'}</p>
-                <p class="text-sm text-gray-600">Toughness: ${card.toughness || 'N/A'}</p>
-                <p class="text-sm text-gray-600">Games: ${card.games.join(', ')}</p>
-                <p class="text-sm text-gray-600">Set: ${card.set_name} - (${card.set_type})</p>
-                <p class="text-sm text-gray-600">Artist: ${card.artist}</p>
-                <p class="text-sm text-gray-600">Price (USD): ${card.prices.usd || 'N/A'}</p>
+                <div class="flex flex-col md:flex-row">
+                    <img src="${card.image_uris.normal}" alt="${card.name}" class="w-full md:w-1/2 h-auto object-cover rounded-lg">
+                    <div class="md:ml-6 mt-4 md:mt-0">
+                        <h2 class="text-2xl font-bold mb-4 text-primary">${card.name}</h2>
+                        <p class="text-sm text-gray-600"><span class="font-semibold">Release Date:</span> ${card.released_at}</p>
+                        <p class="text-sm text-gray-600"><span class="font-semibold">Type:</span> ${card.type_line}</p>
+                        <p class="text-sm text-gray-600"><span class="font-semibold">Mana Cost:</span> ${card.mana_cost}</p>
+                        <p class="text-sm text-gray-600 mt-2"><span class="font-semibold">Oracle Text:</span> ${card.oracle_text}</p>
+                        <p class="text-sm text-gray-600"><span class="font-semibold">Power/Toughness:</span> ${card.power || 'N/A'}/${card.toughness || 'N/A'}</p>
+                        <p class="text-sm text-gray-600"><span class="font-semibold">Games:</span> ${card.games.join(', ')}</p>
+                        <p class="text-sm text-gray-600"><span class="font-semibold">Set:</span> ${card.set_name} (${card.set_type})</p>
+                        <p class="text-sm text-gray-600"><span class="font-semibold">Artist:</span> ${card.artist}</p>
+                        <p class="text-sm text-gray-600"><span class="font-semibold">Price (USD):</span> ${card.prices.usd || 'N/A'}</p>
+                    </div>
+                </div>
             `;
-            modal.classList.remove('hidden');  // Show the modal
+            modal.classList.remove('hidden');
 
-            // Prepare data for pie chart (legal vs not legal)
             const legalities = card.legalities;
             const legalCount = Object.values(legalities).filter(val => val === 'legal').length;
             const notLegalCount = Object.values(legalities).filter(val => val === 'not_legal').length;
 
-            // Destroy existing chart instance if it exists
             if (chartInstance) {
                 chartInstance.destroy();
             }
 
-            // Create and display the pie chart using Chart.js
             const ctx = document.getElementById('legality-chart').getContext('2d');
             chartInstance = new Chart(ctx, {
                 type: 'pie',
@@ -145,36 +163,43 @@
                     labels: ['Legal', 'Not Legal'],
                     datasets: [{
                         data: [legalCount, notLegalCount],
-                        backgroundColor: ['#4CAF50', '#F44336'],  // Set colors for the chart
+                        backgroundColor: ['#48bb78', '#f56565'],
                     }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Card Legality in Different Formats'
+                        }
+                    }
                 }
             });
         }
 
-        // Close the modal when "X" is clicked
         document.getElementById('close-modal').addEventListener('click', () => {
             document.getElementById('modal').classList.add('hidden');
         });
 
-        // Pagination control: go to the previous page
         document.getElementById('prev-page').addEventListener('click', () => {
             if (currentPage > 1) {
-                currentPage--;  // Decrement the current page
-                renderGrid();  // Re-render the grid with new page data
+                currentPage--;
+                renderGrid();
             }
         });
 
-        // Pagination control: go to the next page
         document.getElementById('next-page').addEventListener('click', () => {
             if (currentPage * pageSize < cards.length) {
-                currentPage++;  // Increment the current page
-                renderGrid();  // Re-render the grid with new page data
+                currentPage++;
+                renderGrid();
             }
         });
 
-        // Call fetchCards() to load the cards initially
-        fetchCards();  // Load cards on page load
-
+        fetchCards();
     </script>
 </body>
 </html>
