@@ -61,6 +61,12 @@
             </thead>
             <tbody id="ordersTable" class="divide-y divide-gray-700"></tbody>
           </table>
+          <!-- Pagination controls -->
+          <div class="flex justify-between items-center mt-4">
+            <button id="prevPage" class="px-4 py-2 bg-blue-500 text-white rounded-lg">Previous</button>
+            <span id="pageInfo"></span>
+            <button id="nextPage" class="px-4 py-2 bg-blue-500 text-white rounded-lg">Next</button>
+          </div>
         </div>
       </div>
     </div>
@@ -73,6 +79,13 @@
     // Object to store chart instances
     let charts = {};
     
+    // Pagination variables
+    let currentPage = 1;
+    const rowsPerPage = 10;
+    let bidsData = [];
+    let asksData = [];
+    let currentTab = 'bids'; // Track the current active tab
+
     // Function to fetch order list data from the API
     async function fetchOrderList() {
       const symbol = document.getElementById('symbolInput').value.trim();
@@ -85,8 +98,7 @@
         if (data.bids && data.asks) {
           displayCharts(data);
           document.getElementById('chartsContainer').classList.remove('hidden');
-          document.getElementById('bidsCharts').classList.remove('hidden'); // Show Bids by default
-          document.getElementById('asksCharts').classList.add('hidden'); // Hide Asks
+          showTab('bids'); // Show Bids by default
         } else {
           alert('Invalid symbol or no data available');
         }
@@ -98,18 +110,18 @@
 
     // Function to process and display chart data
     function displayCharts(data) {
-      const bids = data.bids;
-      const asks = data.asks;
+      bidsData = data.bids;
+      asksData = data.asks;
 
       // Extract data for Bids
-      const bidsPx = bids.map(order => order.px);
-      const bidsQty = bids.map(order => order.qty);
-      const bidsNums = bids.map(order => order.num);
+      const bidsPx = bidsData.map(order => order.px);
+      const bidsQty = bidsData.map(order => order.qty);
+      const bidsNums = bidsData.map(order => order.num);
 
       // Extract data for Asks
-      const asksPx = asks.map(order => order.px);
-      const asksQty = asks.map(order => order.qty);
-      const asksNums = asks.map(order => order.num);
+      const asksPx = asksData.map(order => order.px);
+      const asksQty = asksData.map(order => order.qty);
+      const asksNums = asksData.map(order => order.num);
 
       // Create Line Charts
       createLineChart('bidsLineChart', bidsPx, bidsQty, 'Bids Price vs Quantity', 'rgb(54, 162, 235)');
@@ -120,7 +132,7 @@
       createPieChart('asksPieChart', asksPx, asksNums, 'Asks Price Distribution');
 
       // Display data in table
-      displayTable(bids, asks);
+      displayTable();
     }
 
     // Function to create a line chart
@@ -148,7 +160,22 @@
         options: {
           scales: {
             y: {
-              beginAtZero: false, // Allow automatic scaling without forcing it to start at 0
+              beginAtZero: false,
+              ticks: {
+                color: 'white' // Set y-axis label color to white
+              }
+            },
+            x: {
+              ticks: {
+                color: 'white' // Set x-axis label color to white
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: 'white' // Set legend text color to white
+              }
             }
           }
         }
@@ -174,17 +201,31 @@
             data: data,
             backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
           }]
+        },
+        options: {
+          plugins: {
+            legend: {
+              labels: {
+                color: 'white' // Set legend text color to white
+              }
+            }
+          }
         }
       });
     }
 
     // Function to display order data in the table
-    function displayTable(bids, asks) {
+    function displayTable() {
       const tableBody = document.getElementById('ordersTable');
       tableBody.innerHTML = ''; // Clear previous rows
 
-      // Add bid data to the table
-      bids.forEach(order => {
+      const data = currentTab === 'bids' ? bidsData : asksData;
+      const startIndex = (currentPage - 1) * rowsPerPage;
+      const endIndex = startIndex + rowsPerPage;
+      const pageData = data.slice(startIndex, endIndex);
+
+      // Add data to the table
+      pageData.forEach(order => {
         tableBody.innerHTML += `
           <tr>
             <td class="py-3 px-6">${order.px}</td>
@@ -192,18 +233,57 @@
             <td class="py-3 px-6">${order.num}</td>
           </tr>`;
       });
+
+      updatePaginationControls();
     }
 
-    // Event listeners for tab switching
-    document.getElementById('bidsTab').addEventListener('click', () => {
-      document.getElementById('bidsCharts').classList.remove('hidden');
-      document.getElementById('asksCharts').classList.add('hidden');
+    // Function to update pagination controls
+    function updatePaginationControls() {
+      const data = currentTab === 'bids' ? bidsData : asksData;
+      const totalPages = Math.ceil(data.length / rowsPerPage);
+      document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+      document.getElementById('prevPage').disabled = currentPage === 1;
+      document.getElementById('nextPage').disabled = currentPage === totalPages;
+    }
+
+    // Function to show the selected tab
+    function showTab(tab) {
+      currentTab = tab;
+      currentPage = 1; // Reset to first page when switching tabs
+      if (tab === 'bids') {
+        document.getElementById('bidsCharts').classList.remove('hidden');
+        document.getElementById('asksCharts').classList.add('hidden');
+        document.getElementById('bidsTab').classList.add('bg-blue-700');
+        document.getElementById('asksTab').classList.remove('bg-red-700');
+      } else {
+        document.getElementById('asksCharts').classList.remove('hidden');
+        document.getElementById('bidsCharts').classList.add('hidden');
+        document.getElementById('asksTab').classList.add('bg-red-700');
+        document.getElementById('bidsTab').classList.remove('bg-blue-700');
+      }
+      displayTable();
+    }
+
+    // Event listeners for pagination
+    document.getElementById('prevPage').addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        displayTable();
+      }
     });
 
-    document.getElementById('asksTab').addEventListener('click', () => {
-      document.getElementById('asksCharts').classList.remove('hidden');
-      document.getElementById('bidsCharts').classList.add('hidden');
+    document.getElementById('nextPage').addEventListener('click', () => {
+      const data = currentTab === 'bids' ? bidsData : asksData;
+      const totalPages = Math.ceil(data.length / rowsPerPage);
+      if (currentPage < totalPages) {
+        currentPage++;
+        displayTable();
+      }
     });
+
+    // Event listeners for tab switching
+    document.getElementById('bidsTab').addEventListener('click', () => showTab('bids'));
+    document.getElementById('asksTab').addEventListener('click', () => showTab('asks'));
 
   </script>
 </body>
